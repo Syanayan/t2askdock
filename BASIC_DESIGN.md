@@ -1,4 +1,4 @@
-# 基本設計書 v0.2
+# 基本設計書 v0.3
 ## VS Code拡張機能：オフライン共有タスク管理ツール
 
 - 作成日: 2026-04-25
@@ -90,6 +90,8 @@
   - `projectId`, `name`, `description`, `archived`, `createdAt`, `updatedAt`
 - `Task`
   - `taskId`, `projectId`, `title`, `description`, `status`, `priority`, `assignee`, `dueDate`, `tags`, `parentTaskId`, `createdBy`, `updatedBy`, `createdAt`, `updatedAt`, `version`
+- `Comment`
+  - `commentId`, `taskId`, `body`, `createdBy`, `updatedBy`, `createdAt`, `updatedAt`, `version`, `deletedAt`
 - `ProjectPermissionGrant`
   - `grantId`, `projectId`, `userId`, `canEdit`, `grantedBy`, `grantedAt`, `revokedAt`
 - `AuditLog`
@@ -99,7 +101,7 @@
 - `BackupSnapshot`
   - `snapshotId`, `profileId`, `createdAt`, `generation`, `checksum`
 
-> 注記: `Comment` は要求仕様FRに明記されていないため、**Phase 1では実装対象外**とする。将来拡張候補として設計メモにのみ保持する。
+> 注記: 要求仕様（利用者要件）に「一般ユーザーのコメント追加」が含まれるため、`Comment` は **Phase 1の実装対象** とする。
 
 ### 3.2 値オブジェクト
 
@@ -131,6 +133,7 @@
 - `projects`
 - `tasks`
 - `task_tags`
+- `comments`
 - `project_permissions`
 - `audit_logs`
 - `audit_log_archive`
@@ -207,6 +210,10 @@
 - `DeleteTaskUseCase`
 - `CloneTaskUseCase`
 - `MoveTaskStatusUseCase`（Board D&D）
+- `AddTaskCommentUseCase`
+- `UpdateTaskCommentUseCase`
+- `DeleteTaskCommentUseCase`（論理削除）
+- `ListTaskCommentsUseCase`
 
 ### 5.2 表示/検索
 
@@ -286,6 +293,7 @@
 2. **Board View**
    - ステータス列カンバン
    - D&D時は `MoveTaskStatusUseCase` 呼び出し
+   - 右ペインに選択タスクのコメントスレッドを表示
 3. **鍵管理画面（管理者のみ）**
    - 発行、失効、再発行、期限設定
 4. **権限管理画面（管理者のみ）**
@@ -462,4 +470,3 @@ interface ConnectorProvider {
 3. SMB/NFSごとのサポートマトリクス（推奨/非推奨構成）
 4. 監査アーカイブの実装方式（同一DB/別ファイル）
 5. Board UI実装方式（Webview vs TreeDataProvider併用）
-
