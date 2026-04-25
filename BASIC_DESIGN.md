@@ -154,6 +154,7 @@
   - `idx_tasks_updated_at(updated_at)`
   - `idx_tasks_project_updated(project_id, updated_at)`
 - 楽観ロック: `version INTEGER NOT NULL`
+- タグ制約: `task_tags` は `lower(trim(tag))` ベースで重複禁止（case-insensitive）
 
 #### project_permissions
 - 主キー: `grant_id`
@@ -171,6 +172,7 @@
   - `expires_at`, `revoked_at`, `issued_by`, `issued_for`, `issued_at`
 - 制約:
   - `revoked_at IS NULL` かつ `expires_at > now` のみ有効
+  - `db_profiles` と `profile_key_wrappers` で DEKラップ情報を管理し、失効時はwrapperを無効化
 
 #### audit_logs
 - 保持項目:
@@ -186,6 +188,7 @@
 - 90日超データ: `audit_log_archive`へ日次バッチ移送（圧縮JSON+月単位パーティション）。
 - 管理者UIで期間検索（既定: 30/90/180日）と対象絞り込みを提供。
 - 削除ポリシー: 監査ログの物理削除は管理者でも不可、アーカイブのみ。
+- アーカイブ保持: `audit_log_archive` は7年保持を既定とし、法令保持対象外のみ段階削除可能。
 
 ### 4.4 マイグレーション方針
 
@@ -356,6 +359,7 @@
 4. 連続失敗閾値超過で自動的にreadOnlyへ降格
 5. ユーザーへ再接続案内と競合復旧ガイドを提示
 6. 重要操作前に自動スナップショットを取得
+7. 判定閾値（RTT/失敗回数）は既定値を持ち、環境別チューニング可能にする
 
 ### 8.2 同時編集制御
 
@@ -396,6 +400,9 @@ interface ConnectorProvider {
 - 競合時:
   - Local優先 / External優先 / Manual Merge を選択
   - 同期ログと監査ログの両方に記録
+- 機能フラグ適用順序:
+  - global → profile → user の順で上書き評価
+  - 未定義は安全側（無効）として扱う
 
 ### 9.3 拡張原則
 

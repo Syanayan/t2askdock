@@ -133,6 +133,7 @@ interface Comment {
 - `title`: 1〜200文字、前後空白除去後に判定
 - `description`: 0〜5000文字
 - `tags`: 1要素あたり1〜32文字、最大20個、重複不可（case-insensitive）
+- `tags`: 保存時に `tag_norm = lower(trim(tag))` を生成し、`task_id + tag_norm` で重複禁止
 - `dueDate`: `YYYY-MM-DD` 形式、1900-01-01〜2100-12-31
 - `version`: 1以上（新規作成時は1）
 - `comment.body`: 1〜4000文字、改行可、Markdown許容（scriptタグは保存時除去）
@@ -369,8 +370,10 @@ CREATE TABLE tasks (
 CREATE TABLE task_tags (
   task_id TEXT NOT NULL REFERENCES tasks(task_id) ON DELETE CASCADE,
   tag TEXT NOT NULL,
+  tag_norm TEXT NOT NULL,
   created_at TEXT NOT NULL,
-  PRIMARY KEY(task_id, tag)
+  PRIMARY KEY(task_id, tag),
+  UNIQUE(task_id, tag_norm)
 );
 
 CREATE TABLE comments (
@@ -419,6 +422,8 @@ CREATE TABLE db_profiles (
   mode TEXT NOT NULL CHECK(mode IN ('readWrite','readOnly')),
   is_default INTEGER NOT NULL DEFAULT 0,
   last_connected_at TEXT,
+  key_schema_version INTEGER NOT NULL DEFAULT 1,
+  active_kek_version INTEGER NOT NULL DEFAULT 1,
   encrypted_dek BLOB NOT NULL,
   dek_wrap_salt TEXT NOT NULL
 );
@@ -428,6 +433,8 @@ CREATE TABLE profile_key_wrappers (
   key_id TEXT NOT NULL REFERENCES access_keys(key_id) ON DELETE CASCADE,
   encrypted_dek BLOB NOT NULL,
   wrap_salt TEXT NOT NULL,
+  kek_version INTEGER NOT NULL,
+  wrapper_status TEXT NOT NULL CHECK(wrapper_status IN ('active','revoked','rotating')),
   created_at TEXT NOT NULL,
   revoked_at TEXT,
   PRIMARY KEY(profile_id, key_id)
@@ -491,6 +498,26 @@ WHEN (
 BEGIN
   SELECT RAISE(ABORT, 'E_TAG_LIMIT_EXCEEDED');
 END;
+
+CREATE TRIGGER trg_task_tags_norm_insert
+BEFORE INSERT ON task_tags
+FOR EACH ROW
+BEGIN
+  SELECT CASE
+    WHEN NEW.tag_norm != LOWER(TRIM(NEW.tag))
+      THEN RAISE(ABORT, 'E_TAG_NORMALIZATION_REQUIRED')
+  END;
+END;
+
+CREATE TRIGGER trg_task_tags_norm_update
+BEFORE UPDATE OF tag, tag_norm ON task_tags
+FOR EACH ROW
+BEGIN
+  SELECT CASE
+    WHEN NEW.tag_norm != LOWER(TRIM(NEW.tag))
+      THEN RAISE(ABORT, 'E_TAG_NORMALIZATION_REQUIRED')
+  END;
+END;
 ```
 
 ### 5.2 インデックス
@@ -501,12 +528,14 @@ CREATE INDEX idx_tasks_assignee ON tasks(assignee);
 CREATE INDEX idx_tasks_due_date ON tasks(due_date);
 CREATE INDEX idx_tasks_updated_at ON tasks(updated_at DESC);
 CREATE INDEX idx_tasks_project_updated ON tasks(project_id, updated_at DESC);
+CREATE INDEX idx_task_tags_norm ON task_tags(tag_norm);
 CREATE INDEX idx_comments_task_created ON comments(task_id, created_at ASC);
 CREATE INDEX idx_comments_author_created ON comments(created_by, created_at DESC);
 CREATE INDEX idx_audit_created_at ON audit_logs(created_at DESC);
 CREATE INDEX idx_audit_actor_created ON audit_logs(actor_id, created_at DESC);
 CREATE INDEX idx_audit_target_created ON audit_logs(target_type, target_id, created_at DESC);
 CREATE INDEX idx_backup_profile_created ON backup_snapshots(profile_id, created_at DESC);
+CREATE INDEX idx_profile_key_wrapper_status ON profile_key_wrappers(profile_id, wrapper_status, kek_version);
 CREATE INDEX idx_flags_scope ON feature_flags(scope_type, scope_id);
 CREATE INDEX idx_connector_profile ON connector_settings(profile_id, connector_id);
 ```
@@ -521,6 +550,7 @@ CREATE INDEX idx_connector_profile ON connector_settings(profile_id, connector_i
 - `ProjectPermissionRepository.revoke(grantId, revokedAt, revokedBy)`
   - 物理削除せず失効更新のみ。履歴は永続保持。
 - タグ上限20件は `trg_task_tags_limit_insert` とアプリ側バリデーションの二重防御で担保
+- `TaskTagRepository` は `tag_norm` を必ず `lower(trim(tag))` で保存（不一致は `E_TAG_NORMALIZATION_REQUIRED`）
 - すべての更新系Repositoryは `TransactionManager.runInTx` 内で実行
 - `AuditLogRepository.append` は業務更新と同一トランザクションでコミット
 
@@ -593,6 +623,21 @@ CREATE INDEX idx_connector_profile ON connector_settings(profile_id, connector_i
   - 既存セッションは即時 `AUTH_EXPIRED` 状態へ遷移
   - 変更系UseCaseを拒否し、再認証ダイアログを強制表示
 
+### 6.1.5 `db_profiles` / `profile_key_wrappers` 鍵フロー整理
+
+| フェーズ | `db_profiles` | `profile_key_wrappers` | 備考 |
+|---|---|---|---|
+| 初期作成 | `encrypted_dek` / `dek_wrap_salt` / `active_kek_version=1` を設定 | 管理者キー向け `wrapper_status=active`, `kek_version=1` を作成 | 最低1件のactive wrapper必須 |
+| キー追加 | 変更なし | 新規 `key_id` で active wrapper追加 | 追加後に復号テスト必須 |
+| キー失効 | 変更なし | 対象wrapperを `revoked` + `revoked_at` 設定 | 既存セッションは強制失効 |
+| KEKローテーション | `active_kek_version` を +1 | 全active wrapperを `rotating` → 新versionで再作成後active化 | 旧version wrapperは段階的revoked |
+| 緊急失効(漏えい) | 必要なら `key_schema_version` を更新 | 全wrapper再発行（旧wrapper全revoked） | 必要時にDEK再生成も許可 |
+
+- 不変条件:
+  1. 各 `profile_id` に active wrapper が常に1件以上存在
+  2. `db_profiles.active_kek_version` と active wrapper の `kek_version` は一致
+  3. `wrapper_status=revoked` は復帰不可（再利用禁止）
+
 ## 6.2 NetworkFS Safety Guard
 
 - 起動時チェック
@@ -603,6 +648,13 @@ CREATE INDEX idx_connector_profile ON connector_settings(profile_id, connector_i
   - `HEALTHY`: 平均RTT <= 80ms かつ ロック診断失敗0回
   - `DEGRADED`: 平均RTT 81〜250ms または ロック診断失敗1回
   - `UNSAFE`: 平均RTT > 250ms または ロック診断失敗2回以上
+
+### 6.2.1 判定値の設計注釈
+
+- 上記RTT閾値は「LAN内NAS運用」を想定した初期値。
+- WAN越え/高遅延VPN環境では `networkfs.thresholdProfile` 設定で上書き可能にする。
+- しきい値変更時も「ロック診断失敗2回以上でUNSAFE」は固定（破損回避優先）。
+- 運用時は `CONNECTION_HEALTH_CHANGED` 監査イベントから実測分布を収集し、四半期ごとに閾値見直しを行う。
 
 ## 6.3 Retry/障害制御
 
@@ -743,6 +795,21 @@ CREATE INDEX idx_connector_profile ON connector_settings(profile_id, connector_i
 4. 無効/不正設定Providerは初期化スキップし `CONNECTOR_SETTINGS_UPDATED` を監査記録
 5. 同期実行は `sync_policy=manual` の場合のみコマンド起動で実行
 
+### 8.5.1 Feature Flag評価順序
+
+1. `scope_type=global` を初期値として評価
+2. `scope_type=profile` が存在すれば上書き
+3. `scope_type=user` が存在すれば最終上書き
+4. 未定義フラグは安全側（false）で評価
+
+### 8.5.2 Connector設定更新トランザクション
+
+1. `UpdateConnectorSettingUseCase` で入力スキーマ検証
+2. `validateConfig()` で外部設定の整合性検証
+3. 成功時のみ `connector_settings` をupsert
+4. 失敗時はDB更新をロールバックし、旧設定を維持
+5. 更新成功時に `FEATURE_FLAG_UPDATED` / `CONNECTOR_SETTINGS_UPDATED` を監査記録
+
 ## 8.6 ConnectorProvider詳細契約
 
 ```ts
@@ -809,6 +876,8 @@ interface ConnectorProvider {
 - `MIGRATION_FAILED`
 - `AUDIT_ARCHIVED`
 - `AUDIT_ARCHIVE_FAILED`
+- `AUDIT_ARCHIVE_PURGE_REQUESTED`
+- `AUDIT_ARCHIVE_PURGED`
 - `FEATURE_FLAG_UPDATED`
 - `CONNECTOR_SETTINGS_UPDATED`
 
@@ -835,6 +904,20 @@ interface ConnectorProvider {
 - 応答時間対策:
   - 1回の検索で展開するアーカイブは最大6か月分
   - 超過時は月単位ページングをUIで要求
+
+## 10.4 アーカイブ保持/削除ポリシー
+
+- 保持期間:
+  - `audit_logs`: 直近90日（オンライン）
+  - `audit_log_archive`: 90日超〜7年
+- 削除条件:
+  - 7年超過かつ `legal_hold` 対象外のみ削除候補
+  - 削除は管理者手動ジョブ + 二段階確認（dry-run → execute）
+- 削除監査:
+  - 削除前に対象件数/期間を `AUDIT_ARCHIVE_PURGE_REQUESTED` として記録
+  - 削除完了後に `AUDIT_ARCHIVE_PURGED` として記録
+- 失敗時:
+  - データ削除はロールバックし `E_AUDIT_ARCHIVE_FAILED` を返却
 
 ---
 
