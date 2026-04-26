@@ -1,4 +1,4 @@
-# 基本設計書 v0.2
+# 基本設計書 v0.3
 ## VS Code拡張機能：オフライン共有タスク管理ツール
 
 - 作成日: 2026-04-25
@@ -90,6 +90,8 @@
   - `projectId`, `name`, `description`, `archived`, `createdAt`, `updatedAt`
 - `Task`
   - `taskId`, `projectId`, `title`, `description`, `status`, `priority`, `assignee`, `dueDate`, `tags`, `parentTaskId`, `createdBy`, `updatedBy`, `createdAt`, `updatedAt`, `version`
+- `Comment`
+  - `commentId`, `taskId`, `body`, `createdBy`, `updatedBy`, `createdAt`, `updatedAt`, `version`, `deletedAt`
 - `ProjectPermissionGrant`
   - `grantId`, `projectId`, `userId`, `canEdit`, `grantedBy`, `grantedAt`, `revokedAt`
 - `AuditLog`
@@ -99,7 +101,7 @@
 - `BackupSnapshot`
   - `snapshotId`, `profileId`, `createdAt`, `generation`, `checksum`
 
-> 注記: `Comment` は要求仕様FRに明記されていないため、**Phase 1では実装対象外**とする。将来拡張候補として設計メモにのみ保持する。
+> 注記: 要求仕様（利用者要件）に「一般ユーザーのコメント追加」が含まれるため、`Comment` は **Phase 1の実装対象** とする。
 
 ### 3.2 値オブジェクト
 
@@ -131,6 +133,7 @@
 - `projects`
 - `tasks`
 - `task_tags`
+- `comments`
 - `project_permissions`
 - `audit_logs`
 - `audit_log_archive`
@@ -151,6 +154,7 @@
   - `idx_tasks_updated_at(updated_at)`
   - `idx_tasks_project_updated(project_id, updated_at)`
 - 楽観ロック: `version INTEGER NOT NULL`
+- タグ制約: `task_tags` は `lower(trim(tag))` ベースで重複禁止（case-insensitive）
 
 #### project_permissions
 - 主キー: `grant_id`
@@ -158,6 +162,7 @@
   - `project_id`, `user_id`, `can_edit`, `granted_by`, `granted_at`, `revoked_at`
 - 制約:
   - `UNIQUE(project_id, user_id, revoked_at)`（同時有効grant重複防止）
+  - `expires_at` 到達時は定期ジョブで自動失効（`revoked_at` 更新）
 - インデックス:
   - `idx_perm_project_user(project_id, user_id)`
   - `idx_perm_active(user_id, revoked_at)`
@@ -168,6 +173,7 @@
   - `expires_at`, `revoked_at`, `issued_by`, `issued_for`, `issued_at`
 - 制約:
   - `revoked_at IS NULL` かつ `expires_at > now` のみ有効
+  - `db_profiles` と `profile_key_wrappers` で DEKラップ情報を管理し、失効時はwrapperを無効化
 
 #### audit_logs
 - 保持項目:
@@ -183,6 +189,7 @@
 - 90日超データ: `audit_log_archive`へ日次バッチ移送（圧縮JSON+月単位パーティション）。
 - 管理者UIで期間検索（既定: 30/90/180日）と対象絞り込みを提供。
 - 削除ポリシー: 監査ログの物理削除は管理者でも不可、アーカイブのみ。
+- アーカイブ保持: `audit_log_archive` は7年保持を既定とし、法令保持対象外のみ段階削除可能。
 
 ### 4.4 マイグレーション方針
 
@@ -207,6 +214,10 @@
 - `DeleteTaskUseCase`
 - `CloneTaskUseCase`
 - `MoveTaskStatusUseCase`（Board D&D）
+- `AddTaskCommentUseCase`
+- `UpdateTaskCommentUseCase`
+- `DeleteTaskCommentUseCase`（論理削除）
+- `ListTaskCommentsUseCase`
 
 ### 5.2 表示/検索
 
@@ -250,6 +261,7 @@
 - `WriteAuditLogUseCase`
 - `SearchAuditLogsUseCase`
 - `RunAuditArchiveUseCase`（日次）
+- `PurgeAuditArchiveUseCase`（管理者のみ、dry-run必須）
 - `CreateBackupSnapshotUseCase`（管理者のみ）
 - `RestoreBackupSnapshotUseCase`（管理者のみ）
 
@@ -286,6 +298,7 @@
 2. **Board View**
    - ステータス列カンバン
    - D&D時は `MoveTaskStatusUseCase` 呼び出し
+   - 右ペインに選択タスクのコメントスレッドを表示
 3. **鍵管理画面（管理者のみ）**
    - 発行、失効、再発行、期限設定
 4. **権限管理画面（管理者のみ）**
@@ -297,6 +310,8 @@
 7. **競合解決ダイアログ**
    - 差分（項目/更新者/更新時刻）表示
    - 解決方式選択
+8. **監査アーカイブ管理（管理者のみ）**
+   - 期間指定のdry-run削除と実削除（2段階確認）
 
 ### 6.3 DB切替の操作フロー
 
@@ -348,6 +363,7 @@
 4. 連続失敗閾値超過で自動的にreadOnlyへ降格
 5. ユーザーへ再接続案内と競合復旧ガイドを提示
 6. 重要操作前に自動スナップショットを取得
+7. 判定閾値（RTT/失敗回数）は既定値を持ち、環境別チューニング可能にする
 
 ### 8.2 同時編集制御
 
@@ -388,6 +404,11 @@ interface ConnectorProvider {
 - 競合時:
   - Local優先 / External優先 / Manual Merge を選択
   - 同期ログと監査ログの両方に記録
+- 機能フラグ適用順序:
+  - global → profile → user の順で上書き評価
+  - 未定義は安全側（無効）として扱う
+- `secret_ref` 運用:
+  - `connector_settings` には参照IDのみ保持し、実シークレットはSecretStorageから解決する
 
 ### 9.3 拡張原則
 
@@ -462,4 +483,3 @@ interface ConnectorProvider {
 3. SMB/NFSごとのサポートマトリクス（推奨/非推奨構成）
 4. 監査アーカイブの実装方式（同一DB/別ファイル）
 5. Board UI実装方式（Webview vs TreeDataProvider併用）
-
