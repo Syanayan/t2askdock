@@ -40,9 +40,11 @@
 - [ ] AuthenticateAccessKeyUseCase（Argon2id照合/DEK復号）
 - [ ] キー管理UseCase（Issue/Revoke/Reissue）
 - [ ] RotateConnectorSecretUseCase
+- [ ] SetFeatureFlagUseCase（scope: global/profile/user）
 - [ ] 権限UseCase（GrantProjectEditPermission/ExpirySweep）
 - [ ] DB接続UseCase（SwitchDatabaseProfile/SetReadOnlyMode）
 - [ ] SessionLifecycle / authToken 管理（TTL/アイドル失効/強制失効）
+- [ ] Connector設定更新UseCase群との連動確認（feature flag評価順序を含む）
 
 ## フェーズ5: UI統合
 - [ ] VS Codeコマンド登録（open/select/create/toggle）
@@ -52,6 +54,8 @@
 - [ ] StatusBarController（DB/Mode/Health）
 - [ ] AuditArchiveSearch UI
 - [ ] PurgeAuditArchiveUseCase UI（dry-run→実行導線）
+- [ ] Feature Flag管理UI（更新/スコープ表示/反映確認）
+- [ ] Connector UI連動（有効/無効、設定検証結果、secret_ref不整合時表示）
 
 ## フェーズ6: 競合・安全性
 - [ ] DetectTaskConflictUseCase
