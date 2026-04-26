@@ -1,0 +1,73 @@
+# 実装計画（TDD）
+
+## 目的
+詳細設計書（`DETAILED_DESIGN.md`）を実装可能なタスクへ分解し、Red→Green→Refactorで段階的に進める。
+
+---
+
+## フェーズ0: 開発基盤
+- [ ] ディレクトリ骨格を作成（`core / infra / ui`）
+- [ ] テスト実行基盤（unit/integration）を整備
+- [ ] DIの最小構成を用意（UI→UseCase注入）
+- [ ] エラーコード共通定義（`E_*`）
+
+## フェーズ1: ドメイン実装
+- [ ] ValueObject（ULID/Title/DueDate/Tag/Version）
+- [ ] Entity（User/Task/Comment）
+- [ ] バリデーション（title, tags, dueDate, comment body）
+- [ ] Domain Service（AuthorizeTaskEditPolicy / ConflictDetector / AccessKeyPolicy）
+
+## フェーズ2: 永続化（SQLite）
+- [ ] 初期マイグレーション（DDL + Index + Trigger）
+- [ ] TransactionManager実装
+- [ ] Repository実装（Task/Comment/Permission/Audit）
+- [ ] 楽観ロック更新（`updateWithVersion`）
+- [ ] マイグレーション実行アルゴリズム（失敗時RO復帰）
+
+## フェーズ3: コアユースケース
+- [ ] CreateTaskUseCase
+- [ ] UpdateTaskUseCase
+- [ ] MoveTaskStatusUseCase（UpdateTask再利用）
+- [ ] コメント系UseCase（追加/更新/削除/一覧）
+- [ ] 監査ログ同一Tx記録
+
+## フェーズ4: 認証・権限・プロファイル
+- [ ] AuthenticateAccessKeyUseCase（Argon2id照合/DEK復号）
+- [ ] キー管理UseCase（Issue/Revoke/Reissue）
+- [ ] 権限UseCase（GrantProjectEditPermission/ExpirySweep）
+- [ ] DB接続UseCase（SwitchDatabaseProfile/SetReadOnlyMode）
+
+## フェーズ5: UI統合
+- [ ] VS Codeコマンド登録（open/select/create/toggle）
+- [ ] TreeViewProvider（遅延ロード）
+- [ ] BoardWebviewPanel（D&Dでステータス更新）
+- [ ] CommentThreadPanel
+- [ ] StatusBarController（DB/Mode/Health）
+
+## フェーズ6: 競合・安全性
+- [ ] DetectTaskConflictUseCase
+- [ ] ResolveTaskConflictUseCase（LOCAL/REMOTE/MANUAL）
+- [ ] NetworkFS Safety Guard（ロック診断/RTT判定）
+- [ ] リトライ制御（SQLITE_BUSY/IOERR）
+
+## フェーズ7: バックアップ・監査運用
+- [ ] バックアップ（手動/日次/重要操作前）
+- [ ] RestoreBackupSnapshotUseCase
+- [ ] 監査アーカイブ（日次圧縮/移送）
+- [ ] PurgeAuditArchiveUseCase（dry-run必須）
+
+---
+
+## TDD運用ルール（各タスク共通）
+1. **Red**: 失敗するテストを先に作成（正常系1 + 異常系）
+2. **Green**: 最小実装でテストを通す
+3. **Refactor**: 重複排除・責務整理・命名改善
+
+## 着手順（最小縦切り）
+1. フェーズ0
+2. フェーズ1（Task/Tag/Version中心）
+3. フェーズ2（tasks/comments/audit_logs + Tx）
+4. フェーズ3（Create/Update/MoveStatus）
+5. フェーズ5（Tree/Board最小表示）
+
+上記完了時点で「作成→表示→更新→監査記録」の最小動線を確認できる。
