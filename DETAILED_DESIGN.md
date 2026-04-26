@@ -264,6 +264,32 @@ interface UseCaseResult<T> {
 - 失敗時監査:
   - `AUTH_FAILED` を記録（理由コード付き）
 
+#### IssueAccessKeyUseCase
+- 管理者限定
+- 入力: `ownerType(user|device)`, `issuedFor`, `expiresAt?`
+- 処理:
+  1. ランダムキー生成（平文は表示時のみ）
+  2. `access_keys` に `key_hash + key_salt` で保存
+  3. 対象 `profile_id` ごとに `profile_key_wrappers` を active で作成
+  4. 監査ログ `ACCESS_KEY_ISSUED`
+
+#### RevokeAccessKeyUseCase
+- 管理者限定
+- 入力: `keyId`, `reasonCode`
+- 処理:
+  1. `access_keys.revoked_at` 更新
+  2. 対応する `profile_key_wrappers.wrapper_status = revoked`
+  3. 当該キー由来セッションを強制失効
+  4. 監査ログ `ACCESS_KEY_REVOKED`
+
+#### ReissueAccessKeyUseCase
+- 管理者限定
+- 入力: `oldKeyId`, `ownerType`, `issuedFor`, `expiresAt?`
+- 処理:
+  1. `RevokeAccessKeyUseCase` を実行
+  2. `IssueAccessKeyUseCase` で新キー発行
+  3. 監査ログ `ACCESS_KEY_REISSUED`
+
 #### GrantProjectEditPermissionUseCase
 - 管理者限定
 - 入力: `projectId`, `userId`, `canEdit`
@@ -271,6 +297,13 @@ interface UseCaseResult<T> {
 - 失効仕様:
   - 取り消しは `revoked_at` 更新のみ（履歴保持）
   - 期限付き許可は `expires_at` 到達で自動失効扱い
+
+#### RunPermissionExpirySweepUseCase
+- 実行契機: 起動時 + 1日1回（管理者セッション時）
+- 処理:
+  1. `expires_at < now AND revoked_at IS NULL` を抽出
+  2. `revoked_at = now` を一括更新
+  3. 失効件数を監査ログ `PROJECT_PERMISSION_EXPIRED` で記録
 
 ### 4.4 DBプロファイル/接続系
 
@@ -319,6 +352,34 @@ interface UseCaseResult<T> {
 - 入力: `connectorId`, `profileId`, `enabled`, `authType`, `settingsJson`, `syncPolicy`
 - `ConnectorProvider.validateConfig` に成功した場合のみ保存
 - 監査ログ: `CONNECTOR_SETTINGS_UPDATED`
+
+#### RotateConnectorSecretUseCase
+- 管理者限定
+- 入力: `connectorId`, `profileId`, `secretRef`
+- 処理:
+  1. `secretRef` がSecretStorageに存在することを検証
+  2. `connector_settings.secret_ref` を更新
+  3. 監査ログ `CONNECTOR_SECRET_ROTATED`
+
+### 4.7 バックアップ/アーカイブ運用系
+
+#### RestoreBackupSnapshotUseCase
+- 管理者限定
+- 入力: `snapshotId`, `targetProfileId`, `dryRun`
+- 処理:
+  1. スナップショット整合性（checksum）検証
+  2. `dryRun=true` では復元差分のみ表示
+  3. 本実行時は現行DBを退避し、復元後に接続検証
+  4. 成功時 `BACKUP_RESTORED`、失敗時 `E_BACKUP_RESTORE_FAILED`
+
+#### PurgeAuditArchiveUseCase
+- 管理者限定
+- 入力: `fromYm`, `toYm`, `dryRun`, `approvedBy`
+- 処理:
+  1. 対象期間の `legal_hold` 状態確認
+  2. dry-runで対象件数/サイズ提示
+  3. 承認後のみ削除実行
+  4. `AUDIT_ARCHIVE_PURGE_REQUESTED` / `AUDIT_ARCHIVE_PURGED` を監査記録
 
 ---
 
@@ -455,6 +516,7 @@ CREATE TABLE audit_log_archive (
   archive_id TEXT PRIMARY KEY,
   bucket_ym TEXT NOT NULL,
   compressed_payload BLOB NOT NULL,
+  legal_hold INTEGER NOT NULL DEFAULT 0 CHECK(legal_hold IN (0,1)),
   created_at TEXT NOT NULL
 );
 
@@ -531,9 +593,11 @@ CREATE INDEX idx_tasks_project_updated ON tasks(project_id, updated_at DESC);
 CREATE INDEX idx_task_tags_norm ON task_tags(tag_norm);
 CREATE INDEX idx_comments_task_created ON comments(task_id, created_at ASC);
 CREATE INDEX idx_comments_author_created ON comments(created_by, created_at DESC);
+CREATE INDEX idx_perm_expiry_active ON project_permissions(expires_at, revoked_at);
 CREATE INDEX idx_audit_created_at ON audit_logs(created_at DESC);
 CREATE INDEX idx_audit_actor_created ON audit_logs(actor_id, created_at DESC);
 CREATE INDEX idx_audit_target_created ON audit_logs(target_type, target_id, created_at DESC);
+CREATE INDEX idx_audit_archive_bucket_hold ON audit_log_archive(bucket_ym, legal_hold);
 CREATE INDEX idx_backup_profile_created ON backup_snapshots(profile_id, created_at DESC);
 CREATE INDEX idx_profile_key_wrapper_status ON profile_key_wrappers(profile_id, wrapper_status, kek_version);
 CREATE INDEX idx_flags_scope ON feature_flags(scope_type, scope_id);
@@ -549,6 +613,8 @@ CREATE INDEX idx_connector_profile ON connector_settings(profile_id, connector_i
   - 更新件数0件なら `E_COMMENT_CONFLICT`
 - `ProjectPermissionRepository.revoke(grantId, revokedAt, revokedBy)`
   - 物理削除せず失効更新のみ。履歴は永続保持。
+- `ProjectPermissionRepository.expireDuePermissions(now)`
+  - `expires_at < now AND revoked_at IS NULL` を失効更新し、件数を返す
 - タグ上限20件は `trg_task_tags_limit_insert` とアプリ側バリデーションの二重防御で担保
 - `TaskTagRepository` は `tag_norm` を必ず `lower(trim(tag))` で保存（不一致は `E_TAG_NORMALIZATION_REQUIRED`）
 - すべての更新系Repositoryは `TransactionManager.runInTx` 内で実行
@@ -637,6 +703,26 @@ CREATE INDEX idx_connector_profile ON connector_settings(profile_id, connector_i
   1. 各 `profile_id` に active wrapper が常に1件以上存在
   2. `db_profiles.active_kek_version` と active wrapper の `kek_version` は一致
   3. `wrapper_status=revoked` は復帰不可（再利用禁止）
+
+### 6.1.6 DEK構造（論理モデル）
+
+```text
+DEKEnvelope
+  - profile_id
+  - encrypted_dek        // db_profiles
+  - dek_wrap_salt        // db_profiles
+  - active_kek_version   // db_profiles
+  - wrappers[]           // profile_key_wrappers
+      - key_id
+      - encrypted_dek    // キー単位ラップ
+      - wrap_salt
+      - kek_version
+      - wrapper_status
+```
+
+- `db_profiles.encrypted_dek` はプロファイルの基準ラップ情報。
+- `profile_key_wrappers.encrypted_dek` はアクセスキー単位の復号経路を提供。
+- 実装時は「基準ラップ + キー別ラッパー」を同一DEKに対して保持し、再暗号化コストを抑制する。
 
 ## 6.2 NetworkFS Safety Guard
 
@@ -728,6 +814,7 @@ CREATE INDEX idx_connector_profile ON connector_settings(profile_id, connector_i
    - 既定検索は `audit_logs`
    - 期間が90日超の場合、自動で `audit_log_archive` も横断検索
    - 結果に「オンライン/アーカイブ」バッジを表示
+   - 管理者のみ `Purge Archive` ボタン（dry-run必須）を表示
 
 ## 7.3 UI状態管理
 
@@ -810,6 +897,14 @@ CREATE INDEX idx_connector_profile ON connector_settings(profile_id, connector_i
 4. 失敗時はDB更新をロールバックし、旧設定を維持
 5. 更新成功時に `FEATURE_FLAG_UPDATED` / `CONNECTOR_SETTINGS_UPDATED` を監査記録
 
+### 8.5.3 `secret_ref` シークレット参照フロー
+
+1. `connector_settings.secret_ref` にはシークレット本体を保存しない（参照IDのみ）。
+2. Provider初期化時に `SecretResolver.resolve(secret_ref)` を呼び出す。
+3. SecretResolverは VS Code SecretStorage から取得し、復号はメモリ上のみで実施。
+4. `secret_ref` 不整合（未登録/失効）の場合はProviderを無効化し `E_CONNECTOR_SECRET_MISSING` を返す。
+5. シークレット更新は `RotateConnectorSecretUseCase`（管理者限定）で `secret_ref` のみ差し替える。
+
 ## 8.6 ConnectorProvider詳細契約
 
 ```ts
@@ -826,6 +921,14 @@ interface ConnectorProvider {
 - `dryRun` は「提案→承認→反映」の承認前チェックに必須
 - Provider実装は `core` へ依存不可。`connectors/shared` の契約型のみ利用可
 - Feature FlagがOFFの場合は `validateConfig` を含め一切呼び出さない
+
+## 8.7 アーカイブ削除フロー（管理者UI）
+
+1. `ArchiveAuditSearchPanel` で期間指定し `Purge Archive` を押下
+2. `PurgeAuditArchiveUseCase(dryRun=true)` を実行し対象件数を表示
+3. 管理者が確認後に `dryRun=false` で再実行
+4. `legal_hold=1` データを除外して削除
+5. 実行結果をトースト表示し、監査ログへ記録
 
 ---
 
@@ -845,6 +948,8 @@ interface ConnectorProvider {
 | E_MIGRATION_REQUIRED | スキーマ不整合 | 管理者で再接続案内 |
 | E_BACKUP_RESTORE_FAILED | 復元失敗 | 復元ログ表示 |
 | E_AUDIT_ARCHIVE_FAILED | 監査アーカイブ失敗 | 管理者アラート表示 |
+| E_CONNECTOR_SECRET_MISSING | secret_ref解決失敗 | Connector無効化通知 |
+| E_ARCHIVE_PURGE_DRYRUN_REQUIRED | アーカイブ削除の事前確認不足 | dry-run実行を促す |
 
 ---
 
@@ -866,6 +971,7 @@ interface ConnectorProvider {
 - `ACCESS_KEY_ISSUED`
 - `ACCESS_KEY_REVOKED`
 - `ACCESS_KEY_REISSUED`
+- `PROJECT_PERMISSION_EXPIRED`
 - `PROFILE_SWITCHED`
 - `READ_ONLY_ENABLED`
 - `READ_ONLY_DISABLED`
@@ -880,6 +986,7 @@ interface ConnectorProvider {
 - `AUDIT_ARCHIVE_PURGED`
 - `FEATURE_FLAG_UPDATED`
 - `CONNECTOR_SETTINGS_UPDATED`
+- `CONNECTOR_SECRET_ROTATED`
 
 ## 10.2 payload_diff_json仕様
 
@@ -957,6 +1064,15 @@ interface ConnectorProvider {
   - 正常切替
   - 未認証時に認証導線イベント
   - unsafe判定時にRO切替
+
+- `Issue/Revoke/ReissueAccessKeyUseCase.spec.ts`
+  - wrapper生成/失効とセッション失効が連動する
+
+- `RestoreBackupSnapshotUseCase.spec.ts`
+  - dry-runと本実行の分岐、checksum不一致失敗
+
+- `PurgeAuditArchiveUseCase.spec.ts`
+  - legal_hold除外、dry-run必須、監査イベント記録
 
 ## 11.3 インフラ統合テスト
 

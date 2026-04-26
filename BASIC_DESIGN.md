@@ -162,6 +162,7 @@
   - `project_id`, `user_id`, `can_edit`, `granted_by`, `granted_at`, `revoked_at`
 - 制約:
   - `UNIQUE(project_id, user_id, revoked_at)`（同時有効grant重複防止）
+  - `expires_at` 到達時は定期ジョブで自動失効（`revoked_at` 更新）
 - インデックス:
   - `idx_perm_project_user(project_id, user_id)`
   - `idx_perm_active(user_id, revoked_at)`
@@ -260,6 +261,7 @@
 - `WriteAuditLogUseCase`
 - `SearchAuditLogsUseCase`
 - `RunAuditArchiveUseCase`（日次）
+- `PurgeAuditArchiveUseCase`（管理者のみ、dry-run必須）
 - `CreateBackupSnapshotUseCase`（管理者のみ）
 - `RestoreBackupSnapshotUseCase`（管理者のみ）
 
@@ -308,6 +310,8 @@
 7. **競合解決ダイアログ**
    - 差分（項目/更新者/更新時刻）表示
    - 解決方式選択
+8. **監査アーカイブ管理（管理者のみ）**
+   - 期間指定のdry-run削除と実削除（2段階確認）
 
 ### 6.3 DB切替の操作フロー
 
@@ -403,6 +407,8 @@ interface ConnectorProvider {
 - 機能フラグ適用順序:
   - global → profile → user の順で上書き評価
   - 未定義は安全側（無効）として扱う
+- `secret_ref` 運用:
+  - `connector_settings` には参照IDのみ保持し、実シークレットはSecretStorageから解決する
 
 ### 9.3 拡張原則
 
