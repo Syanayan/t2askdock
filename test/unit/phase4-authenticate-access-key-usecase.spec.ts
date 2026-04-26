@@ -56,6 +56,28 @@ describe('AuthenticateAccessKeyUseCase (phase4)', () => {
     });
   });
 
+  it('throws E_AUTH_FAILED when access key does not exist', async () => {
+    const useCase = new AuthenticateAccessKeyUseCase(
+      { findByKeyId: vi.fn().mockResolvedValue(null) },
+      { findActiveByProfileAndKeyId: vi.fn() },
+      { verify: vi.fn() },
+      { deriveKek: vi.fn() },
+      { decrypt: vi.fn() },
+      { issue: vi.fn() },
+      new AccessKeyPolicy()
+    );
+
+    await expect(
+      useCase.execute({
+        keyId: 'missing-key',
+        rawAccessKey: 'invalid',
+        targetProfileId: 'profile-1',
+        deviceFingerprint: 'device-1',
+        now: NOW
+      })
+    ).rejects.toThrow(ERROR_CODES.AUTH_FAILED);
+  });
+
   it('throws E_AUTH_FAILED when key hash verification fails', async () => {
     const useCase = new AuthenticateAccessKeyUseCase(
       {
@@ -79,6 +101,36 @@ describe('AuthenticateAccessKeyUseCase (phase4)', () => {
       useCase.execute({
         keyId: 'key-1',
         rawAccessKey: 'invalid',
+        targetProfileId: 'profile-1',
+        deviceFingerprint: 'device-1',
+        now: NOW
+      })
+    ).rejects.toThrow(ERROR_CODES.AUTH_FAILED);
+  });
+
+  it('throws E_AUTH_FAILED when key is revoked', async () => {
+    const useCase = new AuthenticateAccessKeyUseCase(
+      {
+        findByKeyId: vi.fn().mockResolvedValue({
+          keyId: 'key-1',
+          keyHash: 'hash-1',
+          keySalt: 'salt-1',
+          expiresAt: null,
+          revokedAt: NOW
+        })
+      },
+      { findActiveByProfileAndKeyId: vi.fn() },
+      { verify: vi.fn() },
+      { deriveKek: vi.fn() },
+      { decrypt: vi.fn() },
+      { issue: vi.fn() },
+      new AccessKeyPolicy()
+    );
+
+    await expect(
+      useCase.execute({
+        keyId: 'key-1',
+        rawAccessKey: 'plain-key',
         targetProfileId: 'profile-1',
         deviceFingerprint: 'device-1',
         now: NOW
@@ -114,5 +166,35 @@ describe('AuthenticateAccessKeyUseCase (phase4)', () => {
         now: NOW
       })
     ).rejects.toThrow(ERROR_CODES.KEY_EXPIRED);
+  });
+
+  it('throws E_AUTH_FAILED when active profile key wrapper does not exist', async () => {
+    const useCase = new AuthenticateAccessKeyUseCase(
+      {
+        findByKeyId: vi.fn().mockResolvedValue({
+          keyId: 'key-1',
+          keyHash: 'hash-1',
+          keySalt: 'salt-1',
+          expiresAt: null,
+          revokedAt: null
+        })
+      },
+      { findActiveByProfileAndKeyId: vi.fn().mockResolvedValue(null) },
+      { verify: vi.fn().mockResolvedValue(true) },
+      { deriveKek: vi.fn() },
+      { decrypt: vi.fn() },
+      { issue: vi.fn() },
+      new AccessKeyPolicy()
+    );
+
+    await expect(
+      useCase.execute({
+        keyId: 'key-1',
+        rawAccessKey: 'plain-key',
+        targetProfileId: 'profile-1',
+        deviceFingerprint: 'device-1',
+        now: NOW
+      })
+    ).rejects.toThrow(ERROR_CODES.AUTH_FAILED);
   });
 });

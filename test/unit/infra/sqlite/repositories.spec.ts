@@ -130,8 +130,6 @@ describe('SQLite repositories (phase2)', () => {
     expect(call?.sql.includes('granted_by')).toBe(false);
   });
 
-  
-
   it('AccessKeyRepository.findByKeyId reads one key row', async () => {
     const client = new FakeSqliteClient();
     client.getResult = {
@@ -173,7 +171,7 @@ describe('SQLite repositories (phase2)', () => {
     expect(call?.sql.includes("wrapper_status = 'active'")).toBe(true);
     expect(call?.params).toEqual(['p1', 'k1']);
   });
-it('supports repositories for audit/access/profile/wrapper/feature/connector', async () => {
+  it('supports repositories for audit/access/profile/wrapper/feature/connector', async () => {
     const client = new FakeSqliteClient();
 
     await new AuditLogRepository(client).append({
