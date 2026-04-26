@@ -130,7 +130,50 @@ describe('SQLite repositories (phase2)', () => {
     expect(call?.sql.includes('granted_by')).toBe(false);
   });
 
-  it('supports repositories for audit/access/profile/wrapper/feature/connector', async () => {
+  
+
+  it('AccessKeyRepository.findByKeyId reads one key row', async () => {
+    const client = new FakeSqliteClient();
+    client.getResult = {
+      keyId: 'k1',
+      ownerType: 'user',
+      issuedFor: 'u1',
+      keyHash: 'h',
+      keySalt: 's',
+      expiresAt: null,
+      revokedAt: null,
+      issuedBy: 'admin',
+      issuedAt: '2026-04-26T00:00:00Z'
+    };
+
+    const row = await new AccessKeyRepository(client).findByKeyId('k1');
+
+    expect(row?.keyId).toBe('k1');
+    const call = client.executed.find((item) => item.type === 'get' && item.sql.includes('FROM access_keys'));
+    expect(call?.params).toEqual(['k1']);
+  });
+
+  it('ProfileKeyWrapperRepository.findActiveByProfileAndKeyId reads only active wrapper', async () => {
+    const client = new FakeSqliteClient();
+    client.getResult = {
+      profileId: 'p1',
+      keyId: 'k1',
+      encryptedDek: new Uint8Array([1]),
+      wrapSalt: 'salt',
+      kekVersion: 2,
+      wrapperStatus: 'active',
+      createdAt: '2026-04-26T00:00:00Z',
+      revokedAt: null
+    };
+
+    const row = await new ProfileKeyWrapperRepository(client).findActiveByProfileAndKeyId('p1', 'k1');
+
+    expect(row?.profileId).toBe('p1');
+    const call = client.executed.find((item) => item.type === 'get' && item.sql.includes('FROM profile_key_wrappers'));
+    expect(call?.sql.includes("wrapper_status = 'active'")).toBe(true);
+    expect(call?.params).toEqual(['p1', 'k1']);
+  });
+it('supports repositories for audit/access/profile/wrapper/feature/connector', async () => {
     const client = new FakeSqliteClient();
 
     await new AuditLogRepository(client).append({

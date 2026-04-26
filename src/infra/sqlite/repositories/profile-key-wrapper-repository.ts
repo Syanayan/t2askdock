@@ -1,3 +1,4 @@
+import type { ProfileKeyWrapperRepository as ProfileKeyWrapperRepositoryPort } from '../../../core/ports/repositories/profile-key-wrapper-repository.js';
 import type { SqliteClient } from '../sqlite-client.js';
 
 export type ProfileKeyWrapperRecord = {
@@ -11,7 +12,7 @@ export type ProfileKeyWrapperRecord = {
   revokedAt: string | null;
 };
 
-export class ProfileKeyWrapperRepository {
+export class ProfileKeyWrapperRepository implements ProfileKeyWrapperRepositoryPort {
   public constructor(private readonly client: SqliteClient) {}
 
   public async upsert(record: ProfileKeyWrapperRecord): Promise<void> {
@@ -36,4 +37,25 @@ export class ProfileKeyWrapperRepository {
       ]
     );
   }
+
+  public async findActiveByProfileAndKeyId(profileId: string, keyId: string): Promise<ProfileKeyWrapperRecord | null> {
+    const row = await this.client.get<ProfileKeyWrapperRecord>(
+      `SELECT profile_id AS profileId,
+              key_id AS keyId,
+              encrypted_dek AS encryptedDek,
+              wrap_salt AS wrapSalt,
+              kek_version AS kekVersion,
+              wrapper_status AS wrapperStatus,
+              created_at AS createdAt,
+              revoked_at AS revokedAt
+         FROM profile_key_wrappers
+        WHERE profile_id = ?
+          AND key_id = ?
+          AND wrapper_status = 'active'
+          AND revoked_at IS NULL`,
+      [profileId, keyId]
+    );
+    return row ?? null;
+  }
+
 }
