@@ -57,6 +57,7 @@ describe('SQLite repositories (phase2)', () => {
           priority: 'medium',
           assignee: null,
           dueDate: null,
+          tags: ['tag-a', 'tag-b'],
           parentTaskId: null,
           updatedBy: 'u1',
           updatedAt: '2026-04-26T00:00:00Z'
@@ -64,6 +65,33 @@ describe('SQLite repositories (phase2)', () => {
         1
       )
     ).rejects.toThrow(ERROR_CODES.TASK_CONFLICT);
+  });
+
+  it('TaskRepository.updateWithVersion rewrites tags when update succeeds', async () => {
+    const client = new FakeSqliteClient();
+    client.runResult = { changes: 1 };
+    const repository = new TaskRepository(client);
+
+    await repository.updateWithVersion(
+      {
+        taskId: 't1',
+        title: 'new',
+        description: null,
+        status: 'todo',
+        priority: 'medium',
+        assignee: null,
+        dueDate: null,
+        tags: ['TagA', 'TagB'],
+        parentTaskId: null,
+        updatedBy: 'u1',
+        updatedAt: '2026-04-26T00:00:00Z'
+      },
+      1
+    );
+
+    const sqls = client.executed.map((item) => item.sql);
+    expect(sqls.some((sql) => sql.includes('DELETE FROM task_tags'))).toBe(true);
+    expect(sqls.filter((sql) => sql.includes('INSERT INTO task_tags')).length).toBe(2);
   });
 
   it('CommentRepository.updateWithVersion throws conflict when no row updated', async () => {

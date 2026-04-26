@@ -8,6 +8,7 @@ export type TaskUpdate = {
   priority: Task['value']['priority'];
   assignee: string | null;
   dueDate: string | null;
+  tags: string[];
   parentTaskId: string | null;
   updatedBy: string;
   updatedAt: string;

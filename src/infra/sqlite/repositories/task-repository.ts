@@ -63,5 +63,14 @@ export class TaskRepository implements TaskRepositoryPort {
     if (result.changes === 0) {
       throw new Error(ERROR_CODES.TASK_CONFLICT);
     }
+
+    await this.client.run(`DELETE FROM task_tags WHERE task_id = ?`, [task.taskId]);
+    for (const tag of task.tags) {
+      await this.client.run(
+        `INSERT INTO task_tags(task_id, tag, tag_norm, created_at)
+         VALUES (?, ?, LOWER(TRIM(?)), ?)`,
+        [task.taskId, tag, tag, task.updatedAt]
+      );
+    }
   }
 }

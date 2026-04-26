@@ -64,6 +64,7 @@ export class UpdateTaskUseCase {
           priority: task.value.priority,
           assignee: task.value.assignee,
           dueDate: task.value.dueDate,
+          tags: task.value.tags,
           parentTaskId: task.value.parentTaskId,
           updatedBy: input.actorId,
           updatedAt: input.now

@@ -42,6 +42,10 @@ describe('phase3 usecases', () => {
 
     expect(runInTx).toHaveBeenCalledOnce();
     expect(updateWithVersion).toHaveBeenCalledOnce();
+    expect(updateWithVersion).toHaveBeenCalledWith(
+      expect.objectContaining({ tags: ['phase3'] }),
+      3
+    );
     expect(append).toHaveBeenCalledWith(expect.objectContaining({ actionType: 'TASK_UPDATED', targetId: TASK_ID }));
     expect(output.version).toBe(4);
   });
