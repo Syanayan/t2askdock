@@ -21,6 +21,11 @@
 - [ ] 初期マイグレーション（DDL + Index + Trigger）
 - [ ] TransactionManager実装
 - [ ] Repository実装（Task/Comment/Permission/Audit）
+- [ ] AccessKeyRepository実装
+- [ ] DatabaseProfileRepository実装
+- [ ] ProfileKeyWrapperRepository実装
+- [ ] FeatureFlagRepository実装
+- [ ] ConnectorSettingsRepository実装
 - [ ] 楽観ロック更新（`updateWithVersion`）
 - [ ] マイグレーション実行アルゴリズム（失敗時RO復帰）
 
@@ -34,8 +39,10 @@
 ## フェーズ4: 認証・権限・プロファイル
 - [ ] AuthenticateAccessKeyUseCase（Argon2id照合/DEK復号）
 - [ ] キー管理UseCase（Issue/Revoke/Reissue）
+- [ ] RotateConnectorSecretUseCase
 - [ ] 権限UseCase（GrantProjectEditPermission/ExpirySweep）
 - [ ] DB接続UseCase（SwitchDatabaseProfile/SetReadOnlyMode）
+- [ ] SessionLifecycle / authToken 管理（TTL/アイドル失効/強制失効）
 
 ## フェーズ5: UI統合
 - [ ] VS Codeコマンド登録（open/select/create/toggle）
@@ -43,12 +50,16 @@
 - [ ] BoardWebviewPanel（D&Dでステータス更新）
 - [ ] CommentThreadPanel
 - [ ] StatusBarController（DB/Mode/Health）
+- [ ] AuditArchiveSearch UI
+- [ ] PurgeAuditArchiveUseCase UI（dry-run→実行導線）
 
 ## フェーズ6: 競合・安全性
 - [ ] DetectTaskConflictUseCase
 - [ ] ResolveTaskConflictUseCase（LOCAL/REMOTE/MANUAL）
 - [ ] NetworkFS Safety Guard（ロック診断/RTT判定）
 - [ ] リトライ制御（SQLITE_BUSY/IOERR）
+- [ ] AuditArchiveSearch UI の性能/導線調整（90日超の横断検索）
+- [ ] PurgeAuditArchiveUseCase UI の運用ガード確認（管理者のみ・承認必須）
 
 ## フェーズ7: バックアップ・監査運用
 - [ ] バックアップ（手動/日次/重要操作前）
