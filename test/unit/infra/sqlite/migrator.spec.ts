@@ -47,4 +47,26 @@ describe('Migrator', () => {
     expect(reconnectReadOnly).toHaveBeenCalledOnce();
     expect(appendMigrationFailedAudit).toHaveBeenCalledOnce();
   });
+
+  it('attaches original error as cause in a runtime-compatible way', async () => {
+    const client = new FakeSqliteClient();
+    client.getResult = { version: 0 };
+    client.failOnExecSql = 'CREATE TABLE IF NOT EXISTS users';
+
+    const migrator = new Migrator({
+      client,
+      snapshot: vi.fn().mockResolvedValue(undefined),
+      restoreSnapshot: vi.fn().mockResolvedValue(undefined),
+      reconnectReadOnly: vi.fn().mockResolvedValue(undefined),
+      appendMigrationFailedAudit: vi.fn().mockResolvedValue(undefined)
+    });
+
+    try {
+      await migrator.migrate([{ version: 1, statements: INITIAL_MIGRATION_V1_SQL }]);
+    } catch (error) {
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toBe(ERROR_CODES.MIGRATION_REQUIRED);
+      expect((error as Error & { cause?: unknown }).cause).toBeInstanceOf(Error);
+    }
+  });
 });

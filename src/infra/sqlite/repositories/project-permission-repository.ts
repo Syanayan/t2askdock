@@ -3,12 +3,12 @@ import type { SqliteClient } from '../sqlite-client.js';
 export class ProjectPermissionRepository {
   public constructor(private readonly client: SqliteClient) {}
 
-  public async revoke(grantId: string, revokedAt: string, revokedBy: string): Promise<void> {
+  public async revoke(grantId: string, revokedAt: string, _revokedBy: string): Promise<void> {
     await this.client.run(
       `UPDATE project_permissions
-       SET revoked_at = ?, granted_by = ?
+       SET revoked_at = ?
        WHERE grant_id = ? AND revoked_at IS NULL`,
-      [revokedAt, revokedBy, grantId]
+      [revokedAt, grantId]
     );
   }
 

@@ -40,6 +40,16 @@ describe('SQLite repositories (phase2)', () => {
     await expect(repository.expireDuePermissions('2026-04-26T00:00:00Z')).resolves.toBe(3);
   });
 
+  it('ProjectPermissionRepository.revoke updates only revoked_at (does not overwrite granted_by)', async () => {
+    const client = new FakeSqliteClient();
+    const repository = new ProjectPermissionRepository(client);
+
+    await repository.revoke('g1', '2026-04-26T00:00:00Z', 'admin-user');
+
+    const call = client.executed.find((item) => item.type === 'run' && item.sql.includes('UPDATE project_permissions'));
+    expect(call?.sql.includes('granted_by')).toBe(false);
+  });
+
   it('supports repositories for audit/access/profile/wrapper/feature/connector', async () => {
     const client = new FakeSqliteClient();
 

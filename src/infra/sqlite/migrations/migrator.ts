@@ -34,9 +34,14 @@ export class Migrator {
         await this.deps.reconnectReadOnly();
         await this.deps.appendMigrationFailedAudit();
 
-        const withCode = new Error(ERROR_CODES.MIGRATION_REQUIRED, { cause: error });
-        throw withCode;
+        throw this.createMigrationRequiredError(error);
       }
     }
+  }
+
+  private createMigrationRequiredError(cause: unknown): Error {
+    const migrationError = new Error(ERROR_CODES.MIGRATION_REQUIRED);
+    (migrationError as Error & { cause?: unknown }).cause = cause;
+    return migrationError;
   }
 }
