@@ -6,10 +6,10 @@
 ---
 
 ## フェーズ0: 開発基盤
-- [ ] ディレクトリ骨格を作成（`core / infra / ui`）
-- [ ] テスト実行基盤（unit/integration）を整備
-- [ ] DIの最小構成を用意（UI→UseCase注入）
-- [ ] エラーコード共通定義（`E_*`）
+- [x] ディレクトリ骨格を作成（`core / infra / ui`）
+- [x] テスト実行基盤（unit/integration）を整備
+- [x] DIの最小構成を用意（UI→UseCase注入）
+- [x] エラーコード共通定義（`E_*`）
 
 ## フェーズ1: ドメイン実装
 - [ ] ValueObject（ULID/Title/DueDate/Tag/Version）
