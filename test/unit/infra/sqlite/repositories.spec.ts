@@ -48,7 +48,21 @@ describe('SQLite repositories (phase2)', () => {
     const repository = new TaskRepository(client);
 
     await expect(
-      repository.updateWithVersion({ taskId: 't1', title: 'new', updatedBy: 'u1', updatedAt: '2026-04-26T00:00:00Z' }, 1)
+      repository.updateWithVersion(
+        {
+          taskId: 't1',
+          title: 'new',
+          description: null,
+          status: 'todo',
+          priority: 'medium',
+          assignee: null,
+          dueDate: null,
+          parentTaskId: null,
+          updatedBy: 'u1',
+          updatedAt: '2026-04-26T00:00:00Z'
+        },
+        1
+      )
     ).rejects.toThrow(ERROR_CODES.TASK_CONFLICT);
   });
 
@@ -60,6 +74,14 @@ describe('SQLite repositories (phase2)', () => {
     await expect(
       repository.updateWithVersion({ commentId: 'c1', body: 'new', updatedBy: 'u1', updatedAt: '2026-04-26T00:00:00Z' }, 1)
     ).rejects.toThrow(ERROR_CODES.COMMENT_CONFLICT);
+  });
+
+  it('CommentRepository.softDelete throws not-found when no row updated', async () => {
+    const client = new FakeSqliteClient();
+    client.runResult = { changes: 0 };
+    const repository = new CommentRepository(client);
+
+    await expect(repository.softDelete('c1', '2026-04-26T00:00:00Z', 'u1', 1)).rejects.toThrow(ERROR_CODES.COMMENT_NOT_FOUND);
   });
 
   it('ProjectPermissionRepository.expireDuePermissions returns changed count', async () => {

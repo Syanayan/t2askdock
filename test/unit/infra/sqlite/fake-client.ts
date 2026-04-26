@@ -3,6 +3,7 @@ import type { SqlParams, SqlRunResult, SqliteClient } from '../../../../src/infr
 export class FakeSqliteClient implements SqliteClient {
   public readonly executed: Array<{ type: 'run' | 'exec' | 'get'; sql: string; params?: SqlParams }> = [];
   public getResult: unknown = undefined;
+  public allResult: ReadonlyArray<unknown> = [];
   public runResult: SqlRunResult = { changes: 1 };
   public failOnExecSql: string | null = null;
 
@@ -16,8 +17,9 @@ export class FakeSqliteClient implements SqliteClient {
     return this.getResult as T | undefined;
   }
 
-  public async all<T>(): Promise<ReadonlyArray<T>> {
-    return [];
+  public async all<T>(sql: string, params?: SqlParams): Promise<ReadonlyArray<T>> {
+    this.executed.push({ type: 'get', sql, params });
+    return this.allResult as ReadonlyArray<T>;
   }
 
   public async exec(sql: string): Promise<void> {

@@ -14,6 +14,12 @@ describe('AppContainer', () => {
     const nextUlid = vi.fn().mockReturnValue(ULID_4);
     const container = new AppContainer({
       taskRepository: { create },
+      commentRepository: {
+        create: vi.fn(),
+        updateWithVersion: vi.fn(),
+        softDelete: vi.fn(),
+        findByTask: vi.fn()
+      },
       auditLogRepository: { append },
       transactionManager: { runInTx },
       idGenerator: { nextUlid }

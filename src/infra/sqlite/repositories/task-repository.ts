@@ -1,15 +1,12 @@
 import { ERROR_CODES } from '../../../core/errors/error-codes.js';
 import type { Task } from '../../../core/domain/entities/task.js';
+import type {
+  TaskRepository as TaskRepositoryPort,
+  TaskUpdate
+} from '../../../core/ports/repositories/task-repository.js';
 import type { SqliteClient } from '../sqlite-client.js';
 
-export type TaskUpdate = {
-  taskId: string;
-  title: string;
-  updatedBy: string;
-  updatedAt: string;
-};
-
-export class TaskRepository {
+export class TaskRepository implements TaskRepositoryPort {
   public constructor(private readonly client: SqliteClient) {}
 
   public async create(task: Task): Promise<void> {
@@ -46,9 +43,21 @@ export class TaskRepository {
   public async updateWithVersion(task: TaskUpdate, expectedVersion: number): Promise<void> {
     const result = await this.client.run(
       `UPDATE tasks
-       SET title = ?, updated_by = ?, updated_at = ?, version = version + 1
+       SET title = ?, description = ?, status = ?, priority = ?, assignee = ?, due_date = ?, parent_task_id = ?, updated_by = ?, updated_at = ?, version = version + 1
        WHERE task_id = ? AND version = ?`,
-      [task.title, task.updatedBy, task.updatedAt, task.taskId, expectedVersion]
+      [
+        task.title,
+        task.description,
+        task.status,
+        task.priority,
+        task.assignee,
+        task.dueDate,
+        task.parentTaskId,
+        task.updatedBy,
+        task.updatedAt,
+        task.taskId,
+        expectedVersion
+      ]
     );
 
     if (result.changes === 0) {
