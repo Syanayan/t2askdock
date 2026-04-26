@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { Task } from '../../../../src/core/domain/entities/task.js';
 import { ERROR_CODES } from '../../../../src/core/errors/error-codes.js';
 import { AccessKeyRepository } from '../../../../src/infra/sqlite/repositories/access-key-repository.js';
 import { AuditLogRepository } from '../../../../src/infra/sqlite/repositories/audit-log-repository.js';
@@ -12,14 +13,85 @@ import { TaskRepository } from '../../../../src/infra/sqlite/repositories/task-r
 import { FakeSqliteClient } from './fake-client.js';
 
 describe('SQLite repositories (phase2)', () => {
+  it('TaskRepository.create inserts task row and tags', async () => {
+    const client = new FakeSqliteClient();
+    const repository = new TaskRepository(client);
+
+    await repository.create(
+      Task.from({
+        taskId: '01ARZ3NDEKTSV4RRFFQ69G5FAW',
+        projectId: '01ARZ3NDEKTSV4RRFFQ69G5FAX',
+        title: 'phase3',
+        description: null,
+        status: 'todo',
+        priority: 'medium',
+        assignee: null,
+        dueDate: null,
+        tags: ['Bug', 'UI'],
+        parentTaskId: null,
+        createdBy: '01ARZ3NDEKTSV4RRFFQ69G5FAV',
+        updatedBy: '01ARZ3NDEKTSV4RRFFQ69G5FAV',
+        createdAt: '2026-04-26T00:00:00Z',
+        updatedAt: '2026-04-26T00:00:00Z',
+        version: 1
+      })
+    );
+
+    expect(client.executed.filter((item) => item.type === 'run').length).toBe(3);
+    expect(client.executed[0]?.sql.includes('INSERT INTO tasks')).toBe(true);
+    expect(client.executed[1]?.sql.includes('INSERT INTO task_tags')).toBe(true);
+  });
+
   it('TaskRepository.updateWithVersion throws conflict when no row updated', async () => {
     const client = new FakeSqliteClient();
     client.runResult = { changes: 0 };
     const repository = new TaskRepository(client);
 
     await expect(
-      repository.updateWithVersion({ taskId: 't1', title: 'new', updatedBy: 'u1', updatedAt: '2026-04-26T00:00:00Z' }, 1)
+      repository.updateWithVersion(
+        {
+          taskId: 't1',
+          title: 'new',
+          description: null,
+          status: 'todo',
+          priority: 'medium',
+          assignee: null,
+          dueDate: null,
+          tags: ['tag-a', 'tag-b'],
+          parentTaskId: null,
+          updatedBy: 'u1',
+          updatedAt: '2026-04-26T00:00:00Z'
+        },
+        1
+      )
     ).rejects.toThrow(ERROR_CODES.TASK_CONFLICT);
+  });
+
+  it('TaskRepository.updateWithVersion rewrites tags when update succeeds', async () => {
+    const client = new FakeSqliteClient();
+    client.runResult = { changes: 1 };
+    const repository = new TaskRepository(client);
+
+    await repository.updateWithVersion(
+      {
+        taskId: 't1',
+        title: 'new',
+        description: null,
+        status: 'todo',
+        priority: 'medium',
+        assignee: null,
+        dueDate: null,
+        tags: ['TagA', 'TagB'],
+        parentTaskId: null,
+        updatedBy: 'u1',
+        updatedAt: '2026-04-26T00:00:00Z'
+      },
+      1
+    );
+
+    const sqls = client.executed.map((item) => item.sql);
+    expect(sqls.some((sql) => sql.includes('DELETE FROM task_tags'))).toBe(true);
+    expect(sqls.filter((sql) => sql.includes('INSERT INTO task_tags')).length).toBe(2);
   });
 
   it('CommentRepository.updateWithVersion throws conflict when no row updated', async () => {
@@ -30,6 +102,14 @@ describe('SQLite repositories (phase2)', () => {
     await expect(
       repository.updateWithVersion({ commentId: 'c1', body: 'new', updatedBy: 'u1', updatedAt: '2026-04-26T00:00:00Z' }, 1)
     ).rejects.toThrow(ERROR_CODES.COMMENT_CONFLICT);
+  });
+
+  it('CommentRepository.softDelete throws not-found when no row updated', async () => {
+    const client = new FakeSqliteClient();
+    client.runResult = { changes: 0 };
+    const repository = new CommentRepository(client);
+
+    await expect(repository.softDelete('c1', '2026-04-26T00:00:00Z', 'u1', 1)).rejects.toThrow(ERROR_CODES.COMMENT_NOT_FOUND);
   });
 
   it('ProjectPermissionRepository.expireDuePermissions returns changed count', async () => {
@@ -60,10 +140,12 @@ describe('SQLite repositories (phase2)', () => {
     await new AccessKeyRepository(client).save({
       keyId: 'k1', ownerType: 'user', issuedFor: 'u1', keyHash: 'h', keySalt: 's', expiresAt: null, revokedAt: null, issuedBy: 'admin', issuedAt: '2026-04-26T00:00:00Z'
     });
+    await new AccessKeyRepository(client).findByKeyId('k1');
 
     await new DatabaseProfileRepository(client).save({
       profileId: 'p1', name: 'main', path: '/db.sqlite', mode: 'readWrite', encryptedDek: new Uint8Array([1]), dekWrapSalt: 'salt'
     });
+    await new DatabaseProfileRepository(client).findById('p1');
 
     await new ProfileKeyWrapperRepository(client).upsert({
       profileId: 'p1', keyId: 'k1', encryptedDek: new Uint8Array([1]), wrapSalt: 'salt', kekVersion: 1, wrapperStatus: 'active', createdAt: '2026-04-26T00:00:00Z', revokedAt: null
@@ -75,6 +157,9 @@ describe('SQLite repositories (phase2)', () => {
 
     await new ConnectorSettingsRepository(client).upsert({
       connectorId: 'github', profileId: 'p1', enabled: true, authType: 'token', settingsJson: '{}', secretRef: 'secret:1', syncPolicy: 'manual', updatedBy: 'admin', updatedAt: '2026-04-26T00:00:00Z'
+    });
+    await new ProjectPermissionRepository(client).grant({
+      grantId: 'g1', projectId: 'p1', userId: 'u1', canEdit: true, grantedBy: 'admin', grantedAt: '2026-04-26T00:00:00Z', expiresAt: null
     });
 
     expect(client.executed.filter((item) => item.type === 'run').length).toBeGreaterThanOrEqual(6);

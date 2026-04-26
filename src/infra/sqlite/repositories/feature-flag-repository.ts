@@ -1,15 +1,10 @@
+import type {
+  FeatureFlagRecord,
+  FeatureFlagRepository as FeatureFlagRepositoryPort
+} from '../../../core/ports/repositories/feature-flag-repository.js';
 import type { SqliteClient } from '../sqlite-client.js';
 
-export type FeatureFlagRecord = {
-  flagKey: string;
-  enabled: boolean;
-  scopeType: 'global' | 'profile' | 'user';
-  scopeId: string | null;
-  updatedBy: string;
-  updatedAt: string;
-};
-
-export class FeatureFlagRepository {
+export class FeatureFlagRepository implements FeatureFlagRepositoryPort {
   public constructor(private readonly client: SqliteClient) {}
 
   public async upsert(record: FeatureFlagRecord): Promise<void> {

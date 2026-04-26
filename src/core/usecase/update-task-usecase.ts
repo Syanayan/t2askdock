@@ -4,12 +4,7 @@ import type { TaskRepository } from '../ports/repositories/task-repository.js';
 import type { IdGenerator } from '../ports/services/id-generator.js';
 import type { TransactionManager } from '../ports/services/transaction-manager.js';
 
-export type CreateTaskOutput = {
-  id: string;
-  title: string;
-};
-
-export type CreateTaskInput = {
+export type UpdateTaskInput = {
   taskId: string;
   projectId: string;
   title: string;
@@ -22,9 +17,17 @@ export type CreateTaskInput = {
   parentTaskId: string | null;
   actorId: string;
   now: string;
+  expectedVersion: number;
 };
 
-export class CreateTaskUseCase {
+export type UpdateTaskOutput = {
+  id: string;
+  title: string;
+  status: TaskStatus;
+  version: number;
+};
+
+export class UpdateTaskUseCase {
   public constructor(
     private readonly taskRepository: TaskRepository,
     private readonly auditLogRepository: AuditLogRepository,
@@ -32,7 +35,7 @@ export class CreateTaskUseCase {
     private readonly idGenerator: IdGenerator
   ) {}
 
-  public async execute(input: CreateTaskInput): Promise<CreateTaskOutput> {
+  public async execute(input: UpdateTaskInput): Promise<UpdateTaskOutput> {
     const task = Task.from({
       taskId: input.taskId,
       projectId: input.projectId,
@@ -48,15 +51,31 @@ export class CreateTaskUseCase {
       updatedBy: input.actorId,
       createdAt: input.now,
       updatedAt: input.now,
-      version: 1
+      version: input.expectedVersion
     });
 
     await this.transactionManager.runInTx(async () => {
-      await this.taskRepository.create(task);
+      await this.taskRepository.updateWithVersion(
+        {
+          taskId: task.value.taskId,
+          title: task.value.title,
+          description: task.value.description,
+          status: task.value.status,
+          priority: task.value.priority,
+          assignee: task.value.assignee,
+          dueDate: task.value.dueDate,
+          tags: task.value.tags,
+          parentTaskId: task.value.parentTaskId,
+          updatedBy: input.actorId,
+          updatedAt: input.now
+        },
+        input.expectedVersion
+      );
+
       await this.auditLogRepository.append({
         logId: this.idGenerator.nextUlid(),
         actorId: input.actorId,
-        actionType: 'TASK_CREATED',
+        actionType: 'TASK_UPDATED',
         targetType: 'task',
         targetId: task.value.taskId,
         payloadDiffJson: JSON.stringify(task.value),
@@ -65,6 +84,11 @@ export class CreateTaskUseCase {
       });
     });
 
-    return { id: task.value.taskId, title: task.value.title };
+    return {
+      id: task.value.taskId,
+      title: task.value.title,
+      status: task.value.status,
+      version: input.expectedVersion + 1
+    };
   }
 }

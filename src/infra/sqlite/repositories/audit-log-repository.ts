@@ -1,17 +1,10 @@
+import type {
+  AuditLogEntry,
+  AuditLogRepository as AuditLogRepositoryPort
+} from '../../../core/ports/repositories/audit-log-repository.js';
 import type { SqliteClient } from '../sqlite-client.js';
 
-export type AuditLogEntry = {
-  logId: string;
-  actorId: string;
-  actionType: string;
-  targetType: string;
-  targetId: string | null;
-  payloadDiffJson: string;
-  retentionClass: string;
-  createdAt: string;
-};
-
-export class AuditLogRepository {
+export class AuditLogRepository implements AuditLogRepositoryPort {
   public constructor(private readonly client: SqliteClient) {}
 
   public async append(entry: AuditLogEntry): Promise<void> {

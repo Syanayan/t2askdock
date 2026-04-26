@@ -4,16 +4,47 @@ import { CreateTaskCommand } from '../../src/ui/commands/create-task-command.js'
 
 describe('CreateTaskCommand integration', () => {
   it('runs UI command -> usecase -> infrastructure in one flow', async () => {
-    const create = vi.fn().mockResolvedValue({ id: 't-100', title: 'phase0' });
+    const create = vi.fn().mockResolvedValue(undefined);
+    const append = vi.fn().mockResolvedValue(undefined);
+    const runInTx = vi.fn(async (work: () => Promise<unknown>) => work());
+    const nextUlid = vi.fn().mockReturnValue('01ARZ3NDEKTSV4RRFFQ69G5FAY');
 
     const container = new AppContainer({
-      taskWriter: { create }
+      taskRepository: { create },
+      commentRepository: {
+        create: vi.fn(),
+        updateWithVersion: vi.fn(),
+        softDelete: vi.fn(),
+        findByTask: vi.fn()
+      },
+      accessKeyRepository: { save: vi.fn(), findByKeyId: vi.fn() },
+      databaseProfileRepository: { save: vi.fn(), findById: vi.fn() },
+      featureFlagRepository: { upsert: vi.fn() },
+      projectPermissionRepository: { grant: vi.fn(), revoke: vi.fn(), expireDuePermissions: vi.fn() },
+      auditLogRepository: { append },
+      transactionManager: { runInTx },
+      idGenerator: { nextUlid },
+      accessKeyVerifier: { verify: vi.fn() }
     });
 
     const command = new CreateTaskCommand(container.buildUseCases().createTaskUseCase);
-    const output = await command.run({ title: 'phase0' });
+    const output = await command.run({
+      taskId: '01ARZ3NDEKTSV4RRFFQ69G5FAW',
+      projectId: '01ARZ3NDEKTSV4RRFFQ69G5FAX',
+      title: 'phase3',
+      description: null,
+      status: 'todo',
+      priority: 'medium',
+      assignee: null,
+      dueDate: null,
+      tags: [],
+      parentTaskId: null,
+      actorId: '01ARZ3NDEKTSV4RRFFQ69G5FAV',
+      now: '2026-04-26T00:00:00.000Z'
+    });
 
     expect(create).toHaveBeenCalledOnce();
-    expect(output.id).toBe('t-100');
+    expect(append).toHaveBeenCalledOnce();
+    expect(output.id).toBe('01ARZ3NDEKTSV4RRFFQ69G5FAW');
   });
 });
