@@ -171,6 +171,43 @@ describe('SQLite repositories (phase2)', () => {
     expect(call?.sql.includes("wrapper_status = 'active'")).toBe(true);
     expect(call?.params).toEqual(['p1', 'k1']);
   });
+
+
+  it('supports write-side methods added for phase4 remaining items', async () => {
+    const client = new FakeSqliteClient();
+
+    await new AccessKeyRepository(client).revoke('k1', '2026-04-26T00:00:00Z');
+    await new ProfileKeyWrapperRepository(client).revokeByKeyId('k1', '2026-04-26T00:00:00Z');
+    await new ProjectPermissionRepository(client).revokeActiveGrant('p1', 'u1', '2026-04-26T00:00:00Z');
+    await new ProjectPermissionRepository(client).grant({
+      grantId: 'g1',
+      projectId: 'p1',
+      userId: 'u1',
+      canEdit: true,
+      grantedBy: 'admin',
+      grantedAt: '2026-04-26T00:00:00Z',
+      expiresAt: null,
+      revokedAt: null
+    });
+    await new DatabaseProfileRepository(client).setMode('p1', 'readOnly');
+    client.getResult = {
+      profileId: 'p1',
+      name: 'main',
+      path: '/db.sqlite',
+      mode: 'readOnly',
+      encryptedDek: new Uint8Array([1]),
+      dekWrapSalt: 'salt'
+    };
+    await new DatabaseProfileRepository(client).findById('p1');
+    await new ConnectorSettingsRepository(client).findByConnectorAndProfile('github', 'p1');
+
+    const sqls = client.executed.map((item) => item.sql);
+    expect(sqls.some((sql) => sql.includes('UPDATE access_keys'))).toBe(true);
+    expect(sqls.some((sql) => sql.includes('UPDATE profile_key_wrappers'))).toBe(true);
+    expect(sqls.some((sql) => sql.includes('INSERT INTO project_permissions'))).toBe(true);
+    expect(sqls.some((sql) => sql.includes('UPDATE db_profiles'))).toBe(true);
+    expect(sqls.some((sql) => sql.includes('FROM connector_settings'))).toBe(true);
+  });
   it('supports repositories for audit/access/profile/wrapper/feature/connector', async () => {
     const client = new FakeSqliteClient();
 

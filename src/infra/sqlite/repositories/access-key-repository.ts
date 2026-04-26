@@ -34,6 +34,15 @@ export class AccessKeyRepository implements AccessKeyRepositoryPort {
     );
   }
 
+  public async revoke(keyId: string, revokedAt: string): Promise<void> {
+    await this.client.run(
+      `UPDATE access_keys
+       SET revoked_at = ?
+       WHERE key_id = ? AND revoked_at IS NULL`,
+      [revokedAt, keyId]
+    );
+  }
+
   public async findByKeyId(keyId: string): Promise<AccessKeyRecord | null> {
     const row = await this.client.get<AccessKeyRecord>(
       `SELECT key_id AS keyId,

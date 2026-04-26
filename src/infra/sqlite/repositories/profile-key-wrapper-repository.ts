@@ -38,6 +38,16 @@ export class ProfileKeyWrapperRepository implements ProfileKeyWrapperRepositoryP
     );
   }
 
+  public async revokeByKeyId(keyId: string, revokedAt: string): Promise<void> {
+    await this.client.run(
+      `UPDATE profile_key_wrappers
+       SET wrapper_status = 'revoked',
+           revoked_at = ?
+       WHERE key_id = ? AND revoked_at IS NULL`,
+      [revokedAt, keyId]
+    );
+  }
+
   public async findActiveByProfileAndKeyId(profileId: string, keyId: string): Promise<ProfileKeyWrapperRecord | null> {
     const row = await this.client.get<ProfileKeyWrapperRecord>(
       `SELECT profile_id AS profileId,
