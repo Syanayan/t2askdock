@@ -1,7 +1,16 @@
-import { CreateTaskUseCase, type TaskWriter } from '../usecase/create-task-usecase.js';
+import {
+  CreateTaskUseCase,
+  type AuditLogRepository,
+  type IdGenerator,
+  type TaskRepository,
+  type TransactionManager
+} from '../usecase/create-task-usecase.js';
 
 export type Infrastructure = {
-  taskWriter: TaskWriter;
+  taskRepository: TaskRepository;
+  auditLogRepository: AuditLogRepository;
+  transactionManager: TransactionManager;
+  idGenerator: IdGenerator;
 };
 
 export type UseCases = {
@@ -13,7 +22,12 @@ export class AppContainer {
 
   public buildUseCases(): UseCases {
     return {
-      createTaskUseCase: new CreateTaskUseCase(this.infrastructure.taskWriter)
+      createTaskUseCase: new CreateTaskUseCase(
+        this.infrastructure.taskRepository,
+        this.infrastructure.auditLogRepository,
+        this.infrastructure.transactionManager,
+        this.infrastructure.idGenerator
+      )
     };
   }
 }

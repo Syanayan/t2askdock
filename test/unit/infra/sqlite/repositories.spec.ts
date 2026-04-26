@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { Task } from '../../../../src/core/domain/entities/task.js';
 import { ERROR_CODES } from '../../../../src/core/errors/error-codes.js';
 import { AccessKeyRepository } from '../../../../src/infra/sqlite/repositories/access-key-repository.js';
 import { AuditLogRepository } from '../../../../src/infra/sqlite/repositories/audit-log-repository.js';
@@ -12,6 +13,35 @@ import { TaskRepository } from '../../../../src/infra/sqlite/repositories/task-r
 import { FakeSqliteClient } from './fake-client.js';
 
 describe('SQLite repositories (phase2)', () => {
+  it('TaskRepository.create inserts task row and tags', async () => {
+    const client = new FakeSqliteClient();
+    const repository = new TaskRepository(client);
+
+    await repository.create(
+      Task.from({
+        taskId: '01ARZ3NDEKTSV4RRFFQ69G5FAW',
+        projectId: '01ARZ3NDEKTSV4RRFFQ69G5FAX',
+        title: 'phase3',
+        description: null,
+        status: 'todo',
+        priority: 'medium',
+        assignee: null,
+        dueDate: null,
+        tags: ['Bug', 'UI'],
+        parentTaskId: null,
+        createdBy: '01ARZ3NDEKTSV4RRFFQ69G5FAV',
+        updatedBy: '01ARZ3NDEKTSV4RRFFQ69G5FAV',
+        createdAt: '2026-04-26T00:00:00Z',
+        updatedAt: '2026-04-26T00:00:00Z',
+        version: 1
+      })
+    );
+
+    expect(client.executed.filter((item) => item.type === 'run').length).toBe(3);
+    expect(client.executed[0]?.sql.includes('INSERT INTO tasks')).toBe(true);
+    expect(client.executed[1]?.sql.includes('INSERT INTO task_tags')).toBe(true);
+  });
+
   it('TaskRepository.updateWithVersion throws conflict when no row updated', async () => {
     const client = new FakeSqliteClient();
     client.runResult = { changes: 0 };
