@@ -66,10 +66,10 @@
 - [x] PurgeAuditArchiveUseCase UI の運用ガード確認（管理者のみ・承認必須）
 
 ## フェーズ7: バックアップ・監査運用
-- [ ] バックアップ（手動/日次/重要操作前）
-- [ ] RestoreBackupSnapshotUseCase
-- [ ] 監査アーカイブ（日次圧縮/移送）
-- [ ] PurgeAuditArchiveUseCase（dry-run必須）
+- [x] バックアップ（手動/日次/重要操作前）
+- [x] RestoreBackupSnapshotUseCase
+- [x] 監査アーカイブ（日次圧縮/移送）
+- [x] PurgeAuditArchiveUseCase（dry-run必須）
 
 ---
 
