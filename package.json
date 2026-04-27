@@ -1,9 +1,31 @@
 {
   "name": "t2askdock",
+  "displayName": "t2askdock",
+  "description": "VS Codeのタスク管理ツール拡張",
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "vscode": "^1.100.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:t2askdock.hello"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "t2askdock.hello",
+        "title": "t2askdock: Hello"
+      }
+    ]
+  },
   "scripts": {
+    "compile": "tsc -p tsconfig.extension.json",
+    "watch": "tsc -watch -p tsconfig.extension.json",
     "test": "npm run test:unit && npm run test:integration",
     "test:unit": "vitest run --config vitest.unit.config.ts",
     "test:integration": "vitest run --config vitest.integration.config.ts"
