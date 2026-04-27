@@ -47,15 +47,15 @@
 - [ ] Connector設定更新UseCase群との連動確認（feature flag評価順序を含む）
 
 ## フェーズ5: UI統合
-- [ ] VS Codeコマンド登録（open/select/create/toggle）
-- [ ] TreeViewProvider（遅延ロード）
-- [ ] BoardWebviewPanel（D&Dでステータス更新）
-- [ ] CommentThreadPanel
-- [ ] StatusBarController（DB/Mode/Health）
-- [ ] AuditArchiveSearch UI
-- [ ] PurgeAuditArchiveUseCase UI（dry-run→実行導線）
-- [ ] Feature Flag管理UI（更新/スコープ表示/反映確認）
-- [ ] Connector UI連動（有効/無効、設定検証結果、secret_ref不整合時表示）
+- [x] VS Codeコマンド登録（open/select/create/toggle）
+- [x] TreeViewProvider（遅延ロード）
+- [x] BoardWebviewPanel（D&Dでステータス更新）
+- [x] CommentThreadPanel
+- [x] StatusBarController（DB/Mode/Health）
+- [x] AuditArchiveSearch UI
+- [x] PurgeAuditArchiveUseCase UI（dry-run→実行導線）
+- [x] Feature Flag管理UI（更新/スコープ表示/反映確認）
+- [x] Connector UI連動（有効/無効、設定検証結果、secret_ref不整合時表示）
 
 ## フェーズ6: 競合・安全性
 - [ ] DetectTaskConflictUseCase
