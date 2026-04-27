@@ -48,7 +48,6 @@ describe('phase4 remaining usecases', () => {
       revoke,
       issue,
       { append },
-      { runInTx },
       { nextUlid: () => ids.shift() ?? 'id-fallback' }
     );
 
