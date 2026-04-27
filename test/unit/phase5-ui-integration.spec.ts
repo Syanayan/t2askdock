@@ -142,9 +142,10 @@ describe('Phase5 UI integration', () => {
 
     const searchOutput = await panel.search({ from: '2025-01-01T00:00:00.000Z', to: '2025-05-01T00:00:00.000Z' });
     const dryRun = await panel.purgeDryRun({ from: '2025-01-01T00:00:00.000Z', to: '2025-05-01T00:00:00.000Z', actorId: 'admin' });
-    const actual = await panel.purgeExecute({ from: '2025-01-01T00:00:00.000Z', to: '2025-05-01T00:00:00.000Z', actorId: 'admin' });
+    const actual = await panel.purgeExecute({ from: '2025-01-01T00:00:00.000Z', to: '2025-05-01T00:00:00.000Z', actorId: 'admin', actorRole: 'admin', approved: true });
 
     expect(searchOutput.includeArchive).toBe(true);
+    expect(searchOutput.searchMode).toBe('cross_archive');
     expect(dryRun.affectedRows).toBe(12);
     expect(actual.affectedRows).toBe(12);
     expect(execute).toHaveBeenNthCalledWith(1, expect.objectContaining({ dryRun: true }));

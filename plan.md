@@ -58,12 +58,12 @@
 - [x] Connector UI連動（有効/無効、設定検証結果、secret_ref不整合時表示）
 
 ## フェーズ6: 競合・安全性
-- [ ] DetectTaskConflictUseCase
-- [ ] ResolveTaskConflictUseCase（LOCAL/REMOTE/MANUAL）
-- [ ] NetworkFS Safety Guard（ロック診断/RTT判定）
-- [ ] リトライ制御（SQLITE_BUSY/IOERR）
-- [ ] AuditArchiveSearch UI の性能/導線調整（90日超の横断検索）
-- [ ] PurgeAuditArchiveUseCase UI の運用ガード確認（管理者のみ・承認必須）
+- [x] DetectTaskConflictUseCase
+- [x] ResolveTaskConflictUseCase（LOCAL/REMOTE/MANUAL）
+- [x] NetworkFS Safety Guard（ロック診断/RTT判定）
+- [x] リトライ制御（SQLITE_BUSY/IOERR）
+- [x] AuditArchiveSearch UI の性能/導線調整（90日超の横断検索）
+- [x] PurgeAuditArchiveUseCase UI の運用ガード確認（管理者のみ・承認必須）
 
 ## フェーズ7: バックアップ・監査運用
 - [ ] バックアップ（手動/日次/重要操作前）
