@@ -13,4 +13,4 @@ VS Codeのタスク管理ツール拡張です。
    npm run compile
    ```
 3. VS Codeでこのフォルダを開き、`F5`（`Run t2askdock Extension`）で拡張機能を起動
-4. コマンドパレットで `t2askdock: Hello` を実行して起動確認
+4. コマンドパレットで `Task Dock: Open Tree` などの `Task Dock` コマンドを実行して起動確認

@@ -12,14 +12,34 @@
     "Other"
   ],
   "activationEvents": [
-    "onCommand:t2askdock.hello"
+    "onCommand:taskDock.openTree",
+    "onCommand:taskDock.openBoard",
+    "onCommand:taskDock.selectDatabase",
+    "onCommand:taskDock.toggleReadOnly",
+    "onCommand:taskDock.createTask"
   ],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
       {
-        "command": "t2askdock.hello",
-        "title": "t2askdock: Hello"
+        "command": "taskDock.openTree",
+        "title": "Task Dock: Open Tree"
+      },
+      {
+        "command": "taskDock.openBoard",
+        "title": "Task Dock: Open Board"
+      },
+      {
+        "command": "taskDock.selectDatabase",
+        "title": "Task Dock: Select Database"
+      },
+      {
+        "command": "taskDock.toggleReadOnly",
+        "title": "Task Dock: Toggle ReadOnly"
+      },
+      {
+        "command": "taskDock.createTask",
+        "title": "Task Dock: Create Task"
       }
     ]
   },
@@ -31,6 +51,7 @@
     "test:integration": "vitest run --config vitest.integration.config.ts"
   },
   "devDependencies": {
+    "@types/vscode": "^1.100.0",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"
   }

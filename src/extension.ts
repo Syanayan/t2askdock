@@ -1,11 +1,23 @@
 import * as vscode from 'vscode';
 
-export function activate(context: vscode.ExtensionContext): void {
-  const disposable = vscode.commands.registerCommand('t2askdock.hello', async () => {
-    await vscode.window.showInformationMessage('t2askdock extension is ready.');
-  });
+const notImplementedMessage = 'taskDock command is registered. Implementation wiring is pending.';
 
-  context.subscriptions.push(disposable);
+export function activate(context: vscode.ExtensionContext): void {
+  const commandIds = [
+    'taskDock.openTree',
+    'taskDock.openBoard',
+    'taskDock.selectDatabase',
+    'taskDock.toggleReadOnly',
+    'taskDock.createTask'
+  ] as const;
+
+  for (const commandId of commandIds) {
+    const disposable = vscode.commands.registerCommand(commandId, async () => {
+      await vscode.window.showInformationMessage(notImplementedMessage);
+      return { commandId };
+    });
+    context.subscriptions.push(disposable);
+  }
 }
 
 export function deactivate(): void {}
