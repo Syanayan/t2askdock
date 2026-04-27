@@ -13,16 +13,21 @@ import { GrantProjectEditPermissionUseCase } from '../../src/core/usecase/permis
 import { RunPermissionExpirySweepUseCase } from '../../src/core/usecase/permissions/run-permission-expiry-sweep-usecase.js';
 
 describe('phase4 remaining usecases', () => {
-  it('Issue/Revoke/Reissue access key flow works', async () => {
+  it('Issue/Revoke/Reissue access key flow records audit logs', async () => {
     const save = vi.fn().mockResolvedValue(undefined);
     const upsert = vi.fn().mockResolvedValue(undefined);
     const revokeKey = vi.fn().mockResolvedValue(undefined);
     const revokeWrappers = vi.fn().mockResolvedValue(undefined);
+    const append = vi.fn().mockResolvedValue(undefined);
+    const runInTx = vi.fn(async (work: () => Promise<unknown>) => work());
 
+    const ids = ['k-1', 'log-issue', 'log-revoke', 'log-reissue'];
     const issue = new IssueAccessKeyUseCase(
       { save },
       { upsert },
-      { nextUlid: () => 'k-1' },
+      { append },
+      { runInTx },
+      { nextUlid: () => ids.shift() ?? 'id-fallback' },
       { createAccessKey: () => 'plain', hash: async () => ({ keyHash: 'h', keySalt: 's' }) },
       { createActiveWrapper: async () => ({ encryptedDek: new Uint8Array([1]), wrapSalt: 'ws', kekVersion: 1 }) }
     );
@@ -30,8 +35,22 @@ describe('phase4 remaining usecases', () => {
     const sessionLifecycle = new SessionLifecycle({ ttlMs: 60_000, idleTimeoutMs: 30_000 });
     sessionLifecycle.create({ token: 't-1', keyId: 'old', profileId: 'p1', deviceFingerprint: 'd', now: '2026-04-26T00:00:00.000Z' });
 
-    const revoke = new RevokeAccessKeyUseCase({ revoke: revokeKey }, { revokeByKeyId: revokeWrappers }, sessionLifecycle);
-    const reissue = new ReissueAccessKeyUseCase(revoke, issue);
+    const revoke = new RevokeAccessKeyUseCase(
+      { revoke: revokeKey },
+      { revokeByKeyId: revokeWrappers },
+      { append },
+      { runInTx },
+      { nextUlid: () => ids.shift() ?? 'id-fallback' },
+      sessionLifecycle
+    );
+
+    const reissue = new ReissueAccessKeyUseCase(
+      revoke,
+      issue,
+      { append },
+      { runInTx },
+      { nextUlid: () => ids.shift() ?? 'id-fallback' }
+    );
 
     const issued = await issue.execute({
       ownerType: 'user',
@@ -42,7 +61,7 @@ describe('phase4 remaining usecases', () => {
       now: '2026-04-26T00:00:00.000Z'
     });
 
-    const revoked = await revoke.execute({ keyId: 'old', now: '2026-04-26T00:00:01.000Z' });
+    const revoked = await revoke.execute({ keyId: 'old', actorId: 'admin', now: '2026-04-26T00:00:01.000Z' });
     const reissued = await reissue.execute({
       oldKeyId: 'old',
       ownerType: 'user',
@@ -60,6 +79,10 @@ describe('phase4 remaining usecases', () => {
     expect(revokeWrappers).toHaveBeenCalledWith('old', '2026-04-26T00:00:01.000Z');
     expect(revoked.revokedSessions).toBe(1);
     expect(reissued.rawAccessKey).toBe('plain');
+    expect(runInTx).toHaveBeenCalled();
+    expect(append).toHaveBeenCalledWith(expect.objectContaining({ actionType: 'KEY_ISSUED' }));
+    expect(append).toHaveBeenCalledWith(expect.objectContaining({ actionType: 'KEY_REVOKED' }));
+    expect(append).toHaveBeenCalledWith(expect.objectContaining({ actionType: 'KEY_REISSUED' }));
   });
 
   it('SetFeatureFlag/GrantPermission/ExpirySweep execute repository calls', async () => {

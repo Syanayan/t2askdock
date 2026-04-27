@@ -1,4 +1,6 @@
+import type { AuditLogRepository } from '../../ports/repositories/audit-log-repository.js';
 import type { IdGenerator } from '../../ports/services/id-generator.js';
+import type { TransactionManager } from '../../ports/services/transaction-manager.js';
 
 export type AccessKeyWriter = {
   save(input: {
@@ -44,6 +46,8 @@ export class IssueAccessKeyUseCase {
   public constructor(
     private readonly accessKeyRepository: AccessKeyWriter,
     private readonly profileKeyWrapperRepository: ProfileKeyWrapperWriter,
+    private readonly auditLogRepository: AuditLogRepository,
+    private readonly transactionManager: TransactionManager,
     private readonly idGenerator: IdGenerator,
     private readonly accessKeyHasher: AccessKeyHasher,
     private readonly profileDekWrapperFactory: ProfileDekWrapperFactory
@@ -61,31 +65,44 @@ export class IssueAccessKeyUseCase {
     const rawAccessKey = this.accessKeyHasher.createAccessKey();
     const { keyHash, keySalt } = await this.accessKeyHasher.hash(rawAccessKey);
 
-    await this.accessKeyRepository.save({
-      keyId,
-      ownerType: input.ownerType,
-      issuedFor: input.issuedFor,
-      keyHash,
-      keySalt,
-      expiresAt: input.expiresAt,
-      revokedAt: null,
-      issuedBy: input.issuedBy,
-      issuedAt: input.now
-    });
-
-    for (const profileId of input.profileIds) {
-      const wrapper = await this.profileDekWrapperFactory.createActiveWrapper({ profileId, keyId, rawAccessKey, now: input.now });
-      await this.profileKeyWrapperRepository.upsert({
-        profileId,
+    await this.transactionManager.runInTx(async () => {
+      await this.accessKeyRepository.save({
         keyId,
-        encryptedDek: wrapper.encryptedDek,
-        wrapSalt: wrapper.wrapSalt,
-        kekVersion: wrapper.kekVersion,
-        wrapperStatus: 'active',
-        createdAt: input.now,
-        revokedAt: null
+        ownerType: input.ownerType,
+        issuedFor: input.issuedFor,
+        keyHash,
+        keySalt,
+        expiresAt: input.expiresAt,
+        revokedAt: null,
+        issuedBy: input.issuedBy,
+        issuedAt: input.now
       });
-    }
+
+      for (const profileId of input.profileIds) {
+        const wrapper = await this.profileDekWrapperFactory.createActiveWrapper({ profileId, keyId, rawAccessKey, now: input.now });
+        await this.profileKeyWrapperRepository.upsert({
+          profileId,
+          keyId,
+          encryptedDek: wrapper.encryptedDek,
+          wrapSalt: wrapper.wrapSalt,
+          kekVersion: wrapper.kekVersion,
+          wrapperStatus: 'active',
+          createdAt: input.now,
+          revokedAt: null
+        });
+      }
+
+      await this.auditLogRepository.append({
+        logId: this.idGenerator.nextUlid(),
+        actorId: input.issuedBy,
+        actionType: 'KEY_ISSUED',
+        targetType: 'access_key',
+        targetId: keyId,
+        payloadDiffJson: JSON.stringify({ ownerType: input.ownerType, issuedFor: input.issuedFor, profileIds: input.profileIds }),
+        retentionClass: 'security',
+        createdAt: input.now
+      });
+    });
 
     return { keyId, rawAccessKey };
   }
