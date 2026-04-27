@@ -98,6 +98,7 @@
 1. **SQLite具体実装**
    - `SqliteClient` インターフェースの実装クラスを作成
    - `better-sqlite3` などのライブラリを導入し、既存ポートと整合するよう Promise でラップ
+   - **注意**: VS Code 拡張の実行時に必要なため `devDependencies` ではなく `dependencies`（本番依存）に追加する
 2. **IdGenerator具体実装**
    - `IdGenerator` ポートの実装クラスを作成
    - ULIDドメインオブジェクトを使ってIDを生成
@@ -126,9 +127,9 @@
    - `BoardWebviewPanel` 用の HTML/CSS/JS を実装し `WebviewPanel` API に接続（最大工数）
 
 ### 設計上の先行決定事項（重要）
-- **空白点: ProjectTaskLoader のデータソース定義**
-  - 既存Taskには `projectId` があるが、`Project` エンティティ／リポジトリは未整備
-  - 先に以下のどちらかを決定する
-    1. Taskの `projectId` を集約してプロジェクト一覧を構成する
-    2. `projects` テーブル（＋Repository）を新設して正規化する
-- 本件の決定後に、タスク5（ProjectTaskLoader）の実装へ着手する
+- **ProjectTaskLoader は Option A（`projectId` 集約）を採用する**
+  - 新テーブル・新マイグレーション・新リポジトリを追加せず、既存 `tasks` テーブルの `projectId` を `GROUP BY` して `listProjects()` を構成する
+  - `listTasksByProject()` は既存 Task 取得クエリの `projectId` 条件で対応する
+  - Project の表示名が必要になった場合は、当面 `tasks` に `projectName` カラムを追加して対応する
+  - 正規化（`projects` テーブル分離）は必要性が顕在化した時点で再検討し、現時点では実装複雑性を増やさない
+- 上記方針を前提に、タスク5（ProjectTaskLoader）の実装へ着手する
