@@ -1,3 +1,4 @@
+import type { AccessKeyRepository as AccessKeyRepositoryPort } from '../../../core/ports/repositories/access-key-repository.js';
 import type { SqliteClient } from '../sqlite-client.js';
 
 export type AccessKeyRecord = {
@@ -12,7 +13,7 @@ export type AccessKeyRecord = {
   issuedAt: string;
 };
 
-export class AccessKeyRepository {
+export class AccessKeyRepository implements AccessKeyRepositoryPort {
   public constructor(private readonly client: SqliteClient) {}
 
   public async save(record: AccessKeyRecord): Promise<void> {
@@ -32,4 +33,32 @@ export class AccessKeyRepository {
       ]
     );
   }
+
+  public async revoke(keyId: string, revokedAt: string): Promise<void> {
+    await this.client.run(
+      `UPDATE access_keys
+       SET revoked_at = ?
+       WHERE key_id = ? AND revoked_at IS NULL`,
+      [revokedAt, keyId]
+    );
+  }
+
+  public async findByKeyId(keyId: string): Promise<AccessKeyRecord | null> {
+    const row = await this.client.get<AccessKeyRecord>(
+      `SELECT key_id AS keyId,
+              owner_type AS ownerType,
+              issued_for AS issuedFor,
+              key_hash AS keyHash,
+              key_salt AS keySalt,
+              expires_at AS expiresAt,
+              revoked_at AS revokedAt,
+              issued_by AS issuedBy,
+              issued_at AS issuedAt
+         FROM access_keys
+        WHERE key_id = ?`,
+      [keyId]
+    );
+    return row ?? null;
+  }
+
 }

@@ -12,8 +12,36 @@ export type ConnectorSettingsRecord = {
   updatedAt: string;
 };
 
+type ConnectorSettingsRow = Omit<ConnectorSettingsRecord, 'enabled'> & {
+  enabled: number;
+};
+
 export class ConnectorSettingsRepository {
   public constructor(private readonly client: SqliteClient) {}
+
+  public async findByConnectorAndProfile(connectorId: string, profileId: string): Promise<ConnectorSettingsRecord | null> {
+    const row = await this.client.get<ConnectorSettingsRow>(
+      `SELECT connector_id AS connectorId,
+              profile_id AS profileId,
+              enabled AS enabled,
+              auth_type AS authType,
+              settings_json AS settingsJson,
+              secret_ref AS secretRef,
+              sync_policy AS syncPolicy,
+              updated_by AS updatedBy,
+              updated_at AS updatedAt
+         FROM connector_settings
+        WHERE connector_id = ?
+          AND profile_id = ?`,
+      [connectorId, profileId]
+    );
+
+    if (row === undefined) {
+      return null;
+    }
+
+    return { ...row, enabled: row.enabled === 1 };
+  }
 
   public async upsert(record: ConnectorSettingsRecord): Promise<void> {
     await this.client.run(
