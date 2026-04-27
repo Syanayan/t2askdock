@@ -86,3 +86,50 @@
 5. フェーズ5（Tree/Board最小表示）
 
 上記完了時点で「作成→表示→更新→監査記録」の最小動線を確認できる。
+
+---
+
+## 次の製造に向けた配線タスク分割（追記: 2026-04-27）
+
+### 実装優先順
+`1 → 2 → 3（インフラ）→ 4 → 5（DIコンテナ）→ 6 → 7 → 8 → 9（VS Code API接続）→ 10（Webview）`
+
+### グループ1: インフラ実装（最初に必要）
+1. **SQLite具体実装**
+   - `SqliteClient` インターフェースの実装クラスを作成
+   - `better-sqlite3` などのライブラリを導入し、既存ポートと整合するよう Promise でラップ
+   - **注意**: VS Code 拡張の実行時に必要なため `devDependencies` ではなく `dependencies`（本番依存）に追加する
+2. **IdGenerator具体実装**
+   - `IdGenerator` ポートの実装クラスを作成
+   - ULIDドメインオブジェクトを使ってIDを生成
+3. **マイグレーション起動**
+   - `activate()` でDB接続後に `Migrator.run()` を必ず呼び出す
+
+### グループ2: DIコンテナ拡張
+4. **AppContainer にフェーズ4〜7のUseCaseを追加**
+   - 現状未登録のユースケースを配線
+   - 例: `SwitchDatabaseProfileUseCase` / `SetReadOnlyModeUseCase` / `SetFeatureFlagUseCase` / バックアップ系
+5. **ProjectTaskLoader 実装**
+   - `TaskTreeViewProvider` が要求する `listProjects()` / `listTasksByProject()` を実装
+   - `Project` エンティティ・リポジトリ未実装のため、取得モデルを先に設計
+
+### グループ3: VS Code API 接続
+6. **`package.json` にビューを追加**
+   - `contributes.views` / `contributes.viewsContainers` でサイドバーツリービューを定義
+7. **コマンド本実装**
+   - `extension.ts` の `activate()` で `TaskDockCommandRegistry` を初期化
+   - `vscode.commands.registerCommand` に接続
+8. **ツリービュー接続**
+   - `TaskTreeViewProvider` を `vscode.window.registerTreeDataProvider()` に接続
+9. **ステータスバー接続**
+   - `vscode.window.createStatusBarItem()` を作成し `StatusBarController` と連携
+10. **ボードビュー（Webview）**
+   - `BoardWebviewPanel` 用の HTML/CSS/JS を実装し `WebviewPanel` API に接続（最大工数）
+
+### 設計上の先行決定事項（重要）
+- **ProjectTaskLoader は Option A（`projectId` 集約）を採用する**
+  - 新テーブル・新マイグレーション・新リポジトリを追加せず、既存 `tasks` テーブルの `projectId` を `GROUP BY` して `listProjects()` を構成する
+  - `listTasksByProject()` は既存 Task 取得クエリの `projectId` 条件で対応する
+  - Project の表示名が必要になった場合は、当面 `tasks` に `projectName` カラムを追加して対応する
+  - 正規化（`projects` テーブル分離）は必要性が顕在化した時点で再検討し、現時点では実装複雑性を増やさない
+- 上記方針を前提に、タスク5（ProjectTaskLoader）の実装へ着手する
