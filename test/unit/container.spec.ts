@@ -13,7 +13,12 @@ describe('AppContainer', () => {
     const runInTx = vi.fn(async (work: () => Promise<unknown>) => work());
     const nextUlid = vi.fn().mockReturnValue(ULID_4);
     const container = new AppContainer({
-      taskRepository: { create },
+      taskRepository: {
+        create,
+        updateWithVersion: vi.fn(),
+        listProjects: vi.fn().mockResolvedValue([]),
+        listTasksByProject: vi.fn().mockResolvedValue([])
+      },
       commentRepository: {
         create: vi.fn(),
         updateWithVersion: vi.fn(),
@@ -22,7 +27,15 @@ describe('AppContainer', () => {
       },
       auditLogRepository: { append },
       transactionManager: { runInTx },
-      idGenerator: { nextUlid }
+      idGenerator: { nextUlid },
+      databaseProfileRepository: { findById: vi.fn(), setMode: vi.fn() },
+      authStateReader: { isAuthenticated: vi.fn() },
+      connectionHealthChecker: { check: vi.fn() },
+      featureFlagRepository: { upsert: vi.fn() },
+      backupSnapshotFactory: { createSnapshot: vi.fn() },
+      backupSnapshotRepository: { create: vi.fn(), rotate: vi.fn(), findById: vi.fn() },
+      snapshotIntegrityVerifier: { verify: vi.fn() },
+      backupRestoreOperator: { previewDiff: vi.fn(), backupCurrent: vi.fn(), restore: vi.fn(), verifyConnection: vi.fn() }
     });
 
     const output = await container.buildUseCases().createTaskUseCase.execute({

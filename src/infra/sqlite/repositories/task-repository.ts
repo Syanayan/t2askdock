@@ -73,4 +73,37 @@ export class TaskRepository implements TaskRepositoryPort {
       );
     }
   }
+
+  public async listProjects(): Promise<Array<{ projectId: string; projectName: string }>> {
+    const rows = await this.client.all<{ projectId: string }>(
+      `SELECT project_id AS projectId
+       FROM tasks
+       GROUP BY project_id
+       ORDER BY MAX(updated_at) DESC`
+    );
+
+    return rows.map((row) => ({ projectId: row.projectId, projectName: row.projectId }));
+  }
+
+  public async listTasksByProject(input: {
+    projectId: string;
+    offset: number;
+    limit: number;
+  }): Promise<Array<{ taskId: string; title: string; status: Task['value']['status']; hasChildren: boolean }>> {
+    return this.client.all<{ taskId: string; title: string; status: Task['value']['status']; hasChildren: number }>(
+      `SELECT t.task_id AS taskId,
+              t.title AS title,
+              t.status AS status,
+              EXISTS(
+                SELECT 1
+                FROM tasks c
+                WHERE c.parent_task_id = t.task_id
+              ) AS hasChildren
+       FROM tasks t
+       WHERE t.project_id = ?
+       ORDER BY t.updated_at DESC
+       LIMIT ? OFFSET ?`,
+      [input.projectId, input.limit, input.offset]
+    ).then((rows) => rows.map((row) => ({ ...row, hasChildren: row.hasChildren === 1 })));
+  }
 }

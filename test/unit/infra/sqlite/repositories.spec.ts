@@ -94,6 +94,33 @@ describe('SQLite repositories (phase2)', () => {
     expect(sqls.filter((sql) => sql.includes('INSERT INTO task_tags')).length).toBe(2);
   });
 
+  it('TaskRepository.listProjects groups by project_id and maps projectName to projectId', async () => {
+    const client = new FakeSqliteClient();
+    client.allResult = [{ projectId: 'p1' }, { projectId: 'p2' }];
+    const repository = new TaskRepository(client);
+
+    const projects = await repository.listProjects();
+
+    expect(projects).toEqual([
+      { projectId: 'p1', projectName: 'p1' },
+      { projectId: 'p2', projectName: 'p2' }
+    ]);
+    const call = client.executed.find((item) => item.type === 'get' && item.sql.includes('GROUP BY project_id'));
+    expect(call).toBeDefined();
+  });
+
+  it('TaskRepository.listTasksByProject returns paged task rows with boolean hasChildren', async () => {
+    const client = new FakeSqliteClient();
+    client.allResult = [{ taskId: 't1', title: 'todo', status: 'todo', hasChildren: 1 }];
+    const repository = new TaskRepository(client);
+
+    const tasks = await repository.listTasksByProject({ projectId: 'p1', offset: 20, limit: 10 });
+
+    expect(tasks).toEqual([{ taskId: 't1', title: 'todo', status: 'todo', hasChildren: true }]);
+    const call = client.executed.find((item) => item.type === 'get' && item.sql.includes('WHERE t.project_id = ?'));
+    expect(call?.params).toEqual(['p1', 10, 20]);
+  });
+
   it('CommentRepository.updateWithVersion throws conflict when no row updated', async () => {
     const client = new FakeSqliteClient();
     client.runResult = { changes: 0 };
