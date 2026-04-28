@@ -5,9 +5,14 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { BetterSqlite3Client } from '../../../../src/infra/sqlite/better-sqlite3-client.js';
 
 describe('BetterSqlite3Client', () => {
+  const clients: BetterSqlite3Client[] = [];
   const tempDirs: string[] = [];
 
   afterEach(() => {
+    for (const client of clients) {
+      client.close();
+    }
+    clients.length = 0;
     for (const dir of tempDirs) {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -18,6 +23,7 @@ describe('BetterSqlite3Client', () => {
     const dir = mkdtempSync(join(tmpdir(), 'taskdock-sqlite-'));
     tempDirs.push(dir);
     const client = new BetterSqlite3Client(join(dir, 'taskdock.sqlite'));
+    clients.push(client);
 
     await client.exec('CREATE TABLE tasks(task_id TEXT PRIMARY KEY, title TEXT NOT NULL, priority INTEGER NOT NULL)');
     const insert = await client.run('INSERT INTO tasks(task_id, title, priority) VALUES (?, ?, ?)', ['t1', 'hello', 1]);
@@ -38,6 +44,7 @@ describe('BetterSqlite3Client', () => {
     const dir = mkdtempSync(join(tmpdir(), 'taskdock-sqlite-'));
     tempDirs.push(dir);
     const client = new BetterSqlite3Client(join(dir, 'taskdock.sqlite'));
+    clients.push(client);
 
     await client.exec('CREATE TABLE misc(id TEXT PRIMARY KEY, nullable_text TEXT, enabled INTEGER, payload BLOB)');
     await client.run('INSERT INTO misc(id, nullable_text, enabled, payload) VALUES (?, ?, ?, ?)', [
@@ -47,11 +54,13 @@ describe('BetterSqlite3Client', () => {
       new Uint8Array([1, 2, 3])
     ]);
 
-    const row = await client.get<{ nullable_text: string | null; enabled: number; payload: string }>(
-      'SELECT nullable_text, enabled, hex(payload) AS payload FROM misc WHERE id = ?',
+    const row = await client.get<{ nullable_text: string | null; enabled: number; payload: Buffer }>(
+      'SELECT nullable_text, enabled, payload FROM misc WHERE id = ?',
       ['m1']
     );
 
-    expect(row).toEqual({ nullable_text: null, enabled: 1, payload: '010203' });
+    expect(row?.nullable_text).toBeNull();
+    expect(row?.enabled).toBe(1);
+    expect(row?.payload).toEqual(Buffer.from([1, 2, 3]));
   });
 });

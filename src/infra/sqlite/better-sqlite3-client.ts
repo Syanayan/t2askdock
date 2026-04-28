@@ -11,19 +11,31 @@ export class BetterSqlite3Client implements SqliteClient {
   }
 
   public async run(sql: string, params: SqlParams = []): Promise<SqlRunResult> {
-    const result = this.db.prepare(sql).run(...params);
+    const result = this.db.prepare(sql).run(...this.normalizeParams(params));
     return { changes: result.changes };
   }
 
   public async get<T>(sql: string, params: SqlParams = []): Promise<T | undefined> {
-    return this.db.prepare(sql).get(...params) as T | undefined;
+    return this.db.prepare(sql).get(...this.normalizeParams(params)) as T | undefined;
   }
 
   public async all<T>(sql: string, params: SqlParams = []): Promise<ReadonlyArray<T>> {
-    return this.db.prepare(sql).all(...params) as T[];
+    return this.db.prepare(sql).all(...this.normalizeParams(params)) as T[];
   }
 
   public async exec(sql: string): Promise<void> {
     this.db.exec(sql);
+  }
+
+  public close(): void {
+    this.db.close();
+  }
+
+  private normalizeParams(params: SqlParams): unknown[] {
+    return params.map(v => {
+      if (typeof v === 'boolean') return v ? 1 : 0;
+      if (v instanceof Uint8Array) return Buffer.from(v);
+      return v;
+    });
   }
 }
