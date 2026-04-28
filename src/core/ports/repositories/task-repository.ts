@@ -17,4 +17,10 @@ export type TaskUpdate = {
 export interface TaskRepository {
   create(task: Task): Promise<void>;
   updateWithVersion(task: TaskUpdate, expectedVersion: number): Promise<void>;
+  listProjects(): Promise<Array<{ projectId: string; projectName: string }>>;
+  listTasksByProject(input: {
+    projectId: string;
+    offset: number;
+    limit: number;
+  }): Promise<Array<{ taskId: string; title: string; status: Task['value']['status']; hasChildren: boolean }>>;
 }

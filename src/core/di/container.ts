@@ -144,4 +144,18 @@ export class AppContainer {
       )
     };
   }
+
+  public buildProjectTaskLoader(): {
+    listProjects(): Promise<Array<{ projectId: string; projectName: string }>>;
+    listTasksByProject(input: {
+      projectId: string;
+      offset: number;
+      limit: number;
+    }): Promise<Array<{ taskId: string; title: string; status: 'todo' | 'in_progress' | 'done'; hasChildren: boolean }>>;
+  } {
+    return {
+      listProjects: () => this.infrastructure.taskRepository.listProjects(),
+      listTasksByProject: (input) => this.infrastructure.taskRepository.listTasksByProject(input)
+    };
+  }
 }
