@@ -20,6 +20,23 @@
   ],
   "main": "./dist/extension.js",
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "taskDock",
+          "title": "Task Dock",
+          "icon": "resources/task-dock.svg"
+        }
+      ]
+    },
+    "views": {
+      "taskDock": [
+        {
+          "id": "taskDock.treeView",
+          "name": "Tasks"
+        }
+      ]
+    },
     "commands": [
       {
         "command": "taskDock.openTree",
