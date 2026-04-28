@@ -54,5 +54,8 @@
     "@types/vscode": "^1.100.0",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"
+  },
+  "dependencies": {
+    "better-sqlite3": "file:vendor/better-sqlite3"
   }
 }

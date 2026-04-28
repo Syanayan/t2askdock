@@ -2,9 +2,9 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { SqliteCliClient } from '../../../../src/infra/sqlite/sqlite-cli-client.js';
+import { BetterSqlite3Client } from '../../../../src/infra/sqlite/better-sqlite3-client.js';
 
-describe('SqliteCliClient', () => {
+describe('BetterSqlite3Client', () => {
   const tempDirs: string[] = [];
 
   afterEach(() => {
@@ -14,10 +14,10 @@ describe('SqliteCliClient', () => {
     tempDirs.length = 0;
   });
 
-  it('executes DDL and run/get/all through sqlite3 CLI', async () => {
+  it('executes DDL and run/get/all', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'taskdock-sqlite-'));
     tempDirs.push(dir);
-    const client = new SqliteCliClient(join(dir, 'taskdock.sqlite'));
+    const client = new BetterSqlite3Client(join(dir, 'taskdock.sqlite'));
 
     await client.exec('CREATE TABLE tasks(task_id TEXT PRIMARY KEY, title TEXT NOT NULL, priority INTEGER NOT NULL)');
     const insert = await client.run('INSERT INTO tasks(task_id, title, priority) VALUES (?, ?, ?)', ['t1', 'hello', 1]);
@@ -37,7 +37,7 @@ describe('SqliteCliClient', () => {
   it('supports null, boolean and blob parameters', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'taskdock-sqlite-'));
     tempDirs.push(dir);
-    const client = new SqliteCliClient(join(dir, 'taskdock.sqlite'));
+    const client = new BetterSqlite3Client(join(dir, 'taskdock.sqlite'));
 
     await client.exec('CREATE TABLE misc(id TEXT PRIMARY KEY, nullable_text TEXT, enabled INTEGER, payload BLOB)');
     await client.run('INSERT INTO misc(id, nullable_text, enabled, payload) VALUES (?, ?, ?, ?)', [
