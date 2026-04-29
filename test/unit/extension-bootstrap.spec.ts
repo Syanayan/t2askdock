@@ -3,8 +3,10 @@ import { INITIAL_MIGRATION_V1_SQL } from '../../src/infra/sqlite/migrations/init
 
 vi.mock('vscode', () => ({
   commands: { registerCommand: vi.fn(), executeCommand: vi.fn() },
-  window: { showInformationMessage: vi.fn() },
+  window: { showInformationMessage: vi.fn(), registerTreeDataProvider: vi.fn() },
   workspace: { fs: { createDirectory: vi.fn() } },
+  TreeItemCollapsibleState: { None: 0, Collapsed: 1 },
+  TreeItem: class { constructor(public label: string, public collapsibleState: number) {} },
   Uri: {
     file: (p: string) => ({ fsPath: p }),
     joinPath: (...parts: Array<{ fsPath: string } | string>) => ({ fsPath: parts.map((p) => (typeof p === 'string' ? p : p.fsPath)).join('/') })
@@ -68,13 +70,19 @@ describe('extension bootstrapMigrations', () => {
     const { activate } = await import('../../src/extension.js');
     const vscode = await import('vscode');
     const registerCommand = vi.mocked(vscode.commands.registerCommand);
+    const registerTreeDataProvider = vi.mocked(vscode.window.registerTreeDataProvider);
     registerCommand.mockReturnValue({ dispose: vi.fn() } as never);
+    registerTreeDataProvider.mockReturnValue({ dispose: vi.fn() } as never);
 
     await activate({
       globalStorageUri: { fsPath: '/tmp/taskdock' },
       subscriptions: []
     } as never);
 
+    expect(registerTreeDataProvider).toHaveBeenCalledWith('taskDock.treeView', expect.objectContaining({
+      getChildren: expect.any(Function),
+      getTreeItem: expect.any(Function)
+    }));
     expect(registerCommand).toHaveBeenCalledWith('taskDock.openTree', expect.any(Function));
     expect(registerCommand).toHaveBeenCalledWith('taskDock.openBoard', expect.any(Function));
     expect(registerCommand).toHaveBeenCalledWith('taskDock.selectDatabase', expect.any(Function));
