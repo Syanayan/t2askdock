@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { INITIAL_MIGRATION_V1_SQL } from '../../src/infra/sqlite/migrations/initial-migration-v1.js';
+import { MIGRATION_V2_SQL } from '../../src/infra/sqlite/migrations/initial-migration-v2.js';
 
 vi.mock('vscode', () => ({
   commands: { registerCommand: vi.fn(), executeCommand: vi.fn() },
@@ -73,7 +74,7 @@ describe('extension bootstrapMigrations', () => {
     expect(ensureDirectory).toHaveBeenCalledWith('/tmp/taskdock');
     expect(resolveDatabasePath).toHaveBeenCalledWith('/tmp/taskdock');
     expect(createClient).toHaveBeenCalledWith('/tmp/taskdock.sqlite3');
-    expect(migrate).toHaveBeenCalledWith([{ version: 1, statements: INITIAL_MIGRATION_V1_SQL }]);
+    expect(migrate).toHaveBeenCalledWith([{ version: 1, statements: INITIAL_MIGRATION_V1_SQL }, { version: 2, statements: MIGRATION_V2_SQL }]);
     expect(subscriptions).toHaveLength(1);
 
     subscriptions[0].dispose();

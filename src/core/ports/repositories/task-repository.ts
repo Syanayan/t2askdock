@@ -12,6 +12,7 @@ export type TaskUpdate = {
   parentTaskId: string | null;
   updatedBy: string;
   updatedAt: string;
+  progress: number;
 };
 
 export type TaskDetail = {
@@ -26,6 +27,17 @@ export type TaskDetail = {
   assignee: string | null;
   parentTaskId: string | null;
   version: number;
+  progress: number;
+};
+
+export type TaskTreeNode = {
+  taskId: string;
+  title: string;
+  status: Task['value']['status'];
+  priority: Task['value']['priority'];
+  assignee: string | null;
+  progress: number;
+  children: TaskTreeNode[];
 };
 
 export interface TaskRepository {
@@ -38,6 +50,8 @@ export interface TaskRepository {
     limit: number;
   }): Promise<Array<{ taskId: string; title: string; status: Task['value']['status']; hasChildren: boolean }>>;
   findDetailById(taskId: string): Promise<TaskDetail | null>;
+  listSubtasksByParent(parentTaskId: string): Promise<Array<{ taskId: string; title: string; status: Task['value']['status']; hasChildren: boolean }>>;
+  listTasksWithDetail(projectId: string): Promise<TaskTreeNode[]>;
   deleteById(taskId: string): Promise<void>;
 }
 

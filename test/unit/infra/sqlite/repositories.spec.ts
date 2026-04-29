@@ -33,7 +33,8 @@ describe('SQLite repositories (phase2)', () => {
         updatedBy: '01ARZ3NDEKTSV4RRFFQ69G5FAV',
         createdAt: '2026-04-26T00:00:00Z',
         updatedAt: '2026-04-26T00:00:00Z',
-        version: 1
+        version: 1,
+        progress: 0
       })
     );
 

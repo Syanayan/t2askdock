@@ -32,7 +32,8 @@ describe('CreateTaskUseCase', () => {
       tags: ['phase3'],
       parentTaskId: null,
       actorId: ACTOR_ID,
-      now: '2026-04-26T00:00:00.000Z'
+      now: '2026-04-26T00:00:00.000Z',
+      progress: 0
     });
 
     expect(runInTx).toHaveBeenCalledOnce();
