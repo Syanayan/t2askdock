@@ -1,3 +1,4 @@
+import type { TaskStatus } from '../domain/entities/task.js';
 import { AddTaskCommentUseCase } from '../usecase/comments/add-task-comment-usecase.js';
 import { DeleteTaskCommentUseCase } from '../usecase/comments/delete-task-comment-usecase.js';
 import { ListTaskCommentsUseCase } from '../usecase/comments/list-task-comments-usecase.js';
@@ -151,7 +152,7 @@ export class AppContainer {
       projectId: string;
       offset: number;
       limit: number;
-    }): Promise<Array<{ taskId: string; title: string; status: 'todo' | 'in_progress' | 'done'; hasChildren: boolean }>>;
+    }): Promise<Array<{ taskId: string; title: string; status: TaskStatus; hasChildren: boolean }>>;
   } {
     return {
       listProjects: () => this.infrastructure.taskRepository.listProjects(),
