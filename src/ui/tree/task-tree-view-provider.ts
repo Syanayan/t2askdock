@@ -23,7 +23,7 @@ export class TaskTreeViewProvider {
     private readonly pageSize = 100
   ) {}
 
-  public async getChildren(parent?: { kind: 'project'; id: string } | { kind: 'task'; id: string }): Promise<TaskTreeItem[]> {
+  public async getChildren(parent?: TaskTreeItem): Promise<TaskTreeItem[]> {
     if (!parent) {
       const projects = await this.loader.listProjects();
       return projects.map(project => ({
