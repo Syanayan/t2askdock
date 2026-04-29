@@ -3,8 +3,15 @@ import { INITIAL_MIGRATION_V1_SQL } from '../../src/infra/sqlite/migrations/init
 
 vi.mock('vscode', () => ({
   commands: { registerCommand: vi.fn(), executeCommand: vi.fn() },
+  EventEmitter: class<T> {
+    public readonly event = vi.fn();
+    public fire = vi.fn();
+    public dispose = vi.fn();
+  },
   window: {
     showInformationMessage: vi.fn(),
+    showInputBox: vi.fn(),
+    showErrorMessage: vi.fn(),
     registerTreeDataProvider: vi.fn(),
     createStatusBarItem: vi.fn(() => ({ show: vi.fn(), dispose: vi.fn() })),
     createWebviewPanel: vi.fn(() => ({ webview: { html: '' }, title: '' }))
