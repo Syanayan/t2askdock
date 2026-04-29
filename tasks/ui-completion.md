@@ -6,13 +6,13 @@
 
 ## グループA: タスク操作UI（最優先）
 
-- [ ] **A-1 タスク作成ダイアログ**
+- [x] **A-1 タスク作成ダイアログ**
   - `vscode.window.showInputBox` でタイトル・プロジェクトIDを収集し `CreateTaskUseCase` を呼び出す
   - `actorId` / `now` / デフォルト値（status: 'todo', priority: 'medium'）を自動補完する
-- [ ] **A-2 ツリー自動更新**
+- [x] **A-2 ツリー自動更新**
   - `TASK_UPDATED` イベントを受け取り `vscode.EventEmitter` で `onDidChangeTreeData` を発火する
   - `TaskTreeViewProvider` に `refresh()` メソッドを追加する
-- [ ] **A-3 エラー通知**
+- [x] **A-3 エラー通知**
   - UseCase が例外を投げた場合に `vscode.window.showErrorMessage` でメッセージを表示する
   - `E_*` エラーコードをユーザー向け日本語メッセージにマッピングする
 

@@ -18,10 +18,23 @@ export type ProjectTaskLoader = {
 };
 
 export class TaskTreeViewProvider {
+  private readonly listeners = new Set<() => void>();
+
   public constructor(
     private readonly loader: ProjectTaskLoader,
     private readonly pageSize = 100
   ) {}
+
+  public refresh(): void {
+    for (const listener of this.listeners) {
+      listener();
+    }
+  }
+
+  public onRefresh(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
 
   public async getChildren(parent?: TaskTreeItem): Promise<TaskTreeItem[]> {
     if (!parent) {

@@ -18,6 +18,7 @@ import { TaskTreeViewProvider } from './ui/tree/task-tree-view-provider.js';
 import type { TaskTreeItem } from './ui/tree/task-tree-view-provider.js';
 import { StatusBarController } from './ui/status/status-bar-controller.js';
 import { BoardWebviewPanel } from './ui/webview/board-webview-panel.js';
+import { ERROR_CODES } from './core/errors/error-codes.js';
 
 type BootstrapMigrationDependencies = {
   ensureDirectory: (dirPath: string) => Promise<void>;
@@ -34,6 +35,22 @@ const defaultBootstrapMigrationDependencies: BootstrapMigrationDependencies = {
   createClient: (databasePath: string) => new BetterSqlite3Client(databasePath),
   createMigrator: (dependencies: MigrationDependencies) => new Migrator(dependencies)
 };
+
+function toUserFacingMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  const code = Object.values(ERROR_CODES).find(value => message.includes(value));
+  const mapping: Record<string, string> = {
+    [ERROR_CODES.AUTH_FAILED]: '認証に失敗しました。アクセスキーを確認してください。',
+    [ERROR_CODES.KEY_EXPIRED]: 'アクセスキーの有効期限が切れています。再発行してください。',
+    [ERROR_CODES.PERMISSION_DENIED]: 'この操作を実行する権限がありません。',
+    [ERROR_CODES.READ_ONLY_MODE]: '現在は読み取り専用モードのため、更新できません。',
+    [ERROR_CODES.VALIDATION_FAILED]: '入力内容が不正です。タイトルやプロジェクトIDを確認してください。',
+    [ERROR_CODES.TASK_CONFLICT]: 'タスクが他の更新と競合しました。再読み込みして再実行してください。',
+    [ERROR_CODES.DB_LOCK_UNSAFE]: 'データベースが安全に利用できない状態です。接続を確認してください。',
+    [ERROR_CODES.DB_CORRUPT]: 'データベース破損の可能性があります。バックアップからの復元を検討してください。'
+  };
+  return (code && mapping[code]) ?? `タスク処理中にエラーが発生しました: ${message}`;
+}
 
 export async function bootstrapMigrations(
   context: Pick<vscode.ExtensionContext, 'globalStorageUri' | 'subscriptions'>,
@@ -63,12 +80,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const client = new BetterSqlite3Client(databasePath);
   context.subscriptions.push({ dispose: () => client.close() });
 
+  const idGenerator = new UlidIdGenerator();
   const appContainer = new AppContainer({
     taskRepository: new TaskRepository(client),
     commentRepository: new CommentRepository(client),
     auditLogRepository: new AuditLogRepository(client),
     transactionManager: new TransactionManager(client),
-    idGenerator: new UlidIdGenerator(),
+    idGenerator,
     databaseProfileRepository: new DatabaseProfileRepository(client),
     authStateReader: { isAuthenticated: () => true },
     connectionHealthChecker: { check: async () => 'healthy' },
@@ -130,6 +148,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const disposeModeChanged = eventBus.subscribe('MODE_CHANGED', refreshStatusBar);
   const disposeHealthChanged = eventBus.subscribe('CONNECTION_HEALTH_CHANGED', refreshStatusBar);
 
+  const disposeTaskUpdated = eventBus.subscribe('TASK_UPDATED', () => {
+    taskTreeViewProvider.refresh();
+  });
+  const treeChangeEmitter = new vscode.EventEmitter<TaskTreeItem | undefined | null | void>();
+  const disposeTreeRefresh = taskTreeViewProvider.onRefresh(() => treeChangeEmitter.fire());
+
   context.subscriptions.push(
     dbStatusBarItem,
     modeStatusBarItem,
@@ -137,7 +161,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     { dispose: disposeProfileSwitched },
     { dispose: disposeModeChanged },
     { dispose: disposeHealthChanged },
+    { dispose: disposeTaskUpdated },
+    { dispose: disposeTreeRefresh },
+    treeChangeEmitter,
     vscode.window.registerTreeDataProvider<TaskTreeItem>('taskDock.treeView', {
+      onDidChangeTreeData: treeChangeEmitter.event,
       getChildren: async (element?: TaskTreeItem) => taskTreeViewProvider.getChildren(element),
       getTreeItem: (element: TaskTreeItem) => {
         const collapsibleState = element.hasChildren
@@ -172,7 +200,38 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           actorRole: input.actorRole ?? 'admin'
         })
     ),
-    vscode.commands.registerCommand('taskDock.createTask', async (input) => commands['taskDock.createTask'](input))
+    vscode.commands.registerCommand('taskDock.createTask', async (input?: { title?: string; projectId?: string }) => {
+      try {
+        const title = input?.title ?? (await vscode.window.showInputBox({ prompt: 'タスクタイトルを入力してください', ignoreFocusOut: true }));
+        if (!title) {
+          return undefined;
+        }
+        const projectId =
+          input?.projectId ?? (await vscode.window.showInputBox({ prompt: 'プロジェクトIDを入力してください', ignoreFocusOut: true }));
+        if (!projectId) {
+          return undefined;
+        }
+
+        const now = new Date().toISOString();
+        return commands['taskDock.createTask']({
+          taskId: idGenerator.nextUlid(),
+          projectId,
+          title,
+          description: null,
+          status: 'todo',
+          priority: 'medium',
+          assignee: null,
+          dueDate: null,
+          tags: [],
+          parentTaskId: null,
+          actorId: 'system',
+          now
+        });
+      } catch (error) {
+        void vscode.window.showErrorMessage(toUserFacingMessage(error));
+        return undefined;
+      }
+    })
   );
 }
 
