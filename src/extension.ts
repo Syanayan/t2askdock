@@ -1,4 +1,7 @@
 import * as vscode from 'vscode';
+import { TaskDockCommandRegistry } from './ui/commands/command-registry.js';
+import { UiEventBus } from './ui/events/ui-event-bus.js';
+import { ExtensionStateStore } from './ui/state/extension-state-store.js';
 import { INITIAL_MIGRATION_V1_SQL } from './infra/sqlite/migrations/initial-migration-v1.js';
 import type { MigrationDependencies } from './infra/sqlite/migrations/migrator.js';
 import { Migrator } from './infra/sqlite/migrations/migrator.js';
@@ -46,21 +49,50 @@ export async function bootstrapMigrations(
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   await bootstrapMigrations(context);
 
-  const commandIds = [
-    'taskDock.openTree',
-    'taskDock.openBoard',
-    'taskDock.selectDatabase',
-    'taskDock.toggleReadOnly',
-    'taskDock.createTask'
-  ] as const;
+  const eventBus = new UiEventBus();
+  const stateStore = new ExtensionStateStore();
+  const commandRegistry = new TaskDockCommandRegistry(
+    {
+      execute: async (input) => ({ id: input.taskId, title: input.title })
+    } as never,
+    {
+      execute: async ({ profileId }) => ({
+        profileSummary: { profileId, path: context.globalStorageUri.fsPath },
+        connectionMode: 'readWrite',
+        healthStatus: 'healthy'
+      })
+    } as never,
+    {
+      execute: async ({ enabled }) => ({ mode: enabled ? 'readOnly' : 'readWrite' })
+    } as never,
+    stateStore,
+    eventBus
+  );
+  const commands = commandRegistry.register();
 
-  for (const commandId of commandIds) {
-    const disposable = vscode.commands.registerCommand(commandId, async () => {
+  context.subscriptions.push(
+    vscode.commands.registerCommand('taskDock.openTree', async () => {
+      await vscode.commands.executeCommand('taskDock.treeView.focus');
+      return commands['taskDock.openTree']();
+    }),
+    vscode.commands.registerCommand('taskDock.openBoard', async () => {
       await vscode.window.showInformationMessage(notImplementedMessage);
-      return { commandId };
-    });
-    context.subscriptions.push(disposable);
-  }
+      return commands['taskDock.openBoard']();
+    }),
+    vscode.commands.registerCommand('taskDock.selectDatabase', async (input: { profileId?: string } = {}) =>
+      commands['taskDock.selectDatabase']({ profileId: input.profileId ?? 'default' })
+    ),
+    vscode.commands.registerCommand(
+      'taskDock.toggleReadOnly',
+      async (input: { profileId?: string; enabled?: boolean; actorRole?: 'admin' | 'general' } = {}) =>
+        commands['taskDock.toggleReadOnly']({
+          profileId: input.profileId ?? stateStore.getState().activeProfile ?? 'default',
+          enabled: input.enabled ?? stateStore.getState().connectionMode !== 'readOnly',
+          actorRole: input.actorRole ?? 'admin'
+        })
+    ),
+    vscode.commands.registerCommand('taskDock.createTask', async (input) => commands['taskDock.createTask'](input))
+  );
 }
 
 export function deactivate(): void {}
