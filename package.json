@@ -16,7 +16,10 @@
     "onCommand:taskDock.openBoard",
     "onCommand:taskDock.selectDatabase",
     "onCommand:taskDock.toggleReadOnly",
-    "onCommand:taskDock.createTask"
+    "onCommand:taskDock.createTask",
+    "onCommand:taskDock.openTaskDetail",
+    "onCommand:taskDock.updateTask",
+    "onCommand:taskDock.deleteTask"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -57,8 +60,39 @@
       {
         "command": "taskDock.createTask",
         "title": "Task Dock: Create Task"
+      },
+      {
+        "command": "taskDock.openTaskDetail",
+        "title": "Task Dock: Open Task Detail"
+      },
+      {
+        "command": "taskDock.updateTask",
+        "title": "Task Dock: Update Task"
+      },
+      {
+        "command": "taskDock.deleteTask",
+        "title": "Task Dock: Delete Task"
       }
-    ]
+    ],
+    "menus": {
+      "view/item/context": [
+        {
+          "command": "taskDock.openTaskDetail",
+          "when": "view == taskDock.treeView && viewItem == task",
+          "group": "inline"
+        },
+        {
+          "command": "taskDock.updateTask",
+          "when": "view == taskDock.treeView && viewItem == task",
+          "group": "inline"
+        },
+        {
+          "command": "taskDock.deleteTask",
+          "when": "view == taskDock.treeView && viewItem == task",
+          "group": "navigation"
+        }
+      ]
+    }
   },
   "scripts": {
     "compile": "tsc -p tsconfig.extension.json",
