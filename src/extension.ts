@@ -7,6 +7,7 @@ import type { MigrationDependencies } from './infra/sqlite/migrations/migrator.j
 import { Migrator } from './infra/sqlite/migrations/migrator.js';
 import { BetterSqlite3Client } from './infra/sqlite/better-sqlite3-client.js';
 import { TaskTreeViewProvider } from './ui/tree/task-tree-view-provider.js';
+import { StatusBarController } from './ui/status/status-bar-controller.js';
 
 const notImplementedMessage = 'taskDock command is registered. Implementation wiring is pending.';
 
@@ -56,6 +57,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     listProjects: async () => [],
     listTasksByProject: async () => []
   });
+  const statusBarController = new StatusBarController(stateStore);
   const commandRegistry = new TaskDockCommandRegistry(
     {
       execute: async (input) => ({ id: input.taskId, title: input.title })
@@ -74,8 +76,38 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     eventBus
   );
   const commands = commandRegistry.register();
+  const dbStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
+  const modeStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 99);
+  const healthStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 98);
+
+  const refreshStatusBar = (): void => {
+    const snapshot = statusBarController.snapshot();
+    dbStatusBarItem.text = snapshot.db;
+    dbStatusBarItem.command = 'taskDock.selectDatabase';
+
+    modeStatusBarItem.text = snapshot.mode;
+    modeStatusBarItem.command = 'taskDock.toggleReadOnly';
+
+    healthStatusBarItem.text = snapshot.health;
+    healthStatusBarItem.command = snapshot.reconnectCommand ?? undefined;
+  };
+
+  refreshStatusBar();
+  dbStatusBarItem.show();
+  modeStatusBarItem.show();
+  healthStatusBarItem.show();
+
+  const disposeProfileSwitched = eventBus.subscribe('PROFILE_SWITCHED', refreshStatusBar);
+  const disposeModeChanged = eventBus.subscribe('MODE_CHANGED', refreshStatusBar);
+  const disposeHealthChanged = eventBus.subscribe('CONNECTION_HEALTH_CHANGED', refreshStatusBar);
 
   context.subscriptions.push(
+    dbStatusBarItem,
+    modeStatusBarItem,
+    healthStatusBarItem,
+    { dispose: disposeProfileSwitched },
+    { dispose: disposeModeChanged },
+    { dispose: disposeHealthChanged },
     vscode.window.registerTreeDataProvider('taskDock.treeView', {
       getChildren: async (element?: { kind: 'project' | 'task'; id: string }) => taskTreeViewProvider.getChildren(element as never),
       getTreeItem: (element) => {
