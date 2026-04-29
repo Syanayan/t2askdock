@@ -11,16 +11,6 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [
-    "onCommand:taskDock.openTree",
-    "onCommand:taskDock.openBoard",
-    "onCommand:taskDock.selectDatabase",
-    "onCommand:taskDock.toggleReadOnly",
-    "onCommand:taskDock.createTask",
-    "onCommand:taskDock.openTaskDetail",
-    "onCommand:taskDock.updateTask",
-    "onCommand:taskDock.deleteTask"
-  ],
   "main": "./dist/extension.js",
   "contributes": {
     "viewsContainers": {
@@ -97,11 +87,14 @@
   "scripts": {
     "compile": "tsc -p tsconfig.extension.json",
     "watch": "tsc -watch -p tsconfig.extension.json",
+    "postinstall": "electron-rebuild -v 39.8.7",
+    "rebuild:electron": "electron-rebuild -v 39.8.7",
     "test": "npm run test:unit && npm run test:integration",
     "test:unit": "vitest run --config vitest.unit.config.ts",
     "test:integration": "vitest run --config vitest.integration.config.ts"
   },
   "devDependencies": {
+    "@electron/rebuild": "^4.0.4",
     "@types/better-sqlite3": "^7.6.13",
     "@types/vscode": "^1.100.0",
     "typescript": "^5.9.3",

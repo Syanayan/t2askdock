@@ -18,6 +18,7 @@ export class Migrator {
   public constructor(private readonly deps: MigrationDependencies) {}
 
   public async migrate(migrations: ReadonlyArray<Migration>): Promise<void> {
+    await this.deps.client.exec('CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)');
     const current = await this.deps.client.get<{ version: number | null }>('SELECT MAX(version) as version FROM schema_version');
     const currentVersion = current?.version ?? 0;
     const pending = migrations.filter((item) => item.version > currentVersion).sort((a, b) => a.version - b.version);

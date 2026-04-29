@@ -30,9 +30,6 @@ export class Task {
 
   public static from(props: TaskProps): Task {
     Ulid.from(props.taskId);
-    Ulid.from(props.projectId);
-    Ulid.from(props.createdBy);
-    Ulid.from(props.updatedBy);
     Title.from(props.title);
     Version.from(props.version);
 

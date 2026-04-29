@@ -81,6 +81,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   context.subscriptions.push({ dispose: () => client.close() });
 
   const idGenerator = new UlidIdGenerator();
+  const seedNow = new Date().toISOString();
+  await client.run(
+    `INSERT OR IGNORE INTO users(user_id, display_name, role, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
+    ['system', 'System', 'admin', 'active', seedNow, seedNow]
+  );
+
   const appContainer = new AppContainer({
     taskRepository: new TaskRepository(client),
     commentRepository: new CommentRepository(client),
@@ -238,6 +244,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         }
 
         const now = new Date().toISOString();
+        await client.run(
+          `INSERT OR IGNORE INTO projects(project_id, name, archived, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
+          [projectId, projectId, 0, now, now]
+        );
         return commands['taskDock.createTask']({
           taskId: idGenerator.nextUlid(),
           projectId,
