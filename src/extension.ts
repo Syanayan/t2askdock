@@ -7,6 +7,7 @@ import type { MigrationDependencies } from './infra/sqlite/migrations/migrator.j
 import { Migrator } from './infra/sqlite/migrations/migrator.js';
 import { BetterSqlite3Client } from './infra/sqlite/better-sqlite3-client.js';
 import { TaskTreeViewProvider } from './ui/tree/task-tree-view-provider.js';
+import type { TaskTreeItem } from './ui/tree/task-tree-view-provider.js';
 import { StatusBarController } from './ui/status/status-bar-controller.js';
 import { BoardWebviewPanel } from './ui/webview/board-webview-panel.js';
 
@@ -58,24 +59,20 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   });
   const statusBarController = new StatusBarController(stateStore);
   const commandRegistry = new TaskDockCommandRegistry(
+    { execute: async () => ({ id: '', title: '' }) } as never,
     {
-      execute: async (input) => ({ id: input.taskId, title: input.title })
-    } as never,
-    {
-      execute: async ({ profileId }) => ({
-        profileSummary: { profileId, path: context.globalStorageUri.fsPath },
-        connectionMode: 'readWrite',
-        healthStatus: 'healthy'
+      execute: async () => ({
+        profileSummary: { profileId: 'default', path: context.globalStorageUri.fsPath },
+        connectionMode: 'readWrite' as const,
+        healthStatus: 'healthy' as const
       })
     } as never,
-    {
-      execute: async ({ enabled }) => ({ mode: enabled ? 'readOnly' : 'readWrite' })
-    } as never,
+    { execute: async () => ({ mode: 'readWrite' as const }) } as never,
     stateStore,
     eventBus
   );
   const boardPanel = new BoardWebviewPanel(
-    { execute: async (input) => ({ id: input.taskId, status: input.toStatus, version: input.expectedVersion + 1 }) } as never,
+    { execute: async () => ({ id: '', status: 'todo' as const, version: 1 }) } as never,
     eventBus
   );
   const commands = commandRegistry.register();
@@ -111,9 +108,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     { dispose: disposeProfileSwitched },
     { dispose: disposeModeChanged },
     { dispose: disposeHealthChanged },
-    vscode.window.registerTreeDataProvider('taskDock.treeView', {
-      getChildren: async (element?: { kind: 'project' | 'task'; id: string }) => taskTreeViewProvider.getChildren(element as never),
-      getTreeItem: (element) => {
+    vscode.window.registerTreeDataProvider<TaskTreeItem>('taskDock.treeView', {
+      getChildren: async (element?: TaskTreeItem) => taskTreeViewProvider.getChildren(element as never),
+      getTreeItem: (element: TaskTreeItem) => {
         const collapsibleState = element.hasChildren
           ? vscode.TreeItemCollapsibleState.Collapsed
           : vscode.TreeItemCollapsibleState.None;
