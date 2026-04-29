@@ -40,6 +40,11 @@
         "title": "Task Dock: Open Board"
       },
       {
+        "command": "taskDock.openTable",
+        "title": "Task Dock: Open Table",
+        "icon": "$(list-tree)"
+      },
+      {
         "command": "taskDock.selectDatabase",
         "title": "Task Dock: Select Database"
       },

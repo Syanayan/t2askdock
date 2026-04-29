@@ -160,6 +160,16 @@ export class AppContainer {
     };
   }
 
+  public buildTaskTreeLoader(): {
+    listProjects(): Promise<Array<{ projectId: string; projectName: string }>>;
+    listTasksWithDetail(projectId: string): Promise<import('../ports/repositories/task-repository.js').TaskTreeNode[]>;
+  } {
+    return {
+      listProjects: () => this.infrastructure.taskRepository.listProjects(),
+      listTasksWithDetail: (projectId) => this.infrastructure.taskRepository.listTasksWithDetail(projectId)
+    };
+  }
+
   public buildTaskOperator(): Pick<TaskRepository, 'findDetailById' | 'deleteById'> {
     return {
       findDetailById: (taskId) => this.infrastructure.taskRepository.findDetailById(taskId),
