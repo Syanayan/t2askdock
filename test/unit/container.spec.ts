@@ -50,7 +50,8 @@ describe('AppContainer', () => {
       tags: ['phase3'],
       parentTaskId: null,
       actorId: ULID_1,
-      now: '2026-04-26T00:00:00.000Z'
+      now: '2026-04-26T00:00:00.000Z',
+      progress: 0
     });
 
     expect(runInTx).toHaveBeenCalledOnce();

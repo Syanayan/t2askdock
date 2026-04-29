@@ -23,6 +23,7 @@ export type TaskProps = {
   createdAt: string;
   updatedAt: string;
   version: number;
+  progress: number;
 };
 
 export class Task {
@@ -47,6 +48,10 @@ export class Task {
 
     if (props.dueDate !== null) {
       DueDate.from(props.dueDate);
+    }
+
+    if (!Number.isInteger(props.progress) || props.progress < 0 || props.progress > 100) {
+      throw new Error('progress must be integer between 0 and 100');
     }
 
     if (props.tags.length > 20) {

@@ -37,7 +37,8 @@ describe('phase3 usecases', () => {
       parentTaskId: null,
       actorId: ACTOR_ID,
       now: '2026-04-26T00:00:00.000Z',
-      expectedVersion: 3
+      expectedVersion: 3,
+      progress: 20
     });
 
     expect(runInTx).toHaveBeenCalledOnce();
@@ -67,7 +68,8 @@ describe('phase3 usecases', () => {
       parentTaskId: null,
       actorId: ACTOR_ID,
       now: '2026-04-26T00:00:00.000Z',
-      expectedVersion: 1
+      expectedVersion: 1,
+      progress: 10
     });
 
     expect(execute).toHaveBeenCalledWith(expect.objectContaining({ status: 'done' }));
@@ -92,7 +94,8 @@ describe('phase3 usecases', () => {
       taskId: TASK_ID,
       body: 'hello',
       actorId: ACTOR_ID,
-      now: '2026-04-26T00:00:00.000Z'
+      now: '2026-04-26T00:00:00.000Z',
+      progress: 0
     });
     await update.execute({
       commentId: '01ARZ3NDEKTSV4RRFFQ69G5FAY',
@@ -100,7 +103,8 @@ describe('phase3 usecases', () => {
       body: 'new body',
       actorId: ACTOR_ID,
       now: '2026-04-26T00:00:00.000Z',
-      expectedVersion: 1
+      expectedVersion: 1,
+      progress: 10
     });
     await remove.execute({
       commentId: '01ARZ3NDEKTSV4RRFFQ69G5FAY',
