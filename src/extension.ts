@@ -6,6 +6,14 @@ import { INITIAL_MIGRATION_V1_SQL } from './infra/sqlite/migrations/initial-migr
 import type { MigrationDependencies } from './infra/sqlite/migrations/migrator.js';
 import { Migrator } from './infra/sqlite/migrations/migrator.js';
 import { BetterSqlite3Client } from './infra/sqlite/better-sqlite3-client.js';
+import { AppContainer } from './core/di/container.js';
+import { UlidIdGenerator } from './infra/services/ulid-id-generator.js';
+import { AuditLogRepository } from './infra/sqlite/repositories/audit-log-repository.js';
+import { CommentRepository } from './infra/sqlite/repositories/comment-repository.js';
+import { DatabaseProfileRepository } from './infra/sqlite/repositories/database-profile-repository.js';
+import { FeatureFlagRepository } from './infra/sqlite/repositories/feature-flag-repository.js';
+import { TaskRepository } from './infra/sqlite/repositories/task-repository.js';
+import { TransactionManager } from './infra/sqlite/tx/transaction-manager.js';
 import { TaskTreeViewProvider } from './ui/tree/task-tree-view-provider.js';
 import type { TaskTreeItem } from './ui/tree/task-tree-view-provider.js';
 import { StatusBarController } from './ui/status/status-bar-controller.js';
@@ -51,28 +59,49 @@ export async function bootstrapMigrations(
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   await bootstrapMigrations(context);
 
+  const databasePath = vscode.Uri.joinPath(context.globalStorageUri, 'taskdock.sqlite3').fsPath;
+  const client = new BetterSqlite3Client(databasePath);
+  context.subscriptions.push({ dispose: () => client.close() });
+
+  const appContainer = new AppContainer({
+    taskRepository: new TaskRepository(client),
+    commentRepository: new CommentRepository(client),
+    auditLogRepository: new AuditLogRepository(client),
+    transactionManager: new TransactionManager(client),
+    idGenerator: new UlidIdGenerator(),
+    databaseProfileRepository: new DatabaseProfileRepository(client),
+    authStateReader: { isAuthenticated: () => true },
+    connectionHealthChecker: { check: async () => 'healthy' },
+    featureFlagRepository: new FeatureFlagRepository(client),
+    backupSnapshotFactory: { createSnapshot: async () => ({ storagePath: '', checksum: '', sizeBytes: 0 }) },
+    backupSnapshotRepository: {
+      create: async () => ({ snapshotId: '' }),
+      rotate: async () => ({ removedSnapshotIds: [] }),
+      findById: async () => null
+    },
+    snapshotIntegrityVerifier: { verify: async () => true },
+    backupRestoreOperator: {
+      previewDiff: async () => ({ changedTables: [], changedRows: 0 }),
+      backupCurrent: async () => ({ backupSnapshotId: '' }),
+      restore: async () => undefined,
+      verifyConnection: async () => true
+    }
+  });
+  const useCases = appContainer.buildUseCases();
+
   const eventBus = new UiEventBus();
   const stateStore = new ExtensionStateStore();
-  const taskTreeViewProvider = new TaskTreeViewProvider({
-    listProjects: async () => [],
-    listTasksByProject: async () => []
-  });
+  const taskTreeViewProvider = new TaskTreeViewProvider(appContainer.buildProjectTaskLoader());
   const statusBarController = new StatusBarController(stateStore);
   const commandRegistry = new TaskDockCommandRegistry(
-    { execute: async () => ({ id: '', title: '' }) } as never,
-    {
-      execute: async () => ({
-        profileSummary: { profileId: 'default', path: context.globalStorageUri.fsPath },
-        connectionMode: 'readWrite' as const,
-        healthStatus: 'healthy' as const
-      })
-    } as never,
-    { execute: async () => ({ mode: 'readWrite' as const }) } as never,
+    useCases.createTaskUseCase,
+    useCases.switchDatabaseProfileUseCase,
+    useCases.setReadOnlyModeUseCase,
     stateStore,
     eventBus
   );
   const boardPanel = new BoardWebviewPanel(
-    { execute: async () => ({ id: '', status: 'todo' as const, version: 1 }) } as never,
+    useCases.moveTaskStatusUseCase,
     eventBus
   );
   const commands = commandRegistry.register();
