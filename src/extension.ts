@@ -179,13 +179,33 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       return commands['taskDock.openTree']();
     }),
     vscode.commands.registerCommand('taskDock.openBoard', async () => {
+      const projects = await appContainer.buildProjectTaskLoader().listProjects();
+      const loader = appContainer.buildProjectTaskLoader();
+      const boardTasks = (
+        await Promise.all(projects.map(async project => {
+          const tasks = await loader.listTasksByProject({ projectId: project.projectId, offset: 0, limit: 100 });
+          return tasks.map(task => ({
+            taskId: task.taskId,
+            projectId: project.projectId,
+            title: task.title,
+            status: task.status,
+            priority: 'medium' as const,
+            description: null,
+            assignee: null,
+            dueDate: null,
+            tags: [],
+            parentTaskId: null,
+            version: 1
+          }));
+        }))
+      ).flat();
       const webviewPanel = vscode.window.createWebviewPanel(
         BoardWebviewPanel.VIEW_TYPE,
         'Task Dock Board',
         vscode.ViewColumn.One,
         { enableScripts: true }
       );
-      boardPanel.render(webviewPanel);
+      boardPanel.render(webviewPanel, boardTasks);
       return commands['taskDock.openBoard']();
     }),
     vscode.commands.registerCommand('taskDock.selectDatabase', async (input: { profileId?: string } = {}) =>
