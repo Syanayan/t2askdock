@@ -1,12 +1,48 @@
 import type { Priority, TaskStatus } from '../../core/domain/entities/task.js';
 import type { MoveTaskStatusUseCase } from '../../core/usecase/move-task-status-usecase.js';
 import type { UiEventBus } from '../events/ui-event-bus.js';
+import type * as vscode from 'vscode';
 
 export class BoardWebviewPanel {
+  public static readonly VIEW_TYPE = 'taskDock.boardView';
+
   public constructor(
     private readonly moveTaskStatusUseCase: MoveTaskStatusUseCase,
     private readonly eventBus: UiEventBus
   ) {}
+
+  public render(panel: Pick<vscode.WebviewPanel, 'webview' | 'title'>): void {
+    panel.title = 'Task Dock Board';
+    panel.webview.html = this.buildHtml();
+  }
+
+  private buildHtml(): string {
+    return `<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Task Dock Board</title>
+    <style>
+      body { font-family: sans-serif; margin: 16px; }
+      .hint { color: #666; font-size: 12px; }
+      .board { display: grid; grid-template-columns: repeat(4, minmax(140px, 1fr)); gap: 12px; margin-top: 12px; }
+      .column { border: 1px solid #ddd; border-radius: 6px; padding: 8px; min-height: 120px; }
+      .column h3 { margin: 0 0 6px 0; font-size: 13px; }
+    </style>
+  </head>
+  <body>
+    <h2>Task Board</h2>
+    <p class="hint">ドラッグ&ドロップ連携は次のフェーズで拡張します。</p>
+    <section class="board">
+      <article class="column"><h3>Todo</h3></article>
+      <article class="column"><h3>In Progress</h3></article>
+      <article class="column"><h3>Review</h3></article>
+      <article class="column"><h3>Done</h3></article>
+    </section>
+  </body>
+</html>`;
+  }
 
   public async onDrop(input: {
     taskId: string;
