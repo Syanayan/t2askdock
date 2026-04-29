@@ -6,6 +6,7 @@ import { INITIAL_MIGRATION_V1_SQL } from './infra/sqlite/migrations/initial-migr
 import type { MigrationDependencies } from './infra/sqlite/migrations/migrator.js';
 import { Migrator } from './infra/sqlite/migrations/migrator.js';
 import { BetterSqlite3Client } from './infra/sqlite/better-sqlite3-client.js';
+import { TaskTreeViewProvider } from './ui/tree/task-tree-view-provider.js';
 
 const notImplementedMessage = 'taskDock command is registered. Implementation wiring is pending.';
 
@@ -51,6 +52,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   const eventBus = new UiEventBus();
   const stateStore = new ExtensionStateStore();
+  const taskTreeViewProvider = new TaskTreeViewProvider({
+    listProjects: async () => [],
+    listTasksByProject: async () => []
+  });
   const commandRegistry = new TaskDockCommandRegistry(
     {
       execute: async (input) => ({ id: input.taskId, title: input.title })
@@ -71,6 +76,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const commands = commandRegistry.register();
 
   context.subscriptions.push(
+    vscode.window.registerTreeDataProvider('taskDock.treeView', {
+      getChildren: async (element?: { kind: 'project' | 'task'; id: string }) => taskTreeViewProvider.getChildren(element as never),
+      getTreeItem: (element) => {
+        const collapsibleState = element.hasChildren
+          ? vscode.TreeItemCollapsibleState.Collapsed
+          : vscode.TreeItemCollapsibleState.None;
+        return new vscode.TreeItem(element.label, collapsibleState);
+      }
+    }),
     vscode.commands.registerCommand('taskDock.openTree', async () => {
       await vscode.commands.executeCommand('taskDock.treeView.focus');
       return commands['taskDock.openTree']();
