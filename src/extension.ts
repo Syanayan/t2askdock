@@ -8,8 +8,7 @@ import { Migrator } from './infra/sqlite/migrations/migrator.js';
 import { BetterSqlite3Client } from './infra/sqlite/better-sqlite3-client.js';
 import { TaskTreeViewProvider } from './ui/tree/task-tree-view-provider.js';
 import { StatusBarController } from './ui/status/status-bar-controller.js';
-
-const notImplementedMessage = 'taskDock command is registered. Implementation wiring is pending.';
+import { BoardWebviewPanel } from './ui/webview/board-webview-panel.js';
 
 type BootstrapMigrationDependencies = {
   ensureDirectory: (dirPath: string) => Promise<void>;
@@ -75,6 +74,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     stateStore,
     eventBus
   );
+  const boardPanel = new BoardWebviewPanel(
+    { execute: async (input) => ({ id: input.taskId, status: input.toStatus, version: input.expectedVersion + 1 }) } as never,
+    eventBus
+  );
   const commands = commandRegistry.register();
   const dbStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
   const modeStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 99);
@@ -122,7 +125,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       return commands['taskDock.openTree']();
     }),
     vscode.commands.registerCommand('taskDock.openBoard', async () => {
-      await vscode.window.showInformationMessage(notImplementedMessage);
+      const webviewPanel = vscode.window.createWebviewPanel(
+        BoardWebviewPanel.VIEW_TYPE,
+        'Task Dock Board',
+        vscode.ViewColumn.One,
+        { enableScripts: true }
+      );
+      boardPanel.render(webviewPanel);
       return commands['taskDock.openBoard']();
     }),
     vscode.commands.registerCommand('taskDock.selectDatabase', async (input: { profileId?: string } = {}) =>

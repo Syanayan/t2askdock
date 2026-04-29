@@ -3,9 +3,15 @@ import { INITIAL_MIGRATION_V1_SQL } from '../../src/infra/sqlite/migrations/init
 
 vi.mock('vscode', () => ({
   commands: { registerCommand: vi.fn(), executeCommand: vi.fn() },
-  window: { showInformationMessage: vi.fn(), registerTreeDataProvider: vi.fn(), createStatusBarItem: vi.fn(() => ({ show: vi.fn(), dispose: vi.fn() })) },
+  window: {
+    showInformationMessage: vi.fn(),
+    registerTreeDataProvider: vi.fn(),
+    createStatusBarItem: vi.fn(() => ({ show: vi.fn(), dispose: vi.fn() })),
+    createWebviewPanel: vi.fn(() => ({ webview: { html: '' }, title: '' }))
+  },
   workspace: { fs: { createDirectory: vi.fn() } },
   StatusBarAlignment: { Left: 1, Right: 2 },
+  ViewColumn: { One: 1 },
   TreeItemCollapsibleState: { None: 0, Collapsed: 1 },
   TreeItem: class { constructor(public label: string, public collapsibleState: number) {} },
   Uri: {
@@ -73,6 +79,7 @@ describe('extension bootstrapMigrations', () => {
     const registerCommand = vi.mocked(vscode.commands.registerCommand);
     const registerTreeDataProvider = vi.mocked(vscode.window.registerTreeDataProvider);
     const createStatusBarItem = vi.mocked(vscode.window.createStatusBarItem);
+    const createWebviewPanel = vi.mocked(vscode.window.createWebviewPanel);
     registerCommand.mockReturnValue({ dispose: vi.fn() } as never);
     registerTreeDataProvider.mockReturnValue({ dispose: vi.fn() } as never);
 
@@ -91,5 +98,6 @@ describe('extension bootstrapMigrations', () => {
     expect(registerCommand).toHaveBeenCalledWith('taskDock.toggleReadOnly', expect.any(Function));
     expect(registerCommand).toHaveBeenCalledWith('taskDock.createTask', expect.any(Function));
     expect(createStatusBarItem).toHaveBeenCalledTimes(3);
+    expect(createWebviewPanel).not.toHaveBeenCalled();
   });
 });
