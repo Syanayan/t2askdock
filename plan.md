@@ -141,15 +141,15 @@
 > 目的: 「実装した」だけでなく「拡張機能経路で実際に動く」ことを判定可能にする。
 
 ### A. `activate()` に `AppContainer` を接続してスタブを撤去する（必須）
-- [ ] `BetterSqlite3Client` を起点に Repository 群と `TransactionManager` / `IdGenerator` を初期化する
-- [ ] `new AppContainer(infrastructure).buildUseCases()` を呼び出し、`TaskDockCommandRegistry` へ本物 UseCase を注入する
-- [ ] `BoardWebviewPanel` の `MoveTaskStatusUseCase` 注入を `as never` スタブから本実装へ置換する
-- [ ] `extension.ts` 内の `as never` を使った暫定注入をゼロにする
+- [x] `BetterSqlite3Client` を起点に Repository 群と `TransactionManager` / `IdGenerator` を初期化する
+- [x] `new AppContainer(infrastructure).buildUseCases()` を呼び出し、`TaskDockCommandRegistry` へ本物 UseCase を注入する
+- [x] `BoardWebviewPanel` の `MoveTaskStatusUseCase` 注入を `as never` スタブから本実装へ置換する
+- [x] `extension.ts` 内の `as never` を使った暫定注入をゼロにする
 
 **完了判定（DoD）**
-1. `src/extension.ts` に `as never` の注入コードが存在しない。
-2. `taskDock.createTask` / `taskDock.openBoard` 経由の操作が Repository 呼び出しへ到達するテストが通る。
-3. `npm run test:unit` と `npm run test:integration` がグリーンである。
+1. [x] `src/extension.ts` に `as never` の注入コードが存在しない。（確認: `rg -n "as never" src/extension.ts`）
+2. [x] `taskDock.createTask` / `taskDock.openBoard` 経由の操作が Repository 呼び出しへ到達するテストが通る。（`test/unit/extension.activate.integration.spec.ts`）
+3. [x] `npm run test:unit` と `npm run test:integration` がグリーンである。（確認日: 2026-04-29）
 
 ### B. ツリービューを `taskRepository` ベースのローダーへ接続する（必須）
 - [x] `TaskTreeViewProvider` の `listProjects()` / `listTasksByProject()` スタブ（空配列）を撤去する
@@ -163,9 +163,9 @@
 3. `TaskTreeViewProvider` のユニットテストで「空以外」の実データケースが追加され、グリーンである。
 
 ### C. 進捗可視化タスク（必須）
-- [ ] A/B の各DoDをチェックボックス付きで PR 説明に転記する
-- [ ] `plan.md` の該当チェックを完了時に `[x]` へ更新する
-- [ ] 未達項目がある場合は「未達理由 / 次アクション / ブロッカー有無」を同日追記する
+- [x] A/B の各DoDをチェックボックス付きで PR 説明に転記する
+- [x] `plan.md` の該当チェックを完了時に `[x]` へ更新する
+- [x] 未達項目がある場合は「未達理由 / 次アクション / ブロッカー有無」を同日追記する（2026-04-29時点: 未達項目なし）
 
 **完了判定（DoD）**
 1. `plan.md` だけ見て、A/B が「未着手 / 進行中 / 完了」のどこか判別できる。
