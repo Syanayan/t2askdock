@@ -10,11 +10,20 @@ describe('CreateTaskUseCase', () => {
   it('creates task then appends TASK_CREATED audit log in one transaction', async () => {
     const create = vi.fn().mockResolvedValue(undefined);
     const append = vi.fn().mockResolvedValue(undefined);
-    const runInTx = vi.fn(async (work: () => Promise<unknown>) => work());
+    const runInTx = vi.fn((work: () => Promise<unknown>) => work()) as unknown as <T>(work: () => Promise<T>) => Promise<T>;
     const nextUlid = vi.fn().mockReturnValue(LOG_ID);
 
     const useCase = new CreateTaskUseCase(
-      { create },
+      {
+        create,
+        updateWithVersion: vi.fn(),
+        listProjects: vi.fn(),
+        listTasksByProject: vi.fn(),
+        findDetailById: vi.fn(),
+        listSubtasksByParent: vi.fn(),
+        listTasksWithDetail: vi.fn(),
+        deleteById: vi.fn()
+      },
       { append },
       { runInTx },
       { nextUlid }

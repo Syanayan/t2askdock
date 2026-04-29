@@ -61,7 +61,8 @@ describe('SQLite repositories (phase2)', () => {
           tags: ['tag-a', 'tag-b'],
           parentTaskId: null,
           updatedBy: 'u1',
-          updatedAt: '2026-04-26T00:00:00Z'
+          updatedAt: '2026-04-26T00:00:00Z',
+          progress: 0
         },
         1
       )
@@ -85,7 +86,8 @@ describe('SQLite repositories (phase2)', () => {
         tags: ['TagA', 'TagB'],
         parentTaskId: null,
         updatedBy: 'u1',
-        updatedAt: '2026-04-26T00:00:00Z'
+        updatedAt: '2026-04-26T00:00:00Z',
+        progress: 0
       },
       1
     );

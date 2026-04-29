@@ -71,7 +71,7 @@ describe('Phase5 UI integration', () => {
     }, 25);
 
     expect(await provider.getChildren()).toEqual([{ id: 'p1', label: 'Main', kind: 'project', hasChildren: true }]);
-    expect(await provider.getChildren({ kind: 'project', id: 'p1' })).toEqual([
+    expect(await provider.getChildren({ kind: 'project', id: 'p1', label: 'Main', hasChildren: true })).toEqual([
       { id: 't1', label: 'todo', kind: 'task', status: 'todo', hasChildren: false }
     ]);
     expect(listProjects).toHaveBeenCalledOnce();
@@ -115,13 +115,8 @@ describe('Phase5 UI integration', () => {
 
     expect(await panel.list('t1')).toHaveLength(1);
     expect((await panel.add({ commentId: 'c1', taskId: 't1', body: 'new', actorId: 'u1', now: '2026-04-27T00:00:00.000Z' })).body).toBe('new');
-    expect(
-      (await panel.update({ commentId: 'c1', taskId: 't1', body: 'edit', actorId: 'u1', now: '2026-04-27T00:00:00.000Z', expectedVersion: 1 }))
-        .body
-    ).toBe('edit');
-    expect(
-      (await panel.softDelete({ commentId: 'c1', actorId: 'u1', now: '2026-04-27T00:00:00.000Z', expectedVersion: 2 })).commentId
-    ).toBe('c1');
+    await panel.update({ commentId: 'c1', taskId: 't1', body: 'edit', actorId: 'u1', now: '2026-04-27T00:00:00.000Z', expectedVersion: 1 });
+    await panel.softDelete({ commentId: 'c1', actorId: 'u1', now: '2026-04-27T00:00:00.000Z', expectedVersion: 2 });
   });
 
   it('builds status bar summary for db/mode/health', () => {

@@ -10,14 +10,18 @@ describe('AppContainer', () => {
   it('injects infrastructure implementation into use case', async () => {
     const create = vi.fn().mockResolvedValue(undefined);
     const append = vi.fn().mockResolvedValue(undefined);
-    const runInTx = vi.fn(async (work: () => Promise<unknown>) => work());
+    const runInTx = vi.fn((work: () => Promise<unknown>) => work()) as unknown as <T>(work: () => Promise<T>) => Promise<T>;
     const nextUlid = vi.fn().mockReturnValue(ULID_4);
     const container = new AppContainer({
       taskRepository: {
         create,
         updateWithVersion: vi.fn(),
         listProjects: vi.fn().mockResolvedValue([]),
-        listTasksByProject: vi.fn().mockResolvedValue([])
+        listTasksByProject: vi.fn().mockResolvedValue([]),
+        findDetailById: vi.fn().mockResolvedValue(null),
+        listSubtasksByParent: vi.fn().mockResolvedValue([]),
+        listTasksWithDetail: vi.fn().mockResolvedValue([]),
+        deleteById: vi.fn().mockResolvedValue(undefined)
       },
       commentRepository: {
         create: vi.fn(),

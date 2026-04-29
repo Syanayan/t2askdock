@@ -139,12 +139,12 @@ export class TaskRepository implements TaskRepositoryPort {
 
   public async listTasksWithDetail(projectId: string): Promise<TaskTreeNode[]> {
     const rows = await this.client.all<{
-      taskId: string; title: string; status: Task['value']['status']; priority: Task['value']['priority']; assignee: string | null; progress: number; parentTaskId: string | null;
-    }>(`SELECT task_id AS taskId, title, status, priority, assignee, progress, parent_task_id AS parentTaskId FROM tasks WHERE project_id = ? ORDER BY updated_at DESC`, [projectId]);
+      taskId: string; title: string; status: Task['value']['status']; priority: Task['value']['priority']; assignee: string | null; progress: number; version: number; parentTaskId: string | null;
+    }>(`SELECT task_id AS taskId, title, status, priority, assignee, progress, version, parent_task_id AS parentTaskId FROM tasks WHERE project_id = ? ORDER BY updated_at DESC`, [projectId]);
     const byParent = new Map<string | null, typeof rows>();
     for (const r of rows) { const key = r.parentTaskId; byParent.set(key, [...(byParent.get(key) ?? []), r]); }
     const build = (parentId: string | null): TaskTreeNode[] => (byParent.get(parentId) ?? []).map((r) => ({
-      taskId: r.taskId, title: r.title, status: r.status, priority: r.priority, assignee: r.assignee, progress: r.progress, children: build(r.taskId)
+      taskId: r.taskId, title: r.title, status: r.status, priority: r.priority, assignee: r.assignee, progress: r.progress, version: r.version, children: build(r.taskId)
     }));
     return build(null);
   }

@@ -138,19 +138,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       const projects = await tableLoader.listProjects();
       const roots = await Promise.all(projects.map(async (project) => {
         const nodes = await tableLoader.listTasksWithDetail(project.projectId);
-        const enrich = async (node: any): Promise<any> => ({
-          ...node,
-          projectId: project.projectId,
-          version: (await taskOperator.findDetailById(node.taskId))?.version ?? 1,
-          children: await Promise.all((node.children ?? []).map((child: any) => enrich(child)))
-        });
-        return Promise.all(nodes.map(enrich));
+        return nodes.map(node => ({ ...node, projectId: project.projectId }));
       }));
       return roots.flat();
     },
     (taskId) => taskOperator.findDetailById(taskId),
     async (taskId) => {
-      await vscode.commands.executeCommand('taskDock.openTaskDetail', { kind: 'task', id: taskId, label: '' });
+      await vscode.commands.executeCommand('taskDock.openTaskDetail', { kind: 'task', id: taskId, label: taskId, hasChildren: false });
     }
   );
   const commands = commandRegistry.register();

@@ -99,7 +99,8 @@ describe('phase1 domain services', () => {
       updatedBy: ULID_1,
       createdAt: '2026-04-26T00:00:00.000Z',
       updatedAt: '2026-04-26T00:00:00.000Z',
-      version: 1
+      version: 1,
+      progress: 0
     };
 
     const activeUser = {

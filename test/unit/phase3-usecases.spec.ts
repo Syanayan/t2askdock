@@ -14,11 +14,20 @@ describe('phase3 usecases', () => {
   it('UpdateTaskUseCase updates task + audit in one tx', async () => {
     const updateWithVersion = vi.fn().mockResolvedValue(undefined);
     const append = vi.fn().mockResolvedValue(undefined);
-    const runInTx = vi.fn(async (work: () => Promise<unknown>) => work());
+    const runInTx = vi.fn((work: () => Promise<unknown>) => work()) as unknown as <T>(work: () => Promise<T>) => Promise<T>;
     const nextUlid = vi.fn().mockReturnValue('01ARZ3NDEKTSV4RRFFQ69G5FAY');
 
     const useCase = new UpdateTaskUseCase(
-      { create: vi.fn(), updateWithVersion },
+      {
+        create: vi.fn(),
+        updateWithVersion,
+        listProjects: vi.fn(),
+        listTasksByProject: vi.fn(),
+        findDetailById: vi.fn(),
+        listSubtasksByParent: vi.fn(),
+        listTasksWithDetail: vi.fn(),
+        deleteById: vi.fn()
+      },
       { append },
       { runInTx },
       { nextUlid }
@@ -81,7 +90,7 @@ describe('phase3 usecases', () => {
     const softDelete = vi.fn().mockResolvedValue(undefined);
     const findByTask = vi.fn().mockResolvedValue([{ commentId: '01ARZ3NDEKTSV4RRFFQ69G5FAY' }]);
     const append = vi.fn().mockResolvedValue(undefined);
-    const runInTx = vi.fn(async (work: () => Promise<unknown>) => work());
+    const runInTx = vi.fn((work: () => Promise<unknown>) => work()) as unknown as <T>(work: () => Promise<T>) => Promise<T>;
     const nextUlid = vi.fn().mockReturnValue('01ARZ3NDEKTSV4RRFFQ69G5FAZ');
 
     const add = new AddTaskCommentUseCase({ create, updateWithVersion, softDelete, findByTask }, { append }, { runInTx }, { nextUlid });
@@ -94,8 +103,7 @@ describe('phase3 usecases', () => {
       taskId: TASK_ID,
       body: 'hello',
       actorId: ACTOR_ID,
-      now: '2026-04-26T00:00:00.000Z',
-      progress: 0
+      now: '2026-04-26T00:00:00.000Z'
     });
     await update.execute({
       commentId: '01ARZ3NDEKTSV4RRFFQ69G5FAY',
@@ -103,8 +111,7 @@ describe('phase3 usecases', () => {
       body: 'new body',
       actorId: ACTOR_ID,
       now: '2026-04-26T00:00:00.000Z',
-      expectedVersion: 1,
-      progress: 10
+      expectedVersion: 1
     });
     await remove.execute({
       commentId: '01ARZ3NDEKTSV4RRFFQ69G5FAY',

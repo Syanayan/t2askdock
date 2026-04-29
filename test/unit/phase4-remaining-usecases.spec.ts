@@ -19,7 +19,7 @@ describe('phase4 remaining usecases', () => {
     const revokeKey = vi.fn().mockResolvedValue(undefined);
     const revokeWrappers = vi.fn().mockResolvedValue(undefined);
     const append = vi.fn().mockResolvedValue(undefined);
-    const runInTx = vi.fn(async (work: () => Promise<unknown>) => work());
+    const runInTx = vi.fn((work: () => Promise<unknown>) => work()) as unknown as <T>(work: () => Promise<T>) => Promise<T>;
 
     const ids = ['k-1', 'log-issue', 'log-revoke', 'log-reissue'];
     const issue = new IssueAccessKeyUseCase(

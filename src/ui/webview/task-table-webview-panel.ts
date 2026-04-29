@@ -3,7 +3,7 @@ import type { MoveTaskStatusUseCase } from '../../core/usecase/move-task-status-
 import type { TaskDetail, TaskTreeNode } from '../../core/ports/repositories/task-repository.js';
 import type * as vscode from 'vscode';
 
-type TableTaskNode = TaskTreeNode & { projectId: string; version: number };
+type TableTaskNode = TaskTreeNode & { projectId: string };
 
 export class TaskTableWebviewPanel {
   public static readonly VIEW_TYPE = 'taskDock.tableView';

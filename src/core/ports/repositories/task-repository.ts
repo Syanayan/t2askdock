@@ -37,6 +37,7 @@ export type TaskTreeNode = {
   priority: Task['value']['priority'];
   assignee: string | null;
   progress: number;
+  version: number;
   children: TaskTreeNode[];
 };
 
