@@ -33,11 +33,11 @@
 
 ## グループC: タスク詳細（必要に応じて）
 
-- [ ] **C-1 タスク詳細パネル**
+- [x] **C-1 タスク詳細パネル**
   - TreeItem クリックで詳細 Webview を開き title / status / priority / tags を表示する
-- [ ] **C-2 タスク編集**
+- [x] **C-2 タスク編集**
   - 詳細パネルまたは `showInputBox` でタイトル・優先度・期日を編集し `UpdateTaskUseCase` を呼び出す
-- [ ] **C-3 タスク削除**
+- [x] **C-3 タスク削除**
   - ツリーの右クリックメニュー（`contributes.menus` の `view/item/context`）から削除する
 
 ---
