@@ -133,3 +133,40 @@
   - Project の表示名が必要になった場合は、当面 `tasks` に `projectName` カラムを追加して対応する
   - 正規化（`projects` テーブル分離）は必要性が顕在化した時点で再検討し、現時点では実装複雑性を増やさない
 - 上記方針を前提に、タスク5（ProjectTaskLoader）の実装へ着手する
+
+---
+
+## 実運用前に必須の最終接続タスク（追記: 2026-04-29）
+
+> 目的: 「実装した」だけでなく「拡張機能経路で実際に動く」ことを判定可能にする。
+
+### A. `activate()` に `AppContainer` を接続してスタブを撤去する（必須）
+- [ ] `BetterSqlite3Client` を起点に Repository 群と `TransactionManager` / `IdGenerator` を初期化する
+- [ ] `new AppContainer(infrastructure).buildUseCases()` を呼び出し、`TaskDockCommandRegistry` へ本物 UseCase を注入する
+- [ ] `BoardWebviewPanel` の `MoveTaskStatusUseCase` 注入を `as never` スタブから本実装へ置換する
+- [ ] `extension.ts` 内の `as never` を使った暫定注入をゼロにする
+
+**完了判定（DoD）**
+1. `src/extension.ts` に `as never` の注入コードが存在しない。
+2. `taskDock.createTask` / `taskDock.openBoard` 経由の操作が Repository 呼び出しへ到達するテストが通る。
+3. `npm run test:unit` と `npm run test:integration` がグリーンである。
+
+### B. ツリービューを `taskRepository` ベースのローダーへ接続する（必須）
+- [ ] `TaskTreeViewProvider` の `listProjects()` / `listTasksByProject()` スタブ（空配列）を撤去する
+- [ ] `AppContainer.buildProjectTaskLoader()` の戻り値を `TaskTreeViewProvider` に注入する
+- [ ] `projectId` 集約（Option A）でプロジェクト一覧が取得できることを確認する
+- [ ] プロジェクト配下タスク取得にページング引数（`offset` / `limit`）を反映する
+
+**完了判定（DoD）**
+1. DBに2プロジェクト以上のタスクがあると、Treeに複数プロジェクトノードが表示される。
+2. プロジェクト展開時に当該 `projectId` のタスクのみが表示される。
+3. `TaskTreeViewProvider` のユニットテストで「空以外」の実データケースが追加され、グリーンである。
+
+### C. 進捗可視化タスク（必須）
+- [ ] A/B の各DoDをチェックボックス付きで PR 説明に転記する
+- [ ] `plan.md` の該当チェックを完了時に `[x]` へ更新する
+- [ ] 未達項目がある場合は「未達理由 / 次アクション / ブロッカー有無」を同日追記する
+
+**完了判定（DoD）**
+1. `plan.md` だけ見て、A/B が「未着手 / 進行中 / 完了」のどこか判別できる。
+2. 完了済み項目には対応テスト名または検証コマンドが明記されている。
