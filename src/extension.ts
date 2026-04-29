@@ -138,7 +138,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     { dispose: disposeModeChanged },
     { dispose: disposeHealthChanged },
     vscode.window.registerTreeDataProvider<TaskTreeItem>('taskDock.treeView', {
-      getChildren: async (element?: TaskTreeItem) => taskTreeViewProvider.getChildren(element as never),
+      getChildren: async (element?: TaskTreeItem) => taskTreeViewProvider.getChildren(element),
       getTreeItem: (element: TaskTreeItem) => {
         const collapsibleState = element.hasChildren
           ? vscode.TreeItemCollapsibleState.Collapsed
