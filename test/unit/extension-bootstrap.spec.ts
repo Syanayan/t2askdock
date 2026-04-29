@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { INITIAL_MIGRATION_V1_SQL } from '../../src/infra/sqlite/migrations/initial-migration-v1.js';
 
 vi.mock('vscode', () => ({
-  commands: { registerCommand: vi.fn() },
+  commands: { registerCommand: vi.fn(), executeCommand: vi.fn() },
   window: { showInformationMessage: vi.fn() },
   workspace: { fs: { createDirectory: vi.fn() } },
   Uri: {
@@ -11,7 +11,16 @@ vi.mock('vscode', () => ({
   }
 }));
 vi.mock('better-sqlite3', () => ({
-  default: vi.fn()
+  default: vi.fn(() => ({
+    pragma: vi.fn(),
+    prepare: vi.fn(() => ({
+      get: vi.fn(),
+      all: vi.fn(() => []),
+      run: vi.fn(() => ({ changes: 0 }))
+    })),
+    exec: vi.fn(),
+    close: vi.fn()
+  }))
 }));
 
 describe('extension bootstrapMigrations', () => {
@@ -53,5 +62,23 @@ describe('extension bootstrapMigrations', () => {
 
     subscriptions[0].dispose();
     expect(close).toHaveBeenCalledOnce();
+  });
+
+  it('wires taskDock commands through TaskDockCommandRegistry', async () => {
+    const { activate } = await import('../../src/extension.js');
+    const vscode = await import('vscode');
+    const registerCommand = vi.mocked(vscode.commands.registerCommand);
+    registerCommand.mockReturnValue({ dispose: vi.fn() } as never);
+
+    await activate({
+      globalStorageUri: { fsPath: '/tmp/taskdock' },
+      subscriptions: []
+    } as never);
+
+    expect(registerCommand).toHaveBeenCalledWith('taskDock.openTree', expect.any(Function));
+    expect(registerCommand).toHaveBeenCalledWith('taskDock.openBoard', expect.any(Function));
+    expect(registerCommand).toHaveBeenCalledWith('taskDock.selectDatabase', expect.any(Function));
+    expect(registerCommand).toHaveBeenCalledWith('taskDock.toggleReadOnly', expect.any(Function));
+    expect(registerCommand).toHaveBeenCalledWith('taskDock.createTask', expect.any(Function));
   });
 });
