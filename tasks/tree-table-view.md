@@ -7,16 +7,16 @@
 
 ## グループA: データ層の拡張
 
-- [ ] **A-1 サブタスク取得の実装**
+- [x] **A-1 サブタスク取得の実装**
   - `TaskRepository.listTasksByProject()` にサブタスク（`parent_task_id` あり）を含めるよう拡張
   - または `listSubtasksByParent(parentTaskId)` メソッドを追加
   - ツリー構造を返す型 `TaskTreeNode` を定義する
 
-- [ ] **A-2 担当者・ステータスの取得確認**
+- [x] **A-2 担当者・ステータスの取得確認**
   - `findDetailById` で `assignee` / `status` / `priority` が取得できることを確認
   - 現状でも取得できているが、テーブル表示用に `listTasksWithDetail()` を追加する
 
-- [ ] **A-3 進捗フィールドの追加（マイグレーションv2）**
+- [x] **A-3 進捗フィールドの追加（マイグレーションv2）**
   - `tasks` テーブルに `progress INTEGER NOT NULL DEFAULT 0` カラムを追加
   - `Migrator` に v2 マイグレーションを登録する
   - `TaskRepository.update()` で `progress` を更新できるようにする
