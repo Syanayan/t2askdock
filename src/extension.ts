@@ -19,6 +19,7 @@ import { TaskTreeViewProvider } from './ui/tree/task-tree-view-provider.js';
 import type { TaskTreeItem } from './ui/tree/task-tree-view-provider.js';
 import { StatusBarController } from './ui/status/status-bar-controller.js';
 import { BoardWebviewPanel } from './ui/webview/board-webview-panel.js';
+import { TaskTableWebviewPanel } from './ui/webview/task-table-webview-panel.js';
 import { ERROR_CODES } from './core/errors/error-codes.js';
 
 type BootstrapMigrationDependencies = {
@@ -129,6 +130,29 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     useCases.moveTaskStatusUseCase,
     eventBus
   );
+  const taskOperator = appContainer.buildTaskOperator();
+  const tableLoader = appContainer.buildTaskTreeLoader();
+  const tablePanel = new TaskTableWebviewPanel(
+    useCases.moveTaskStatusUseCase,
+    async () => {
+      const projects = await tableLoader.listProjects();
+      const roots = await Promise.all(projects.map(async (project) => {
+        const nodes = await tableLoader.listTasksWithDetail(project.projectId);
+        const enrich = async (node: any): Promise<any> => ({
+          ...node,
+          projectId: project.projectId,
+          version: (await taskOperator.findDetailById(node.taskId))?.version ?? 1,
+          children: await Promise.all((node.children ?? []).map((child: any) => enrich(child)))
+        });
+        return Promise.all(nodes.map(enrich));
+      }));
+      return roots.flat();
+    },
+    (taskId) => taskOperator.findDetailById(taskId),
+    async (taskId) => {
+      await vscode.commands.executeCommand('taskDock.openTaskDetail', { kind: 'task', id: taskId, label: '' });
+    }
+  );
   const commands = commandRegistry.register();
   const dbStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
   const modeStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 99);
@@ -219,6 +243,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       );
       boardPanel.render(webviewPanel, boardTasks);
       return commands['taskDock.openBoard']();
+    }),
+    vscode.commands.registerCommand('taskDock.openTable', async () => {
+      const webviewPanel = vscode.window.createWebviewPanel(
+        TaskTableWebviewPanel.VIEW_TYPE,
+        'Task Dock Table',
+        vscode.ViewColumn.One,
+        { enableScripts: true }
+      );
+      await tablePanel.render(webviewPanel);
+      return { viewId: 'taskDock.tableView' as const };
     }),
     vscode.commands.registerCommand('taskDock.selectDatabase', async (input: { profileId?: string } = {}) =>
       commands['taskDock.selectDatabase']({ profileId: input.profileId ?? 'default' })

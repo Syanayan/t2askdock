@@ -25,23 +25,23 @@
 
 ## グループB: Webviewテーブルの実装
 
-- [ ] **B-1 TaskTableWebviewPanel の作成**
+- [x] **B-1 TaskTableWebviewPanel の作成**
   - `src/ui/webview/task-table-webview-panel.ts` を新規作成
   - 全タスクをツリー構造（親→子）で取得してWebviewに渡す
   - `taskDock.openTable` コマンドとして登録する
 
-- [ ] **B-2 テーブルHTML/CSSの実装**
+- [x] **B-2 テーブルHTML/CSSの実装**
   - 列構成: タイトル / ステータス / 担当者 / 優先度 / 進捗
   - 親タスクは折りたたみ可能（▶/▼トグル）
   - インデントでサブタスクを視覚的に表現する
   - ステータスはバッジ表示（Todo=グレー / In Progress=青 / Done=緑 / Blocked=赤）
 
-- [ ] **B-3 テーブルからのタスク操作**
+- [x] **B-3 テーブルからのタスク操作**
   - 行クリックでタスク詳細パネルを開く
   - ステータスセルクリックでドロップダウン変更
   - 変更後に `MoveTaskStatusUseCase` を呼び出してWebviewを再描画する
 
-- [ ] **B-4 package.json にコマンド追加**
+- [x] **B-4 package.json にコマンド追加**
   - `taskDock.openTable` コマンドを `contributes.commands` に追加
   - アイコンをテーブル系のものに設定する
 
