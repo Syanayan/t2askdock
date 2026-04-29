@@ -171,7 +171,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         const collapsibleState = element.hasChildren
           ? vscode.TreeItemCollapsibleState.Collapsed
           : vscode.TreeItemCollapsibleState.None;
-        return new vscode.TreeItem(element.label, collapsibleState);
+        const treeItem = new vscode.TreeItem(element.label, collapsibleState);
+        if (element.kind === 'task') {
+          treeItem.command = { command: 'taskDock.openTaskDetail', title: 'Open Task Detail', arguments: [element] };
+          treeItem.contextValue = 'task';
+        }
+        return treeItem;
       }
     }),
     vscode.commands.registerCommand('taskDock.openTree', async () => {
@@ -251,6 +256,36 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         void vscode.window.showErrorMessage(toUserFacingMessage(error));
         return undefined;
       }
+    }),
+    vscode.commands.registerCommand('taskDock.openTaskDetail', async (item?: TaskTreeItem) => {
+      if (!item || item.kind !== 'task') return;
+      const detail = await appContainer.buildTaskOperator().findDetailById(item.id);
+      if (!detail) return;
+      const panel = vscode.window.createWebviewPanel('taskDock.taskDetail', `Task: ${detail.title}`, vscode.ViewColumn.Active, { enableScripts: true });
+      panel.webview.html = `<html><body><h2>${detail.title}</h2><p>status: ${detail.status}</p><p>priority: ${detail.priority}</p><p>tags: ${detail.tags.join(', ') || '(none)'}</p></body></html>`;
+    }),
+    vscode.commands.registerCommand('taskDock.updateTask', async (item?: TaskTreeItem) => {
+      if (!item || item.kind !== 'task') return;
+      const detail = await appContainer.buildTaskOperator().findDetailById(item.id);
+      if (!detail) return;
+      try {
+        const title = (await vscode.window.showInputBox({ prompt: '新しいタイトル', value: detail.title, ignoreFocusOut: true })) ?? detail.title;
+        const priority = ((await vscode.window.showQuickPick(['low', 'medium', 'high', 'critical'], { title: '優先度を選択', placeHolder: detail.priority })) ??
+          detail.priority) as 'low' | 'medium' | 'high' | 'critical';
+        const dueDate = await vscode.window.showInputBox({ prompt: '期限日 (YYYY-MM-DD)', value: detail.dueDate ?? '', ignoreFocusOut: true });
+        await useCases.updateTaskUseCase.execute({
+          taskId: detail.taskId, projectId: detail.projectId, title, description: detail.description, status: detail.status, priority, assignee: detail.assignee,
+          dueDate: dueDate && dueDate.trim().length > 0 ? dueDate : null, tags: detail.tags, parentTaskId: detail.parentTaskId, actorId: 'system', now: new Date().toISOString(), expectedVersion: detail.version
+        });
+        eventBus.publish({ type: 'TASK_UPDATED', payload: { taskId: detail.taskId } });
+      } catch (error) { void vscode.window.showErrorMessage(toUserFacingMessage(error)); }
+    }),
+    vscode.commands.registerCommand('taskDock.deleteTask', async (item?: TaskTreeItem) => {
+      if (!item || item.kind !== 'task') return;
+      const confirmed = await vscode.window.showWarningMessage('このタスクを削除しますか？', { modal: true }, '削除');
+      if (confirmed !== '削除') return;
+      await appContainer.buildTaskOperator().deleteById(item.id);
+      eventBus.publish({ type: 'TASK_UPDATED', payload: { taskId: item.id } });
     })
   );
 }

@@ -159,4 +159,11 @@ export class AppContainer {
       listTasksByProject: (input) => this.infrastructure.taskRepository.listTasksByProject(input)
     };
   }
+
+  public buildTaskOperator(): Pick<TaskRepository, 'findDetailById' | 'deleteById'> {
+    return {
+      findDetailById: (taskId) => this.infrastructure.taskRepository.findDetailById(taskId),
+      deleteById: (taskId) => this.infrastructure.taskRepository.deleteById(taskId)
+    };
+  }
 }

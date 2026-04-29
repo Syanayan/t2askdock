@@ -2,6 +2,7 @@ import { ERROR_CODES } from '../../../core/errors/error-codes.js';
 import type { Task } from '../../../core/domain/entities/task.js';
 import type {
   TaskRepository as TaskRepositoryPort,
+  TaskDetail,
   TaskUpdate
 } from '../../../core/ports/repositories/task-repository.js';
 import type { SqliteClient } from '../sqlite-client.js';
@@ -105,5 +106,21 @@ export class TaskRepository implements TaskRepositoryPort {
        LIMIT ? OFFSET ?`,
       [input.projectId, input.limit, input.offset]
     ).then((rows) => rows.map((row) => ({ ...row, hasChildren: row.hasChildren === 1 })));
+  }
+
+  public async findDetailById(taskId: string): Promise<TaskDetail | null> {
+    const row = await this.client.get<{
+      taskId: string; projectId: string; title: string; status: Task['value']['status']; priority: Task['value']['priority'];
+      dueDate: string | null; description: string | null; assignee: string | null; parentTaskId: string | null; version: number;
+    }>(`SELECT task_id AS taskId, project_id AS projectId, title, status, priority, due_date AS dueDate, description, assignee, parent_task_id AS parentTaskId, version
+       FROM tasks WHERE task_id = ?`, [taskId]);
+    if (!row) return null;
+    const tags = await this.client.all<{ tag: string }>(`SELECT tag FROM task_tags WHERE task_id = ? ORDER BY created_at ASC`, [taskId]);
+    return { ...row, tags: tags.map((t) => t.tag) };
+  }
+
+  public async deleteById(taskId: string): Promise<void> {
+    await this.client.run(`DELETE FROM task_tags WHERE task_id = ?`, [taskId]);
+    await this.client.run(`DELETE FROM tasks WHERE task_id = ?`, [taskId]);
   }
 }
