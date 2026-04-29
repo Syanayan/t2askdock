@@ -152,10 +152,10 @@
 3. `npm run test:unit` と `npm run test:integration` がグリーンである。
 
 ### B. ツリービューを `taskRepository` ベースのローダーへ接続する（必須）
-- [ ] `TaskTreeViewProvider` の `listProjects()` / `listTasksByProject()` スタブ（空配列）を撤去する
-- [ ] `AppContainer.buildProjectTaskLoader()` の戻り値を `TaskTreeViewProvider` に注入する
-- [ ] `projectId` 集約（Option A）でプロジェクト一覧が取得できることを確認する
-- [ ] プロジェクト配下タスク取得にページング引数（`offset` / `limit`）を反映する
+- [x] `TaskTreeViewProvider` の `listProjects()` / `listTasksByProject()` スタブ（空配列）を撤去する
+- [x] `AppContainer.buildProjectTaskLoader()` の戻り値を `TaskTreeViewProvider` に注入する
+- [x] `projectId` 集約（Option A）でプロジェクト一覧が取得できることを確認する
+- [x] プロジェクト配下タスク取得にページング引数（`offset` / `limit`）を反映する（`test/unit/phase5-ui-integration.spec.ts`）
 
 **完了判定（DoD）**
 1. DBに2プロジェクト以上のタスクがあると、Treeに複数プロジェクトノードが表示される。

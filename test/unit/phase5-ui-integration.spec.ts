@@ -61,15 +61,21 @@ describe('Phase5 UI integration', () => {
   });
 
   it('supports lazy loading tree nodes', async () => {
+    const listProjects = vi.fn().mockResolvedValue([{ projectId: 'p1', projectName: 'Main' }]);
+    const listTasksByProject = vi
+      .fn()
+      .mockResolvedValue([{ taskId: 't1', title: 'todo', status: 'todo', hasChildren: false }]);
     const provider = new TaskTreeViewProvider({
-      listProjects: vi.fn().mockResolvedValue([{ projectId: 'p1', projectName: 'Main' }]),
-      listTasksByProject: vi.fn().mockResolvedValue([{ taskId: 't1', title: 'todo', status: 'todo', hasChildren: false }])
-    });
+      listProjects,
+      listTasksByProject
+    }, 25);
 
     expect(await provider.getChildren()).toEqual([{ id: 'p1', label: 'Main', kind: 'project', hasChildren: true }]);
     expect(await provider.getChildren({ kind: 'project', id: 'p1' })).toEqual([
       { id: 't1', label: 'todo', kind: 'task', status: 'todo', hasChildren: false }
     ]);
+    expect(listProjects).toHaveBeenCalledOnce();
+    expect(listTasksByProject).toHaveBeenCalledWith({ projectId: 'p1', offset: 0, limit: 25 });
   });
 
   it('moves status by D&D and publishes update event', async () => {
