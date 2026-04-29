@@ -18,6 +18,7 @@ export type UpdateTaskInput = {
   actorId: string;
   now: string;
   expectedVersion: number;
+  progress?: number;
 };
 
 export type UpdateTaskOutput = {
@@ -51,7 +52,8 @@ export class UpdateTaskUseCase {
       updatedBy: input.actorId,
       createdAt: input.now,
       updatedAt: input.now,
-      version: input.expectedVersion
+      version: input.expectedVersion,
+      progress: input.progress ?? 0
     });
 
     await this.transactionManager.runInTx(async () => {
@@ -67,7 +69,8 @@ export class UpdateTaskUseCase {
           tags: task.value.tags,
           parentTaskId: task.value.parentTaskId,
           updatedBy: input.actorId,
-          updatedAt: input.now
+          updatedAt: input.now,
+          progress: task.value.progress
         },
         input.expectedVersion
       );

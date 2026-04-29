@@ -3,6 +3,7 @@ import type { Task } from '../../../core/domain/entities/task.js';
 import type {
   TaskRepository as TaskRepositoryPort,
   TaskDetail,
+  TaskTreeNode,
   TaskUpdate
 } from '../../../core/ports/repositories/task-repository.js';
 import type { SqliteClient } from '../sqlite-client.js';
@@ -12,8 +13,8 @@ export class TaskRepository implements TaskRepositoryPort {
 
   public async create(task: Task): Promise<void> {
     await this.client.run(
-      `INSERT INTO tasks(task_id, project_id, title, description, status, priority, assignee, due_date, parent_task_id, created_by, updated_by, created_at, updated_at, version)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO tasks(task_id, project_id, title, description, status, priority, assignee, due_date, parent_task_id, created_by, updated_by, created_at, updated_at, version, progress)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         task.value.taskId,
         task.value.projectId,
@@ -28,7 +29,8 @@ export class TaskRepository implements TaskRepositoryPort {
         task.value.updatedBy,
         task.value.createdAt,
         task.value.updatedAt,
-        task.value.version
+        task.value.version,
+        task.value.progress
       ]
     );
 
@@ -44,7 +46,7 @@ export class TaskRepository implements TaskRepositoryPort {
   public async updateWithVersion(task: TaskUpdate, expectedVersion: number): Promise<void> {
     const result = await this.client.run(
       `UPDATE tasks
-       SET title = ?, description = ?, status = ?, priority = ?, assignee = ?, due_date = ?, parent_task_id = ?, updated_by = ?, updated_at = ?, version = version + 1
+       SET title = ?, description = ?, status = ?, priority = ?, assignee = ?, due_date = ?, parent_task_id = ?, updated_by = ?, updated_at = ?, progress = ?, version = version + 1
        WHERE task_id = ? AND version = ?`,
       [
         task.title,
@@ -56,6 +58,7 @@ export class TaskRepository implements TaskRepositoryPort {
         task.parentTaskId,
         task.updatedBy,
         task.updatedAt,
+        task.progress,
         task.taskId,
         expectedVersion
       ]
@@ -111,12 +114,39 @@ export class TaskRepository implements TaskRepositoryPort {
   public async findDetailById(taskId: string): Promise<TaskDetail | null> {
     const row = await this.client.get<{
       taskId: string; projectId: string; title: string; status: Task['value']['status']; priority: Task['value']['priority'];
-      dueDate: string | null; description: string | null; assignee: string | null; parentTaskId: string | null; version: number;
-    }>(`SELECT task_id AS taskId, project_id AS projectId, title, status, priority, due_date AS dueDate, description, assignee, parent_task_id AS parentTaskId, version
+      dueDate: string | null; description: string | null; assignee: string | null; parentTaskId: string | null; version: number; progress: number;
+    }>(`SELECT task_id AS taskId, project_id AS projectId, title, status, priority, due_date AS dueDate, description, assignee, parent_task_id AS parentTaskId, version, progress
        FROM tasks WHERE task_id = ?`, [taskId]);
     if (!row) return null;
     const tags = await this.client.all<{ tag: string }>(`SELECT tag FROM task_tags WHERE task_id = ? ORDER BY created_at ASC`, [taskId]);
     return { ...row, tags: tags.map((t) => t.tag) };
+  }
+
+
+
+  public async listSubtasksByParent(parentTaskId: string): Promise<Array<{ taskId: string; title: string; status: Task['value']['status']; hasChildren: boolean }>> {
+    return this.client.all<{ taskId: string; title: string; status: Task['value']['status']; hasChildren: number }>(
+      `SELECT t.task_id AS taskId,
+              t.title AS title,
+              t.status AS status,
+              EXISTS(SELECT 1 FROM tasks c WHERE c.parent_task_id = t.task_id) AS hasChildren
+       FROM tasks t
+       WHERE t.parent_task_id = ?
+       ORDER BY t.updated_at DESC`,
+      [parentTaskId]
+    ).then((rows) => rows.map((row) => ({ ...row, hasChildren: row.hasChildren === 1 })));
+  }
+
+  public async listTasksWithDetail(projectId: string): Promise<TaskTreeNode[]> {
+    const rows = await this.client.all<{
+      taskId: string; title: string; status: Task['value']['status']; priority: Task['value']['priority']; assignee: string | null; progress: number; parentTaskId: string | null;
+    }>(`SELECT task_id AS taskId, title, status, priority, assignee, progress, parent_task_id AS parentTaskId FROM tasks WHERE project_id = ? ORDER BY updated_at DESC`, [projectId]);
+    const byParent = new Map<string | null, typeof rows>();
+    for (const r of rows) { const key = r.parentTaskId; byParent.set(key, [...(byParent.get(key) ?? []), r]); }
+    const build = (parentId: string | null): TaskTreeNode[] => (byParent.get(parentId) ?? []).map((r) => ({
+      taskId: r.taskId, title: r.title, status: r.status, priority: r.priority, assignee: r.assignee, progress: r.progress, children: build(r.taskId)
+    }));
+    return build(null);
   }
 
   public async deleteById(taskId: string): Promise<void> {

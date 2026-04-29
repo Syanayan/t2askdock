@@ -22,6 +22,7 @@ export type CreateTaskInput = {
   parentTaskId: string | null;
   actorId: string;
   now: string;
+  progress?: number;
 };
 
 export class CreateTaskUseCase {
@@ -48,7 +49,8 @@ export class CreateTaskUseCase {
       updatedBy: input.actorId,
       createdAt: input.now,
       updatedAt: input.now,
-      version: 1
+      version: 1,
+      progress: input.progress ?? 0
     });
 
     await this.transactionManager.runInTx(async () => {
