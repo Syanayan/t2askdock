@@ -64,13 +64,13 @@ export class BoardWebviewPanel {
     <section class="board">
       <article class="column" data-status="todo"><h3>Todo</h3><div class="tasks"></div></article>
       <article class="column" data-status="in_progress"><h3>In Progress</h3><div class="tasks"></div></article>
-      <article class="column" data-status="review"><h3>Review</h3><div class="tasks"></div></article>
+      <article class="column" data-status="blocked"><h3>Blocked</h3><div class="tasks"></div></article>
       <article class="column" data-status="done"><h3>Done</h3><div class="tasks"></div></article>
     </section>
     <script>
       const vscode = acquireVsCodeApi();
       let tasks = [];
-      const statuses = ['todo', 'in_progress', 'review', 'done'];
+      const statuses = ['todo', 'in_progress', 'blocked', 'done'];
       const render = () => {
         for (const status of statuses) {
           const list = document.querySelector('.column[data-status="' + status + '"] .tasks');
