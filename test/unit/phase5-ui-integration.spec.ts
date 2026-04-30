@@ -8,6 +8,7 @@ import { FeatureFlagManagementPanel } from '../../src/ui/panels/feature-flag-man
 import { ExtensionStateStore } from '../../src/ui/state/extension-state-store.js';
 import { StatusBarController } from '../../src/ui/status/status-bar-controller.js';
 import { TaskTreeViewProvider } from '../../src/ui/tree/task-tree-view-provider.js';
+import { MyRecentTasksProvider } from '../../src/ui/tree/my-recent-tasks-provider.js';
 import { BoardWebviewPanel } from '../../src/ui/webview/board-webview-panel.js';
 
 describe('Phase5 UI integration', () => {
@@ -78,6 +79,23 @@ describe('Phase5 UI integration', () => {
     ]);
     expect(listProjects).toHaveBeenCalledOnce();
     expect(listTasksByProject).toHaveBeenCalledWith({ projectId: 'p1', offset: 0, limit: 25 });
+  });
+
+  it('supports my recent tasks with sort updates', async () => {
+    const listMyTasks = vi.fn().mockResolvedValue([{ taskId: 't1', title: 'mine', status: 'todo', priority: 'high', projectId: 'p1', hasChildren: false }]);
+    const provider = new MyRecentTasksProvider({ listMyTasks }, 'u1');
+    const refresh = vi.fn();
+    provider.onRefresh(refresh);
+
+    expect(await provider.getChildren()).toEqual([
+      { id: 't1', label: 'mine', kind: 'task', status: 'todo', priority: 'high', projectId: 'p1', hasChildren: false }
+    ]);
+    expect(listMyTasks).toHaveBeenCalledWith({ userId: 'u1', limit: 5, sortBy: 'updatedAt' });
+
+    provider.setSort('priority');
+    expect(refresh).toHaveBeenCalledOnce();
+    await provider.getChildren();
+    expect(listMyTasks).toHaveBeenLastCalledWith({ userId: 'u1', limit: 5, sortBy: 'priority' });
   });
 
   it('moves status by D&D and publishes update event', async () => {

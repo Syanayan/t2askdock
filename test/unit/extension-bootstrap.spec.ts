@@ -17,7 +17,7 @@ vi.mock('vscode', () => ({
     createStatusBarItem: vi.fn(() => ({ show: vi.fn(), dispose: vi.fn() })),
     createWebviewPanel: vi.fn(() => ({ webview: { html: '' }, title: '' }))
   },
-  workspace: { fs: { createDirectory: vi.fn() } },
+  workspace: { fs: { createDirectory: vi.fn() }, getConfiguration: vi.fn(() => ({ get: vi.fn(() => 'system') })) },
   StatusBarAlignment: { Left: 1, Right: 2 },
   ViewColumn: { One: 1 },
   TreeItemCollapsibleState: { None: 0, Collapsed: 1 },
@@ -96,7 +96,7 @@ describe('extension bootstrapMigrations', () => {
       subscriptions: []
     } as never);
 
-    expect(registerTreeDataProvider).toHaveBeenCalledWith('taskDock.treeView', expect.objectContaining({
+    expect(registerTreeDataProvider).toHaveBeenCalledWith('taskDock.myRecentTasks', expect.objectContaining({
       getChildren: expect.any(Function),
       getTreeItem: expect.any(Function)
     }));
@@ -105,6 +105,9 @@ describe('extension bootstrapMigrations', () => {
     expect(registerCommand).toHaveBeenCalledWith('taskDock.selectDatabase', expect.any(Function));
     expect(registerCommand).toHaveBeenCalledWith('taskDock.toggleReadOnly', expect.any(Function));
     expect(registerCommand).toHaveBeenCalledWith('taskDock.createTask', expect.any(Function));
+    expect(registerCommand).toHaveBeenCalledWith('taskDock.myRecentTasks.sortUpdated', expect.any(Function));
+    expect(registerCommand).toHaveBeenCalledWith('taskDock.myRecentTasks.sortPriority', expect.any(Function));
+    expect(registerCommand).toHaveBeenCalledWith('taskDock.myRecentTasks.sortDeadline', expect.any(Function));
     expect(createStatusBarItem).toHaveBeenCalledTimes(3);
     expect(createWebviewPanel).not.toHaveBeenCalled();
   });

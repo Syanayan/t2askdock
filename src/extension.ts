@@ -17,6 +17,7 @@ import { TaskRepository } from './infra/sqlite/repositories/task-repository.js';
 import { TransactionManager } from './infra/sqlite/tx/transaction-manager.js';
 import { TaskTreeViewProvider } from './ui/tree/task-tree-view-provider.js';
 import type { TaskTreeItem } from './ui/tree/task-tree-view-provider.js';
+import { MyRecentTasksProvider } from './ui/tree/my-recent-tasks-provider.js';
 import { StatusBarController } from './ui/status/status-bar-controller.js';
 import { BoardWebviewPanel } from './ui/webview/board-webview-panel.js';
 import { TaskTableWebviewPanel } from './ui/webview/task-table-webview-panel.js';
@@ -118,6 +119,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const eventBus = new UiEventBus();
   const stateStore = new ExtensionStateStore();
   const taskTreeViewProvider = new TaskTreeViewProvider(appContainer.buildProjectTaskLoader());
+  const userId = vscode.workspace.getConfiguration('taskDock').get<string>('userId', 'system');
+  const myRecentTasksProvider = new MyRecentTasksProvider(appContainer.buildProjectTaskLoader(), userId);
   const statusBarController = new StatusBarController(stateStore);
   const commandRegistry = new TaskDockCommandRegistry(
     useCases.createTaskUseCase,
@@ -176,9 +179,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   const disposeTaskUpdated = eventBus.subscribe('TASK_UPDATED', () => {
     taskTreeViewProvider.refresh();
+    myRecentTasksProvider.refresh();
   });
   const treeChangeEmitter = new vscode.EventEmitter<TaskTreeItem | undefined | null | void>();
   const disposeTreeRefresh = taskTreeViewProvider.onRefresh(() => treeChangeEmitter.fire());
+  const myRecentTasksChangeEmitter = new vscode.EventEmitter<TaskTreeItem | undefined | null | void>();
+  const disposeMyRecentTasksRefresh = myRecentTasksProvider.onRefresh(() => myRecentTasksChangeEmitter.fire());
 
   context.subscriptions.push(
     dbStatusBarItem,
@@ -189,7 +195,40 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     { dispose: disposeHealthChanged },
     { dispose: disposeTaskUpdated },
     { dispose: disposeTreeRefresh },
+    { dispose: disposeMyRecentTasksRefresh },
     treeChangeEmitter,
+    myRecentTasksChangeEmitter,
+    vscode.window.registerTreeDataProvider<TaskTreeItem>('taskDock.myRecentTasks', {
+      onDidChangeTreeData: myRecentTasksChangeEmitter.event,
+      getChildren: async (element?: TaskTreeItem) => myRecentTasksProvider.getChildren(element),
+      getTreeItem: (element: TaskTreeItem) => {
+        const collapsibleState = element.hasChildren
+          ? vscode.TreeItemCollapsibleState.Collapsed
+          : vscode.TreeItemCollapsibleState.None;
+        const treeItem = new vscode.TreeItem(element.label, collapsibleState);
+        if (element.status) {
+          treeItem.description = `[${element.status}]`;
+          const iconByPriority: Record<string, vscode.ThemeIcon> = {
+            low: new vscode.ThemeIcon('circle-filled', new vscode.ThemeColor('charts.gray')),
+            medium: new vscode.ThemeIcon('circle-filled', new vscode.ThemeColor('charts.blue')),
+            high: new vscode.ThemeIcon('warning', new vscode.ThemeColor('charts.yellow')),
+            critical: new vscode.ThemeIcon('flame', new vscode.ThemeColor('charts.red'))
+          };
+          const iconByStatus: Record<string, vscode.ThemeIcon> = {
+            todo: new vscode.ThemeIcon('circle-outline', new vscode.ThemeColor('charts.gray')),
+            in_progress: new vscode.ThemeIcon('sync', new vscode.ThemeColor('charts.blue')),
+            done: new vscode.ThemeIcon('check', new vscode.ThemeColor('charts.green')),
+            blocked: new vscode.ThemeIcon('error', new vscode.ThemeColor('charts.red'))
+          };
+          treeItem.iconPath = iconByStatus[element.status] ?? (element.priority && iconByPriority[element.priority]) ?? new vscode.ThemeIcon('circle-outline');
+        }
+        if (element.kind === 'task' || element.kind === 'subtask') {
+          treeItem.command = { command: 'taskDock.openTaskDetail', title: 'Open Task Detail', arguments: [element] };
+          treeItem.contextValue = element.kind;
+        }
+        return treeItem;
+      }
+    }),
     vscode.window.registerTreeDataProvider<TaskTreeItem>('taskDock.treeView', {
       onDidChangeTreeData: treeChangeEmitter.event,
       getChildren: async (element?: TaskTreeItem) => taskTreeViewProvider.getChildren(element),
@@ -222,9 +261,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
     }),
     vscode.commands.registerCommand('taskDock.openTree', async () => {
-      await vscode.commands.executeCommand('taskDock.treeView.focus');
+      await vscode.commands.executeCommand('taskDock.myRecentTasks.focus');
       return commands['taskDock.openTree']();
     }),
+    vscode.commands.registerCommand('taskDock.myRecentTasks.sortUpdated', () => myRecentTasksProvider.setSort('updatedAt')),
+    vscode.commands.registerCommand('taskDock.myRecentTasks.sortPriority', () => myRecentTasksProvider.setSort('priority')),
+    vscode.commands.registerCommand('taskDock.myRecentTasks.sortDeadline', () => myRecentTasksProvider.setSort('dueDate')),
     vscode.commands.registerCommand('taskDock.openBoard', async () => {
       const projects = await appContainer.buildProjectTaskLoader().listProjects();
       const loader = appContainer.buildProjectTaskLoader();

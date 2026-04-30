@@ -25,8 +25,8 @@
     "views": {
       "taskDock": [
         {
-          "id": "taskDock.treeView",
-          "name": "Tasks"
+          "id": "taskDock.myRecentTasks",
+          "name": "My Tasks"
         }
       ]
     },
@@ -71,28 +71,60 @@
       {
         "command": "taskDock.createSubtask",
         "title": "Task Dock: Create Subtask"
+      },
+      {
+        "command": "taskDock.myRecentTasks.sortUpdated",
+        "title": "Sort by Updated",
+        "icon": "$(history)"
+      },
+      {
+        "command": "taskDock.myRecentTasks.sortPriority",
+        "title": "Sort by Priority",
+        "icon": "$(flame)"
+      },
+      {
+        "command": "taskDock.myRecentTasks.sortDeadline",
+        "title": "Sort by Deadline",
+        "icon": "$(calendar)"
       }
     ],
     "menus": {
+      "view/title": [
+        {
+          "command": "taskDock.myRecentTasks.sortUpdated",
+          "when": "view == taskDock.myRecentTasks",
+          "group": "navigation"
+        },
+        {
+          "command": "taskDock.myRecentTasks.sortPriority",
+          "when": "view == taskDock.myRecentTasks",
+          "group": "navigation"
+        },
+        {
+          "command": "taskDock.myRecentTasks.sortDeadline",
+          "when": "view == taskDock.myRecentTasks",
+          "group": "navigation"
+        }
+      ],
       "view/item/context": [
         {
           "command": "taskDock.openTaskDetail",
-          "when": "view == taskDock.treeView && viewItem == task",
+          "when": "view == taskDock.myRecentTasks && viewItem == task",
           "group": "inline"
         },
         {
           "command": "taskDock.updateTask",
-          "when": "view == taskDock.treeView && viewItem == task",
+          "when": "view == taskDock.myRecentTasks && viewItem == task",
           "group": "inline"
         },
         {
           "command": "taskDock.deleteTask",
-          "when": "view == taskDock.treeView && viewItem == task",
+          "when": "view == taskDock.myRecentTasks && viewItem == task",
           "group": "navigation"
         },
         {
           "command": "taskDock.createSubtask",
-          "when": "view == taskDock.treeView && (viewItem == task || viewItem == subtask)",
+          "when": "view == taskDock.myRecentTasks && (viewItem == task || viewItem == subtask)",
           "group": "navigation"
         }
       ]
