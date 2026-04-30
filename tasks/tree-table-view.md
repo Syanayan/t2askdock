@@ -49,15 +49,15 @@
 
 ## グループC: サイドバーツリービューの改善
 
-- [ ] **C-1 サブタスクの展開表示**
+- [x] **C-1 サブタスクの展開表示**
   - `TaskTreeViewProvider.getChildren()` で `kind === 'task'` かつ `hasChildren === true` の場合にサブタスクを返す
   - `TaskRepository` からサブタスクを取得する
 
-- [ ] **C-2 ツリーアイテムにステータスを表示**
+- [x] **C-2 ツリーアイテムにステータスを表示**
   - `getTreeItem()` の `description` にステータスを表示（例: `[In Progress]`）
   - `iconPath` で優先度・ステータスに応じた色アイコンを設定する（ThemeIcon使用）
 
-- [ ] **C-3 サブタスク作成コマンドの追加**
+- [x] **C-3 サブタスク作成コマンドの追加**
   - 親タスクの右クリックメニューから「サブタスクを追加」を実行できるようにする
   - `parentTaskId` を引き継いで `CreateTaskUseCase` を呼び出す
 
