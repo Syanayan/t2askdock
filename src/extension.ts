@@ -134,6 +134,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const tableLoader = appContainer.buildTaskTreeLoader();
   const tablePanel = new TaskTableWebviewPanel(
     useCases.moveTaskStatusUseCase,
+    useCases.updateTaskUseCase,
     async () => {
       const projects = await tableLoader.listProjects();
       const roots = await Promise.all(projects.map(async (project) => {
