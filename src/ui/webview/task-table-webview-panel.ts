@@ -17,7 +17,7 @@ export class TaskTableWebviewPanel {
     private readonly openTaskDetail: (taskId: string) => Promise<void>
   ) {}
 
-  public async render(panel: Pick<vscode.WebviewPanel, 'webview' | 'title'>): Promise<void> {
+  public async render(panel: { title: string; webview: Pick<vscode.Webview, 'html' | 'postMessage' | 'onDidReceiveMessage'> }): Promise<void> {
     panel.title = 'Task Dock Table';
     panel.webview.html = this.buildHtml();
     panel.webview.onDidReceiveMessage?.(async (message: unknown) => {
@@ -117,7 +117,7 @@ export class TaskTableWebviewPanel {
         const tr=document.createElement('tr');
         tr.innerHTML='<td><span class="indent" style="width:'+(depth*16)+'px"></span><span class="tree-toggle" data-id="'+n.taskId+'">'+(hasChildren?(open?'▼':'▶'):'')+'</span><span class="task-title" data-open="'+n.taskId+'">'+n.title+'</span></td>'+
         '<td><span>'+badge(n.status)+'</span> <select data-status="'+n.taskId+'" data-version="'+n.version+'"><option value="todo">Todo</option><option value="in_progress">In Progress</option><option value="done">Done</option><option value="blocked">Blocked</option></select></td>'+
-        '<td>'+(n.assignee??'-')+'</td><td>'+n.priority+'</td><td><input type="number" min="0" max="100" data-progress="'+n.taskId+'" data-version="'+n.version+'" value="'+n.progress+'" style="width:64px"/>%</td>';
+        '<td>'+(n.assignee??'-')+'</td><td>'+n.priority+'</td><td><input type="number" min="0" max="100" data-progress="'+n.taskId+'" data-version="'+n.version+'" data-has-children="'+hasChildren+'" value="'+n.progress+'" style="width:64px" '+(hasChildren?'disabled':'')+'/>%</td>';
         tr.querySelector('select').value=n.status;
         rows.appendChild(tr);
         if(hasChildren&&open) walk(n.children, depth+1);
@@ -125,7 +125,7 @@ export class TaskTableWebviewPanel {
       rows.querySelectorAll('[data-id]').forEach(el=>el.onclick=()=>{const id=el.dataset.id; expanded.has(id)?expanded.delete(id):expanded.add(id); render();});
       rows.querySelectorAll('[data-open]').forEach(el=>el.onclick=()=>vscode.postMessage({type:'table:openTask',taskId:el.dataset.open}));
       rows.querySelectorAll('select[data-status]').forEach(el=>el.onchange=()=>vscode.postMessage({type:'table:moveStatus',taskId:el.dataset.status,toStatus:el.value,expectedVersion:Number(el.dataset.version)}));
-      rows.querySelectorAll('input[data-progress]').forEach(el=>el.onchange=()=>vscode.postMessage({type:'table:updateProgress',taskId:el.dataset.progress,progress:Number(el.value),expectedVersion:Number(el.dataset.version)}));
+      rows.querySelectorAll('input[data-progress]').forEach(el=>el.onchange=()=>{if(el.dataset.hasChildren==='true'){return;} const value=Math.max(0,Math.min(100,Number(el.value))); el.value=String(value); vscode.postMessage({type:'table:updateProgress',taskId:el.dataset.progress,progress:value,expectedVersion:Number(el.dataset.version)});});
     };
     window.addEventListener('message',(event)=>{if(event.data?.type==='table:init'){roots=event.data.tasks??[]; render();}});
     </script></body></html>`;
