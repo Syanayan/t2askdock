@@ -1,5 +1,6 @@
 import type { Priority, TaskStatus } from '../../core/domain/entities/task.js';
 import type { MoveTaskStatusUseCase } from '../../core/usecase/move-task-status-usecase.js';
+import type { UpdateTaskUseCase } from '../../core/usecase/update-task-usecase.js';
 import type { TaskDetail, TaskTreeNode } from '../../core/ports/repositories/task-repository.js';
 import type * as vscode from 'vscode';
 
@@ -10,12 +11,13 @@ export class TaskTableWebviewPanel {
 
   public constructor(
     private readonly moveTaskStatusUseCase: MoveTaskStatusUseCase,
+    private readonly updateTaskUseCase: UpdateTaskUseCase,
     private readonly loadTree: () => Promise<TableTaskNode[]>,
     private readonly findTaskDetailById: (taskId: string) => Promise<TaskDetail | null>,
     private readonly openTaskDetail: (taskId: string) => Promise<void>
   ) {}
 
-  public async render(panel: Pick<vscode.WebviewPanel, 'webview' | 'title'>): Promise<void> {
+  public async render(panel: { title: string; webview: Pick<vscode.Webview, 'html' | 'postMessage' | 'onDidReceiveMessage'> }): Promise<void> {
     panel.title = 'Task Dock Table';
     panel.webview.html = this.buildHtml();
     panel.webview.onDidReceiveMessage?.(async (message: unknown) => {
@@ -26,13 +28,30 @@ export class TaskTableWebviewPanel {
         await this.moveStatus(message.taskId, message.toStatus, message.expectedVersion);
         await this.postTasks(panel.webview);
       }
+      if (isUpdateProgressMessage(message)) {
+        await this.updateProgress(message.taskId, message.progress, message.expectedVersion);
+        await this.postTasks(panel.webview);
+      }
     });
     await this.postTasks(panel.webview);
   }
 
   private async postTasks(webview: Pick<vscode.Webview, 'postMessage'>): Promise<void> {
-    const tasks = await this.loadTree();
+    const tasks = this.withCalculatedProgress(await this.loadTree());
     await webview.postMessage?.({ type: 'table:init', tasks });
+  }
+
+  private withCalculatedProgress(nodes: TableTaskNode[]): TableTaskNode[] {
+    const walk = (node: TableTaskNode): TableTaskNode => {
+      const children = node.children.map(child => walk({ ...child, projectId: node.projectId }));
+      if (children.length === 0) {
+        return { ...node, children };
+      }
+      const doneCount = children.filter(child => child.status === 'done').length;
+      const progress = Math.round((doneCount / children.length) * 100);
+      return { ...node, progress, children };
+    };
+    return nodes.map(walk);
   }
 
   private async moveStatus(taskId: string, toStatus: TaskStatus, expectedVersion: number): Promise<void> {
@@ -57,6 +76,29 @@ export class TaskTableWebviewPanel {
     });
   }
 
+  private async updateProgress(taskId: string, progress: number, expectedVersion: number): Promise<void> {
+    const detail = await this.findTaskDetailById(taskId);
+    if (!detail) {
+      return;
+    }
+    await this.updateTaskUseCase.execute({
+      taskId: detail.taskId,
+      projectId: detail.projectId,
+      actorId: 'system',
+      title: detail.title,
+      description: detail.description,
+      status: detail.status,
+      priority: detail.priority,
+      assignee: detail.assignee,
+      dueDate: detail.dueDate,
+      tags: detail.tags,
+      parentTaskId: detail.parentTaskId,
+      expectedVersion,
+      now: new Date().toISOString(),
+      progress
+    });
+  }
+
   private buildHtml(): string {
     return `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"/><style>
       body{font-family:sans-serif;margin:16px}.container{margin-top:8px}
@@ -75,7 +117,7 @@ export class TaskTableWebviewPanel {
         const tr=document.createElement('tr');
         tr.innerHTML='<td><span class="indent" style="width:'+(depth*16)+'px"></span><span class="tree-toggle" data-id="'+n.taskId+'">'+(hasChildren?(open?'▼':'▶'):'')+'</span><span class="task-title" data-open="'+n.taskId+'">'+n.title+'</span></td>'+
         '<td><span>'+badge(n.status)+'</span> <select data-status="'+n.taskId+'" data-version="'+n.version+'"><option value="todo">Todo</option><option value="in_progress">In Progress</option><option value="done">Done</option><option value="blocked">Blocked</option></select></td>'+
-        '<td>'+(n.assignee??'-')+'</td><td>'+n.priority+'</td><td>'+n.progress+'%</td>';
+        '<td>'+(n.assignee??'-')+'</td><td>'+n.priority+'</td><td><input type="number" min="0" max="100" data-progress="'+n.taskId+'" data-version="'+n.version+'" data-has-children="'+hasChildren+'" value="'+n.progress+'" style="width:64px" '+(hasChildren?'disabled':'')+'/>%</td>';
         tr.querySelector('select').value=n.status;
         rows.appendChild(tr);
         if(hasChildren&&open) walk(n.children, depth+1);
@@ -83,6 +125,7 @@ export class TaskTableWebviewPanel {
       rows.querySelectorAll('[data-id]').forEach(el=>el.onclick=()=>{const id=el.dataset.id; expanded.has(id)?expanded.delete(id):expanded.add(id); render();});
       rows.querySelectorAll('[data-open]').forEach(el=>el.onclick=()=>vscode.postMessage({type:'table:openTask',taskId:el.dataset.open}));
       rows.querySelectorAll('select[data-status]').forEach(el=>el.onchange=()=>vscode.postMessage({type:'table:moveStatus',taskId:el.dataset.status,toStatus:el.value,expectedVersion:Number(el.dataset.version)}));
+      rows.querySelectorAll('input[data-progress]').forEach(el=>el.onchange=()=>{if(el.dataset.hasChildren==='true'){return;} const value=Math.max(0,Math.min(100,Number(el.value))); el.value=String(value); vscode.postMessage({type:'table:updateProgress',taskId:el.dataset.progress,progress:value,expectedVersion:Number(el.dataset.version)});});
     };
     window.addEventListener('message',(event)=>{if(event.data?.type==='table:init'){roots=event.data.tasks??[]; render();}});
     </script></body></html>`;
@@ -99,4 +142,10 @@ function isMoveStatusMessage(value: unknown): value is { type: 'table:moveStatus
   if (!value || typeof value !== 'object') return false;
   const c = value as Record<string, unknown>;
   return c.type === 'table:moveStatus' && typeof c.taskId === 'string' && typeof c.toStatus === 'string' && typeof c.expectedVersion === 'number';
+}
+
+function isUpdateProgressMessage(value: unknown): value is { type: 'table:updateProgress'; taskId: string; progress: number; expectedVersion: number } {
+  if (!value || typeof value !== 'object') return false;
+  const c = value as Record<string, unknown>;
+  return c.type === 'table:updateProgress' && typeof c.taskId === 'string' && typeof c.progress === 'number' && typeof c.expectedVersion === 'number';
 }
