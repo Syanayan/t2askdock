@@ -93,12 +93,13 @@ export class TaskRepository implements TaskRepositoryPort {
     projectId: string;
     offset: number;
     limit: number;
-  }): Promise<Array<{ taskId: string; title: string; status: Task['value']['status']; priority: Task['value']['priority']; hasChildren: boolean }>> {
-    return this.client.all<{ taskId: string; title: string; status: Task['value']['status']; priority: Task['value']['priority']; hasChildren: number }>(
+  }): Promise<Array<{ taskId: string; title: string; status: Task['value']['status']; priority: Task['value']['priority']; version: number; hasChildren: boolean }>> {
+    return this.client.all<{ taskId: string; title: string; status: Task['value']['status']; priority: Task['value']['priority']; version: number; hasChildren: number }>(
       `SELECT t.task_id AS taskId,
               t.title AS title,
               t.status AS status,
               t.priority AS priority,
+              t.version AS version,
               EXISTS(
                 SELECT 1
                 FROM tasks c
@@ -126,11 +127,12 @@ export class TaskRepository implements TaskRepositoryPort {
 
 
   public async listSubtasksByParent(parentTaskId: string): Promise<Array<{ taskId: string; title: string; status: Task['value']['status']; priority: Task['value']['priority']; hasChildren: boolean }>> {
-    return this.client.all<{ taskId: string; title: string; status: Task['value']['status']; priority: Task['value']['priority']; hasChildren: number }>(
+    return this.client.all<{ taskId: string; title: string; status: Task['value']['status']; priority: Task['value']['priority']; version: number; hasChildren: number }>(
       `SELECT t.task_id AS taskId,
               t.title AS title,
               t.status AS status,
               t.priority AS priority,
+              t.version AS version,
               EXISTS(SELECT 1 FROM tasks c WHERE c.parent_task_id = t.task_id) AS hasChildren
        FROM tasks t
        WHERE t.parent_task_id = ?
