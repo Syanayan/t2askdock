@@ -25,13 +25,13 @@
 
 ## グループF: package.json の設定追加
 
-- [ ] **F-1 2つ目の View を登録**
+- [x] **F-1 2つ目の View を登録**
   - `contributes.views.taskDock` に以下を追加:
     - `id: taskDock.myRecentTasks`, `name: My Tasks`
     - `id: taskDock.allProjects`, `name: All Projects`
   - 既存の `taskDock.treeView` は削除または役割を `allProjects` に移行する
 
-- [ ] **F-2 ソートコマンドを登録**
+- [x] **F-2 ソートコマンドを登録**
   - 各 View × 3種 = 最大6コマンドを `contributes.commands` に追加:
     - `taskDock.myRecentTasks.sortUpdated` (🕒)
     - `taskDock.myRecentTasks.sortPriority` (🔥)
@@ -54,7 +54,7 @@
   - `getChildren()` でルート呼び出し時に `listMyTasks` を実行して最大5件返す
   - タスクアイテムには `status` / `priority` のアイコンをそのまま流用する
 
-- [ ] **G-2 AllProjectsProvider の作成（または既存 Provider を改修）**
+- [x] **G-2 AllProjectsProvider の作成（または既存 Provider を改修）**
   - `src/ui/tree/all-projects-provider.ts` を新規作成（または既存を改修）
   - Level 1: プロジェクト一覧（`listProjects()` を使用）
   - Level 2: 各プロジェクトの直近タスク最大5件（ソート・フィルタ適用）
@@ -69,12 +69,12 @@
 
 ## グループH: extension.ts での登録
 
-- [ ] **H-1 新しい View を TreeDataProvider と紐づけ**
+- [x] **H-1 新しい View を TreeDataProvider と紐づけ**
   - `vscode.window.registerTreeDataProvider('taskDock.myRecentTasks', myRecentTasksProvider)` を登録
   - `vscode.window.registerTreeDataProvider('taskDock.allProjects', allProjectsProvider)` を登録
   - `userId` は `vscode.workspace.getConfiguration` または固定値（初期実装）から取得
 
-- [ ] **H-2 ソートコマンドを登録**
+- [x] **H-2 ソートコマンドを登録**
   - F-2 で定義した各コマンドを `vscode.commands.registerCommand` で登録
   - 押下時に対応する Provider の `setSort(key)` を呼ぶ
 

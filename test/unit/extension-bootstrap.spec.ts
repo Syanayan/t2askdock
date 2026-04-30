@@ -100,6 +100,10 @@ describe('extension bootstrapMigrations', () => {
       getChildren: expect.any(Function),
       getTreeItem: expect.any(Function)
     }));
+    expect(registerTreeDataProvider).toHaveBeenCalledWith('taskDock.allProjects', expect.objectContaining({
+      getChildren: expect.any(Function),
+      getTreeItem: expect.any(Function)
+    }));
     expect(registerCommand).toHaveBeenCalledWith('taskDock.openTree', expect.any(Function));
     expect(registerCommand).toHaveBeenCalledWith('taskDock.openBoard', expect.any(Function));
     expect(registerCommand).toHaveBeenCalledWith('taskDock.selectDatabase', expect.any(Function));
@@ -108,6 +112,9 @@ describe('extension bootstrapMigrations', () => {
     expect(registerCommand).toHaveBeenCalledWith('taskDock.myRecentTasks.sortUpdated', expect.any(Function));
     expect(registerCommand).toHaveBeenCalledWith('taskDock.myRecentTasks.sortPriority', expect.any(Function));
     expect(registerCommand).toHaveBeenCalledWith('taskDock.myRecentTasks.sortDeadline', expect.any(Function));
+    expect(registerCommand).toHaveBeenCalledWith('taskDock.allProjects.sortUpdated', expect.any(Function));
+    expect(registerCommand).toHaveBeenCalledWith('taskDock.allProjects.sortPriority', expect.any(Function));
+    expect(registerCommand).toHaveBeenCalledWith('taskDock.allProjects.sortDeadline', expect.any(Function));
     expect(createStatusBarItem).toHaveBeenCalledTimes(3);
     expect(createWebviewPanel).not.toHaveBeenCalled();
   });
