@@ -83,7 +83,8 @@ describe('Phase5 UI integration', () => {
 
   it('supports my recent tasks with sort updates', async () => {
     const listMyTasks = vi.fn().mockResolvedValue([{ taskId: 't1', projectId: 'p1', title: 'mine', status: 'todo', priority: 'high', version: 1, hasChildren: false }]);
-    const provider = new MyRecentTasksProvider({ listMyTasks }, 'u1');
+    const listSubtasksByParent = vi.fn().mockResolvedValue([]);
+    const provider = new MyRecentTasksProvider({ listMyTasks, listSubtasksByParent }, 'u1');
     const refresh = vi.fn();
     provider.onRefresh(refresh);
 
