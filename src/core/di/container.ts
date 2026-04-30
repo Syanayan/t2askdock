@@ -158,7 +158,7 @@ export class AppContainer {
       userId: string;
       limit: number;
       sortBy: 'updatedAt' | 'priority' | 'dueDate';
-    }): Promise<Array<{ taskId: string; title: string; status: TaskStatus; priority: Priority; version: number; hasChildren: boolean }>>;
+    }): Promise<Array<{ taskId: string; projectId: string; title: string; status: TaskStatus; priority: Priority; version: number; hasChildren: boolean }>>;
   } {
     return {
       listProjects: () => this.infrastructure.taskRepository.listProjects(),

@@ -131,15 +131,16 @@ export class TaskRepository implements TaskRepositoryPort {
     userId: string;
     limit: number;
     sortBy: 'updatedAt' | 'priority' | 'dueDate';
-  }): Promise<Array<{ taskId: string; title: string; status: Task['value']['status']; priority: Task['value']['priority']; version: number; hasChildren: boolean }>> {
+  }): Promise<Array<{ taskId: string; projectId: string; title: string; status: Task['value']['status']; priority: Task['value']['priority']; version: number; hasChildren: boolean }>> {
     const orderBy =
       input.sortBy === 'priority'
         ? `CASE t.priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END ASC, t.updated_at DESC`
         : input.sortBy === 'dueDate'
           ? `CASE WHEN t.due_date IS NULL THEN 1 ELSE 0 END ASC, t.due_date ASC, t.updated_at DESC`
           : 't.updated_at DESC';
-    return this.client.all<{ taskId: string; title: string; status: Task['value']['status']; priority: Task['value']['priority']; version: number; hasChildren: number }>(
+    return this.client.all<{ taskId: string; projectId: string; title: string; status: Task['value']['status']; priority: Task['value']['priority']; version: number; hasChildren: number }>(
       `SELECT t.task_id AS taskId,
+              t.project_id AS projectId,
               t.title AS title,
               t.status AS status,
               t.priority AS priority,

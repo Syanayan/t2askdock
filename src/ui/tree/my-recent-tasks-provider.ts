@@ -6,7 +6,7 @@ export type MyRecentTaskLoader = {
     userId: string;
     limit: number;
     sortBy: 'updatedAt' | 'priority' | 'dueDate';
-  }): Promise<Array<{ taskId: string; title: string; status: TaskStatus; priority: Priority; version: number; hasChildren: boolean }>>;
+  }): Promise<Array<{ taskId: string; projectId: string; title: string; status: TaskStatus; priority: Priority; version: number; hasChildren: boolean }>>;
 };
 
 export type SortKey = 'updatedAt' | 'priority' | 'dueDate';
@@ -48,6 +48,7 @@ export class MyRecentTasksProvider {
       kind: 'task',
       status: task.status,
       priority: task.priority,
+      projectId: task.projectId,
       hasChildren: task.hasChildren
     }));
   }
