@@ -126,12 +126,12 @@ describe('SQLite repositories (phase2)', () => {
 
   it('TaskRepository.listMyTasks excludes done and supports updatedAt sort', async () => {
     const client = new FakeSqliteClient();
-    client.allResult = [{ taskId: 't1', title: 'mine', status: 'todo', priority: 'high', version: 1, hasChildren: 0 }];
+    client.allResult = [{ taskId: 't1', projectId: 'p1', title: 'mine', status: 'todo', priority: 'high', version: 1, hasChildren: 0 }];
     const repository = new TaskRepository(client);
 
     const tasks = await repository.listMyTasks({ userId: 'u1', limit: 5, sortBy: 'updatedAt' });
 
-    expect(tasks).toEqual([{ taskId: 't1', title: 'mine', status: 'todo', priority: 'high', version: 1, hasChildren: false }]);
+    expect(tasks).toEqual([{ taskId: 't1', projectId: 'p1', title: 'mine', status: 'todo', priority: 'high', version: 1, hasChildren: false }]);
     const call = client.executed.find((item) => item.type === 'get' && item.sql.includes('WHERE ((t.created_by = ? AND t.assignee IS NULL) OR t.assignee = ?)'));
     expect(call?.sql.includes("t.status != 'done'")).toBe(true);
     expect(call?.sql.includes('ORDER BY t.updated_at DESC')).toBe(true);

@@ -154,11 +154,17 @@ export class AppContainer {
       limit: number;
     }): Promise<Array<{ taskId: string; title: string; status: TaskStatus; priority: Priority; version: number; hasChildren: boolean }>>;
     listSubtasksByParent(parentTaskId: string): Promise<Array<{ taskId: string; title: string; status: TaskStatus; priority: Priority; hasChildren: boolean }>>;
+    listMyTasks(input: {
+      userId: string;
+      limit: number;
+      sortBy: 'updatedAt' | 'priority' | 'dueDate';
+    }): Promise<Array<{ taskId: string; projectId: string; title: string; status: TaskStatus; priority: Priority; version: number; hasChildren: boolean }>>;
   } {
     return {
       listProjects: () => this.infrastructure.taskRepository.listProjects(),
       listTasksByProject: (input) => this.infrastructure.taskRepository.listTasksByProject(input),
-      listSubtasksByParent: (parentTaskId) => this.infrastructure.taskRepository.listSubtasksByParent(parentTaskId)
+      listSubtasksByParent: (parentTaskId) => this.infrastructure.taskRepository.listSubtasksByParent(parentTaskId),
+      listMyTasks: (input) => this.infrastructure.taskRepository.listMyTasks(input)
     };
   }
 

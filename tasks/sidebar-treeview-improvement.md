@@ -46,7 +46,7 @@
 
 ## グループG: Tree View Provider の実装
 
-- [ ] **G-1 MyRecentTasksProvider の作成**
+- [x] **G-1 MyRecentTasksProvider の作成**
   - `src/ui/tree/my-recent-tasks-provider.ts` を新規作成
   - コンストラクタ引数: `loader`（`listMyTasks` を持つ）、`userId: string`
   - ソート種別を内部 State で保持: `type SortKey = 'updatedAt' | 'priority' | 'dueDate'`
@@ -61,7 +61,7 @@
   - プロジェクトアイテムのクリックで `taskDock.openBoard` コマンドをプロジェクト引数付きで実行
   - ソート State を View ごとに保持する
 
-- [ ] **G-3 done 除外フィルタの共通化**
+- [x] **G-3 done 除外フィルタの共通化**
   - `done` / `blocked` ステータスは UI 側でも除外するガードを追加
   - DB クエリ側（E-1/E-2）と UI 側の両方で除外するか、どちらか一方に統一するかを決定して実装
 
