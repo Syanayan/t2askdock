@@ -97,7 +97,9 @@ export class BoardWebviewPanel {
           if (!task) return;
           const toStatus = column.dataset.status;
           if (task.status === toStatus) return;
-          vscode.postMessage({ type: 'board:drop', task, toStatus });
+          const { version, ...taskWithoutVersion } = task;
+          const dropTask = { ...taskWithoutVersion, expectedVersion: version };
+          vscode.postMessage({ type: 'board:drop', task: dropTask, toStatus });
           task.status = toStatus;
           task.version += 1;
           render();
@@ -161,5 +163,9 @@ function isDropMessage(
     return false;
   }
   const candidate = value as Record<string, unknown>;
-  return candidate.type === 'board:drop' && typeof candidate.toStatus === 'string' && typeof candidate.task === 'object';
+  if (!(candidate.type === 'board:drop' && typeof candidate.toStatus === 'string' && typeof candidate.task === 'object' && candidate.task)) {
+    return false;
+  }
+  const task = candidate.task as Record<string, unknown>;
+  return typeof task.expectedVersion === 'number';
 }
