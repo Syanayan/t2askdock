@@ -64,15 +64,17 @@ describe('Phase5 UI integration', () => {
     const listProjects = vi.fn().mockResolvedValue([{ projectId: 'p1', projectName: 'Main' }]);
     const listTasksByProject = vi
       .fn()
-      .mockResolvedValue([{ taskId: 't1', title: 'todo', status: 'todo', hasChildren: false }]);
+      .mockResolvedValue([{ taskId: 't1', title: 'todo', status: 'todo', priority: 'medium', hasChildren: false }]);
+    const listSubtasksByParent = vi.fn().mockResolvedValue([]);
     const provider = new TaskTreeViewProvider({
       listProjects,
-      listTasksByProject
+      listTasksByProject,
+      listSubtasksByParent
     }, 25);
 
-    expect(await provider.getChildren()).toEqual([{ id: 'p1', label: 'Main', kind: 'project', hasChildren: true }]);
+    expect(await provider.getChildren()).toEqual([{ id: 'p1', label: 'Main', kind: 'project', projectId: 'p1', hasChildren: true }]);
     expect(await provider.getChildren({ kind: 'project', id: 'p1', label: 'Main', hasChildren: true })).toEqual([
-      { id: 't1', label: 'todo', kind: 'task', status: 'todo', hasChildren: false }
+      { id: 't1', label: 'todo', kind: 'task', status: 'todo', priority: 'medium', projectId: 'p1', hasChildren: false }
     ]);
     expect(listProjects).toHaveBeenCalledOnce();
     expect(listTasksByProject).toHaveBeenCalledWith({ projectId: 'p1', offset: 0, limit: 25 });

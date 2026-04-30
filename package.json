@@ -67,6 +67,10 @@
       {
         "command": "taskDock.deleteTask",
         "title": "Task Dock: Delete Task"
+      },
+      {
+        "command": "taskDock.createSubtask",
+        "title": "Task Dock: Create Subtask"
       }
     ],
     "menus": {
@@ -84,6 +88,11 @@
         {
           "command": "taskDock.deleteTask",
           "when": "view == taskDock.treeView && viewItem == task",
+          "group": "navigation"
+        },
+        {
+          "command": "taskDock.createSubtask",
+          "when": "view == taskDock.treeView && (viewItem == task || viewItem == subtask)",
           "group": "navigation"
         }
       ]

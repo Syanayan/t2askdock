@@ -197,9 +197,25 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           ? vscode.TreeItemCollapsibleState.Collapsed
           : vscode.TreeItemCollapsibleState.None;
         const treeItem = new vscode.TreeItem(element.label, collapsibleState);
-        if (element.kind === 'task') {
+        if (element.status) {
+          treeItem.description = `[${element.status}]`;
+          const iconByPriority: Record<string, vscode.ThemeIcon> = {
+            low: new vscode.ThemeIcon('circle-filled', new vscode.ThemeColor('charts.gray')),
+            medium: new vscode.ThemeIcon('circle-filled', new vscode.ThemeColor('charts.blue')),
+            high: new vscode.ThemeIcon('warning', new vscode.ThemeColor('charts.yellow')),
+            critical: new vscode.ThemeIcon('flame', new vscode.ThemeColor('charts.red'))
+          };
+          const iconByStatus: Record<string, vscode.ThemeIcon> = {
+            todo: new vscode.ThemeIcon('circle-outline', new vscode.ThemeColor('charts.gray')),
+            in_progress: new vscode.ThemeIcon('sync', new vscode.ThemeColor('charts.blue')),
+            done: new vscode.ThemeIcon('check', new vscode.ThemeColor('charts.green')),
+            blocked: new vscode.ThemeIcon('error', new vscode.ThemeColor('charts.red'))
+          };
+          treeItem.iconPath = iconByStatus[element.status] ?? (element.priority && iconByPriority[element.priority]) ?? new vscode.ThemeIcon('circle-outline');
+        }
+        if (element.kind === 'task' || element.kind === 'subtask') {
           treeItem.command = { command: 'taskDock.openTaskDetail', title: 'Open Task Detail', arguments: [element] };
-          treeItem.contextValue = 'task';
+          treeItem.contextValue = element.kind;
         }
         return treeItem;
       }
@@ -260,7 +276,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           actorRole: input.actorRole ?? 'admin'
         })
     ),
-    vscode.commands.registerCommand('taskDock.createTask', async (input?: { title?: string; projectId?: string }) => {
+    vscode.commands.registerCommand('taskDock.createTask', async (input?: { title?: string; projectId?: string; parentTaskId?: string | null }) => {
       try {
         const title = input?.title ?? (await vscode.window.showInputBox({ prompt: 'タスクタイトルを入力してください', ignoreFocusOut: true }));
         if (!title) {
@@ -287,7 +303,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           assignee: null,
           dueDate: null,
           tags: [],
-          parentTaskId: null,
+          parentTaskId: input?.parentTaskId ?? null,
           actorId: 'system',
           now
         });
@@ -296,15 +312,24 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         return undefined;
       }
     }),
+
+    vscode.commands.registerCommand('taskDock.createSubtask', async (item?: TaskTreeItem) => {
+      if (!item || (item.kind !== 'task' && item.kind !== 'subtask')) return;
+      if (!item.projectId) return;
+      await vscode.commands.executeCommand('taskDock.createTask', {
+        projectId: item.projectId,
+        parentTaskId: item.id
+      });
+    }),
     vscode.commands.registerCommand('taskDock.openTaskDetail', async (item?: TaskTreeItem) => {
-      if (!item || item.kind !== 'task') return;
+      if (!item || (item.kind !== 'task' && item.kind !== 'subtask')) return;
       const detail = await appContainer.buildTaskOperator().findDetailById(item.id);
       if (!detail) return;
       const panel = vscode.window.createWebviewPanel('taskDock.taskDetail', `Task: ${detail.title}`, vscode.ViewColumn.Active, { enableScripts: true });
       panel.webview.html = `<html><body><h2>${detail.title}</h2><p>status: ${detail.status}</p><p>priority: ${detail.priority}</p><p>tags: ${detail.tags.join(', ') || '(none)'}</p></body></html>`;
     }),
     vscode.commands.registerCommand('taskDock.updateTask', async (item?: TaskTreeItem) => {
-      if (!item || item.kind !== 'task') return;
+      if (!item || (item.kind !== 'task' && item.kind !== 'subtask')) return;
       const detail = await appContainer.buildTaskOperator().findDetailById(item.id);
       if (!detail) return;
       try {
@@ -320,7 +345,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       } catch (error) { void vscode.window.showErrorMessage(toUserFacingMessage(error)); }
     }),
     vscode.commands.registerCommand('taskDock.deleteTask', async (item?: TaskTreeItem) => {
-      if (!item || item.kind !== 'task') return;
+      if (!item || (item.kind !== 'task' && item.kind !== 'subtask')) return;
       const confirmed = await vscode.window.showWarningMessage('このタスクを削除しますか？', { modal: true }, '削除');
       if (confirmed !== '削除') return;
       await appContainer.buildTaskOperator().deleteById(item.id);

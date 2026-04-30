@@ -1,4 +1,4 @@
-import type { TaskStatus } from '../domain/entities/task.js';
+import type { Priority, TaskStatus } from '../domain/entities/task.js';
 import { AddTaskCommentUseCase } from '../usecase/comments/add-task-comment-usecase.js';
 import { DeleteTaskCommentUseCase } from '../usecase/comments/delete-task-comment-usecase.js';
 import { ListTaskCommentsUseCase } from '../usecase/comments/list-task-comments-usecase.js';
@@ -152,11 +152,13 @@ export class AppContainer {
       projectId: string;
       offset: number;
       limit: number;
-    }): Promise<Array<{ taskId: string; title: string; status: TaskStatus; hasChildren: boolean }>>;
+    }): Promise<Array<{ taskId: string; title: string; status: TaskStatus; priority: Priority; hasChildren: boolean }>>;
+    listSubtasksByParent(parentTaskId: string): Promise<Array<{ taskId: string; title: string; status: TaskStatus; priority: Priority; hasChildren: boolean }>>;
   } {
     return {
       listProjects: () => this.infrastructure.taskRepository.listProjects(),
-      listTasksByProject: (input) => this.infrastructure.taskRepository.listTasksByProject(input)
+      listTasksByProject: (input) => this.infrastructure.taskRepository.listTasksByProject(input),
+      listSubtasksByParent: (parentTaskId) => this.infrastructure.taskRepository.listSubtasksByParent(parentTaskId)
     };
   }
 
