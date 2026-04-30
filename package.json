@@ -27,6 +27,10 @@
         {
           "id": "taskDock.myRecentTasks",
           "name": "My Tasks"
+        },
+        {
+          "id": "taskDock.allProjects",
+          "name": "All Projects"
         }
       ]
     },
@@ -86,6 +90,21 @@
         "command": "taskDock.myRecentTasks.sortDeadline",
         "title": "Sort by Deadline",
         "icon": "$(calendar)"
+      },
+      {
+        "command": "taskDock.allProjects.sortUpdated",
+        "title": "Sort by Updated",
+        "icon": "$(history)"
+      },
+      {
+        "command": "taskDock.allProjects.sortPriority",
+        "title": "Sort by Priority",
+        "icon": "$(flame)"
+      },
+      {
+        "command": "taskDock.allProjects.sortDeadline",
+        "title": "Sort by Deadline",
+        "icon": "$(calendar)"
       }
     ],
     "menus": {
@@ -103,6 +122,21 @@
         {
           "command": "taskDock.myRecentTasks.sortDeadline",
           "when": "view == taskDock.myRecentTasks",
+          "group": "navigation"
+        },
+        {
+          "command": "taskDock.allProjects.sortUpdated",
+          "when": "view == taskDock.allProjects",
+          "group": "navigation"
+        },
+        {
+          "command": "taskDock.allProjects.sortPriority",
+          "when": "view == taskDock.allProjects",
+          "group": "navigation"
+        },
+        {
+          "command": "taskDock.allProjects.sortDeadline",
+          "when": "view == taskDock.allProjects",
           "group": "navigation"
         }
       ],
