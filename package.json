@@ -143,22 +143,22 @@
       "view/item/context": [
         {
           "command": "taskDock.openTaskDetail",
-          "when": "view == taskDock.myRecentTasks && viewItem == task",
+          "when": "(view == taskDock.myRecentTasks || view == taskDock.allProjects) && viewItem == task",
           "group": "inline"
         },
         {
           "command": "taskDock.updateTask",
-          "when": "view == taskDock.myRecentTasks && viewItem == task",
+          "when": "(view == taskDock.myRecentTasks || view == taskDock.allProjects) && viewItem == task",
           "group": "inline"
         },
         {
           "command": "taskDock.deleteTask",
-          "when": "view == taskDock.myRecentTasks && viewItem == task",
+          "when": "(view == taskDock.myRecentTasks || view == taskDock.allProjects) && viewItem == task",
           "group": "navigation"
         },
         {
           "command": "taskDock.createSubtask",
-          "when": "view == taskDock.myRecentTasks && (viewItem == task || viewItem == subtask)",
+          "when": "(view == taskDock.myRecentTasks || view == taskDock.allProjects) && (viewItem == task || viewItem == subtask)",
           "group": "navigation"
         }
       ]

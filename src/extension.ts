@@ -15,7 +15,6 @@ import { DatabaseProfileRepository } from './infra/sqlite/repositories/database-
 import { FeatureFlagRepository } from './infra/sqlite/repositories/feature-flag-repository.js';
 import { TaskRepository } from './infra/sqlite/repositories/task-repository.js';
 import { TransactionManager } from './infra/sqlite/tx/transaction-manager.js';
-import { TaskTreeViewProvider } from './ui/tree/task-tree-view-provider.js';
 import type { TaskTreeItem } from './ui/tree/task-tree-view-provider.js';
 import { MyRecentTasksProvider } from './ui/tree/my-recent-tasks-provider.js';
 import { AllProjectsProvider } from './ui/tree/all-projects-provider.js';
@@ -119,7 +118,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   const eventBus = new UiEventBus();
   const stateStore = new ExtensionStateStore();
-  const taskTreeViewProvider = new TaskTreeViewProvider(appContainer.buildProjectTaskLoader());
   const userId = vscode.workspace.getConfiguration('taskDock').get<string>('userId', 'system');
   const myRecentTasksProvider = new MyRecentTasksProvider(appContainer.buildProjectTaskLoader(), userId);
   const allProjectsProvider = new AllProjectsProvider(appContainer.buildProjectTaskLoader());
@@ -180,12 +178,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const disposeHealthChanged = eventBus.subscribe('CONNECTION_HEALTH_CHANGED', refreshStatusBar);
 
   const disposeTaskUpdated = eventBus.subscribe('TASK_UPDATED', () => {
-    taskTreeViewProvider.refresh();
     myRecentTasksProvider.refresh();
     allProjectsProvider.refresh();
   });
-  const treeChangeEmitter = new vscode.EventEmitter<TaskTreeItem | undefined | null | void>();
-  const disposeTreeRefresh = taskTreeViewProvider.onRefresh(() => treeChangeEmitter.fire());
   const myRecentTasksChangeEmitter = new vscode.EventEmitter<TaskTreeItem | undefined | null | void>();
   const disposeMyRecentTasksRefresh = myRecentTasksProvider.onRefresh(() => myRecentTasksChangeEmitter.fire());
   const allProjectsChangeEmitter = new vscode.EventEmitter<TaskTreeItem | undefined | null | void>();
@@ -199,10 +194,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     { dispose: disposeModeChanged },
     { dispose: disposeHealthChanged },
     { dispose: disposeTaskUpdated },
-    { dispose: disposeTreeRefresh },
     { dispose: disposeMyRecentTasksRefresh },
     { dispose: disposeAllProjectsRefresh },
-    treeChangeEmitter,
     myRecentTasksChangeEmitter,
     allProjectsChangeEmitter,
     vscode.window.registerTreeDataProvider<TaskTreeItem>('taskDock.myRecentTasks', {

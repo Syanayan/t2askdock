@@ -44,7 +44,7 @@ export class AllProjectsProvider {
         excludeDone: true
       });
       return tasks
-        .filter(task => task.status !== 'done' && task.status !== 'blocked')
+        .filter(task => task.status !== 'done')
         .map(task => ({
           id: task.taskId,
           label: task.title,
@@ -52,6 +52,21 @@ export class AllProjectsProvider {
           status: task.status,
           priority: task.priority,
           projectId: parent.id,
+          hasChildren: task.hasChildren
+        }));
+    }
+
+    if ((parent.kind === 'task' || parent.kind === 'subtask') && parent.hasChildren) {
+      const subtasks = await this.loader.listSubtasksByParent(parent.id);
+      return subtasks
+        .filter(task => task.status !== 'done')
+        .map(task => ({
+          id: task.taskId,
+          label: task.title,
+          kind: 'subtask',
+          status: task.status,
+          priority: task.priority,
+          projectId: parent.projectId,
           hasChildren: task.hasChildren
         }));
     }
