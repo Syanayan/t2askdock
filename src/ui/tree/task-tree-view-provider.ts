@@ -1,10 +1,12 @@
-import type { TaskStatus } from '../../core/domain/entities/task.js';
+import type { Priority, TaskStatus } from '../../core/domain/entities/task.js';
 
 export type TaskTreeItem = {
   id: string;
   label: string;
   kind: 'project' | 'task' | 'subtask';
   status?: TaskStatus;
+  priority?: Priority;
+  projectId?: string;
   hasChildren: boolean;
 };
 
@@ -14,8 +16,8 @@ export type ProjectTaskLoader = {
     projectId: string;
     offset: number;
     limit: number;
-  }): Promise<Array<{ taskId: string; title: string; status: TaskStatus; hasChildren: boolean }>>;
-  listSubtasksByParent?(parentTaskId: string): Promise<Array<{ taskId: string; title: string; status: TaskStatus; hasChildren: boolean }>>;
+  }): Promise<Array<{ taskId: string; title: string; status: TaskStatus; priority: Priority; hasChildren: boolean }>>;
+  listSubtasksByParent(parentTaskId: string): Promise<Array<{ taskId: string; title: string; status: TaskStatus; priority: Priority; hasChildren: boolean }>>;
 };
 
 export class TaskTreeViewProvider {
@@ -44,6 +46,7 @@ export class TaskTreeViewProvider {
         id: project.projectId,
         label: project.projectName,
         kind: 'project',
+        projectId: project.projectId,
         hasChildren: true
       }));
     }
@@ -55,19 +58,22 @@ export class TaskTreeViewProvider {
         label: task.title,
         kind: 'task',
         status: task.status,
+        priority: task.priority,
+        projectId: parent.id,
         hasChildren: task.hasChildren
       }));
     }
 
 
     if ((parent.kind === 'task' || parent.kind === 'subtask') && parent.hasChildren) {
-      if (!this.loader.listSubtasksByParent) return [];
       const subtasks = await this.loader.listSubtasksByParent(parent.id);
       return subtasks.map(task => ({
         id: task.taskId,
         label: task.title,
         kind: 'subtask',
         status: task.status,
+        priority: task.priority,
+        projectId: parent.id,
         hasChildren: task.hasChildren
       }));
     }

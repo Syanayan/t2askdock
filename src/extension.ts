@@ -199,13 +199,19 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         const treeItem = new vscode.TreeItem(element.label, collapsibleState);
         if (element.status) {
           treeItem.description = `[${element.status}]`;
+          const iconByPriority: Record<string, vscode.ThemeIcon> = {
+            low: new vscode.ThemeIcon('circle-filled', new vscode.ThemeColor('charts.gray')),
+            medium: new vscode.ThemeIcon('circle-filled', new vscode.ThemeColor('charts.blue')),
+            high: new vscode.ThemeIcon('warning', new vscode.ThemeColor('charts.yellow')),
+            critical: new vscode.ThemeIcon('flame', new vscode.ThemeColor('charts.red'))
+          };
           const iconByStatus: Record<string, vscode.ThemeIcon> = {
-            todo: new vscode.ThemeIcon('circle-filled', new vscode.ThemeColor('charts.gray')),
+            todo: new vscode.ThemeIcon('circle-outline', new vscode.ThemeColor('charts.gray')),
             in_progress: new vscode.ThemeIcon('sync', new vscode.ThemeColor('charts.blue')),
             done: new vscode.ThemeIcon('check', new vscode.ThemeColor('charts.green')),
             blocked: new vscode.ThemeIcon('error', new vscode.ThemeColor('charts.red'))
           };
-          treeItem.iconPath = iconByStatus[element.status] ?? new vscode.ThemeIcon('circle-outline');
+          treeItem.iconPath = (element.priority && iconByPriority[element.priority]) ?? iconByStatus[element.status] ?? new vscode.ThemeIcon('circle-outline');
         }
         if (element.kind === 'task' || element.kind === 'subtask') {
           treeItem.command = { command: 'taskDock.openTaskDetail', title: 'Open Task Detail', arguments: [element] };
@@ -309,11 +315,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
     vscode.commands.registerCommand('taskDock.createSubtask', async (item?: TaskTreeItem) => {
       if (!item || (item.kind !== 'task' && item.kind !== 'subtask')) return;
-      const parentDetail = await appContainer.buildTaskOperator().findDetailById(item.id);
-      if (!parentDetail) return;
+      if (!item.projectId) return;
       await vscode.commands.executeCommand('taskDock.createTask', {
-        projectId: parentDetail.projectId,
-        parentTaskId: parentDetail.taskId
+        projectId: item.projectId,
+        parentTaskId: item.id
       });
     }),
     vscode.commands.registerCommand('taskDock.openTaskDetail', async (item?: TaskTreeItem) => {
