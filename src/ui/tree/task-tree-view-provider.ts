@@ -73,7 +73,7 @@ export class TaskTreeViewProvider {
         kind: 'subtask',
         status: task.status,
         priority: task.priority,
-        projectId: parent.id,
+        projectId: parent.projectId,
         hasChildren: task.hasChildren
       }));
     }

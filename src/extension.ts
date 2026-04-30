@@ -211,7 +211,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             done: new vscode.ThemeIcon('check', new vscode.ThemeColor('charts.green')),
             blocked: new vscode.ThemeIcon('error', new vscode.ThemeColor('charts.red'))
           };
-          treeItem.iconPath = (element.priority && iconByPriority[element.priority]) ?? iconByStatus[element.status] ?? new vscode.ThemeIcon('circle-outline');
+          treeItem.iconPath = iconByStatus[element.status] ?? (element.priority && iconByPriority[element.priority]) ?? new vscode.ThemeIcon('circle-outline');
         }
         if (element.kind === 'task' || element.kind === 'subtask') {
           treeItem.command = { command: 'taskDock.openTaskDetail', title: 'Open Task Detail', arguments: [element] };
