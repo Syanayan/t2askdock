@@ -7,14 +7,14 @@
 
 ## グループE: データ層の拡張
 
-- [ ] **E-1 自分のタスク取得クエリの追加**
+- [x] **E-1 自分のタスク取得クエリの追加**
   - `TaskRepository` インターフェースに `listMyTasks(input)` を追加
   - 条件: `(created_by = ? AND assignee IS NULL) OR assignee = ?`
   - ステータスが `done` のものは除外 (`status != 'done'`)
   - ソート種別（`updatedAt` / `priority` / `dueDate`）と `limit` を引数に取る
   - SQLite 実装を追加する
 
-- [ ] **E-2 プロジェクト別タスク取得にソート・フィルタを追加**
+- [x] **E-2 プロジェクト別タスク取得にソート・フィルタを追加**
   - `listTasksByProject()` にソート種別と `done` 除外フィルタを追加
   - または `listTasksByProjectSorted(input)` として別メソッドで追加
   - 優先度ソート: `CASE priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END`

@@ -19,6 +19,7 @@ describe('CreateTaskUseCase', () => {
         updateWithVersion: vi.fn(),
         listProjects: vi.fn(),
         listTasksByProject: vi.fn(),
+        listMyTasks: vi.fn().mockResolvedValue([]),
         findDetailById: vi.fn(),
         listSubtasksByParent: vi.fn(),
         listTasksWithDetail: vi.fn(),

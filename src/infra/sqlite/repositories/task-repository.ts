@@ -93,7 +93,21 @@ export class TaskRepository implements TaskRepositoryPort {
     projectId: string;
     offset: number;
     limit: number;
+    sortBy?: 'updatedAt' | 'priority' | 'dueDate';
+    excludeDone?: boolean;
   }): Promise<Array<{ taskId: string; title: string; status: Task['value']['status']; priority: Task['value']['priority']; version: number; hasChildren: boolean }>> {
+    const sortBy = input.sortBy ?? 'updatedAt';
+    const orderBy =
+      sortBy === 'priority'
+        ? `CASE t.priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END ASC, t.updated_at DESC`
+        : sortBy === 'dueDate'
+          ? `CASE WHEN t.due_date IS NULL THEN 1 ELSE 0 END ASC, t.due_date ASC, t.updated_at DESC`
+          : 't.updated_at DESC';
+    const filters = [
+      't.project_id = ?',
+      ...(input.excludeDone ? [`t.status != 'done'`] : []),
+      ...(sortBy === 'priority' ? [`t.priority != 'low'`] : [])
+    ];
     return this.client.all<{ taskId: string; title: string; status: Task['value']['status']; priority: Task['value']['priority']; version: number; hasChildren: number }>(
       `SELECT t.task_id AS taskId,
               t.title AS title,
@@ -106,10 +120,37 @@ export class TaskRepository implements TaskRepositoryPort {
                 WHERE c.parent_task_id = t.task_id
               ) AS hasChildren
        FROM tasks t
-       WHERE t.project_id = ?
-       ORDER BY t.updated_at DESC
+       WHERE ${filters.join(' AND ')}
+       ORDER BY ${orderBy}
        LIMIT ? OFFSET ?`,
       [input.projectId, input.limit, input.offset]
+    ).then((rows) => rows.map((row) => ({ ...row, hasChildren: row.hasChildren === 1 })));
+  }
+
+  public async listMyTasks(input: {
+    userId: string;
+    limit: number;
+    sortBy: 'updatedAt' | 'priority' | 'dueDate';
+  }): Promise<Array<{ taskId: string; title: string; status: Task['value']['status']; priority: Task['value']['priority']; version: number; hasChildren: boolean }>> {
+    const orderBy =
+      input.sortBy === 'priority'
+        ? `CASE t.priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END ASC, t.updated_at DESC`
+        : input.sortBy === 'dueDate'
+          ? `CASE WHEN t.due_date IS NULL THEN 1 ELSE 0 END ASC, t.due_date ASC, t.updated_at DESC`
+          : 't.updated_at DESC';
+    return this.client.all<{ taskId: string; title: string; status: Task['value']['status']; priority: Task['value']['priority']; version: number; hasChildren: number }>(
+      `SELECT t.task_id AS taskId,
+              t.title AS title,
+              t.status AS status,
+              t.priority AS priority,
+              t.version AS version,
+              EXISTS(SELECT 1 FROM tasks c WHERE c.parent_task_id = t.task_id) AS hasChildren
+       FROM tasks t
+       WHERE ((t.created_by = ? AND t.assignee IS NULL) OR t.assignee = ?)
+         AND t.status != 'done'
+       ORDER BY ${orderBy}
+       LIMIT ?`,
+      [input.userId, input.userId, input.limit]
     ).then((rows) => rows.map((row) => ({ ...row, hasChildren: row.hasChildren === 1 })));
   }
 

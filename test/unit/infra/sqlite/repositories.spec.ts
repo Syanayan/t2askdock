@@ -124,6 +124,44 @@ describe('SQLite repositories (phase2)', () => {
     expect(call?.params).toEqual(['p1', 10, 20]);
   });
 
+  it('TaskRepository.listMyTasks excludes done and supports updatedAt sort', async () => {
+    const client = new FakeSqliteClient();
+    client.allResult = [{ taskId: 't1', title: 'mine', status: 'todo', priority: 'high', version: 1, hasChildren: 0 }];
+    const repository = new TaskRepository(client);
+
+    const tasks = await repository.listMyTasks({ userId: 'u1', limit: 5, sortBy: 'updatedAt' });
+
+    expect(tasks).toEqual([{ taskId: 't1', title: 'mine', status: 'todo', priority: 'high', version: 1, hasChildren: false }]);
+    const call = client.executed.find((item) => item.type === 'get' && item.sql.includes('WHERE ((t.created_by = ? AND t.assignee IS NULL) OR t.assignee = ?)'));
+    expect(call?.sql.includes("t.status != 'done'")).toBe(true);
+    expect(call?.sql.includes('ORDER BY t.updated_at DESC')).toBe(true);
+    expect(call?.params).toEqual(['u1', 'u1', 5]);
+  });
+
+  it('TaskRepository.listTasksByProject supports dueDate sort and done exclusion', async () => {
+    const client = new FakeSqliteClient();
+    client.allResult = [{ taskId: 't1', title: 'task', status: 'todo', priority: 'medium', version: 2, hasChildren: 1 }];
+    const repository = new TaskRepository(client);
+
+    const tasks = await repository.listTasksByProject({ projectId: 'p1', offset: 0, limit: 5, sortBy: 'dueDate', excludeDone: true });
+
+    expect(tasks[0]?.hasChildren).toBe(true);
+    const call = client.executed.find((item) => item.type === 'get' && item.sql.includes('WHERE t.project_id = ?'));
+    expect(call?.sql.includes("t.status != 'done'")).toBe(true);
+    expect(call?.sql.includes('t.due_date ASC')).toBe(true);
+  });
+
+  it('TaskRepository.listTasksByProject hides low priority when sortBy priority', async () => {
+    const client = new FakeSqliteClient();
+    const repository = new TaskRepository(client);
+
+    await repository.listTasksByProject({ projectId: 'p1', offset: 0, limit: 5, sortBy: 'priority' });
+
+    const call = client.executed.find((item) => item.type === 'get' && item.sql.includes('WHERE t.project_id = ?'));
+    expect(call?.sql.includes("t.priority != 'low'")).toBe(true);
+    expect(call?.sql.includes("CASE t.priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END")).toBe(true);
+  });
+
   it('CommentRepository.updateWithVersion throws conflict when no row updated', async () => {
     const client = new FakeSqliteClient();
     client.runResult = { changes: 0 };

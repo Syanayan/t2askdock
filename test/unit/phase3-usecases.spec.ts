@@ -23,6 +23,7 @@ describe('phase3 usecases', () => {
         updateWithVersion,
         listProjects: vi.fn(),
         listTasksByProject: vi.fn(),
+        listMyTasks: vi.fn().mockResolvedValue([]),
         findDetailById: vi.fn(),
         listSubtasksByParent: vi.fn(),
         listTasksWithDetail: vi.fn(),

@@ -15,6 +15,7 @@ describe('CreateTaskCommand integration', () => {
         updateWithVersion: vi.fn(),
         listProjects: vi.fn().mockResolvedValue([]),
         listTasksByProject: vi.fn().mockResolvedValue([]),
+        listMyTasks: vi.fn().mockResolvedValue([]),
         findDetailById: vi.fn().mockResolvedValue(null),
         listSubtasksByParent: vi.fn().mockResolvedValue([]),
         listTasksWithDetail: vi.fn().mockResolvedValue([]),
