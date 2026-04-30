@@ -15,6 +15,7 @@ export type ProjectTaskLoader = {
     offset: number;
     limit: number;
   }): Promise<Array<{ taskId: string; title: string; status: TaskStatus; hasChildren: boolean }>>;
+  listSubtasksByParent?(parentTaskId: string): Promise<Array<{ taskId: string; title: string; status: TaskStatus; hasChildren: boolean }>>;
 };
 
 export class TaskTreeViewProvider {
@@ -53,6 +54,19 @@ export class TaskTreeViewProvider {
         id: task.taskId,
         label: task.title,
         kind: 'task',
+        status: task.status,
+        hasChildren: task.hasChildren
+      }));
+    }
+
+
+    if ((parent.kind === 'task' || parent.kind === 'subtask') && parent.hasChildren) {
+      if (!this.loader.listSubtasksByParent) return [];
+      const subtasks = await this.loader.listSubtasksByParent(parent.id);
+      return subtasks.map(task => ({
+        id: task.taskId,
+        label: task.title,
+        kind: 'subtask',
         status: task.status,
         hasChildren: task.hasChildren
       }));
