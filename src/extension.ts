@@ -236,13 +236,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             projectId: project.projectId,
             title: task.title,
             status: task.status,
-            priority: 'medium' as const,
+            priority: task.priority,
             description: null,
             assignee: null,
             dueDate: null,
             tags: [],
             parentTaskId: null,
-            version: 1
+            version: task.version
           }));
         }))
       ).flat();
