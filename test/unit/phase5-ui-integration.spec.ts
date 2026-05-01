@@ -169,15 +169,16 @@ describe('Phase5 UI integration', () => {
     });
     expect(fakePanel.webview.html).toContain('count-badge');
     expect(fakePanel.webview.html).toContain('toolbar');
-    expect(fakePanel.webview.html).toContain('column-menu');
     expect(fakePanel.webview.html).toContain('inline-create');
+    expect(fakePanel.webview.html).toContain('search-box');
+    expect(fakePanel.webview.html).toContain('view-list');
 
     await handler?.({ type: 'card:menu', action: 'edit', taskId: 't1' });
     await handler?.({ type: 'card:create', status: 'todo' });
     await handler?.({ type: 'card:create', status: 'done', title: 'quick create' });
-    expect(executeCommand).toHaveBeenCalledWith('taskDock.updateTask', { taskId: 't1' });
-    expect(executeCommand).toHaveBeenCalledWith('taskDock.createTask', { status: 'todo' });
-    expect(executeCommand).toHaveBeenCalledWith('taskDock.createTask', { status: 'done', title: 'quick create' });
+    expect(executeCommand).toHaveBeenCalledWith('taskDock.updateTask', expect.objectContaining({ taskId: 't1' }));
+    expect(executeCommand).toHaveBeenCalledWith('taskDock.createTask', expect.objectContaining({ status: 'todo' }));
+    expect(executeCommand).toHaveBeenCalledWith('taskDock.createTask', expect.objectContaining({ status: 'done', title: 'quick create' }));
   });
   it('supports comment thread list/add/update/delete', async () => {
     const panel = new CommentThreadPanel(

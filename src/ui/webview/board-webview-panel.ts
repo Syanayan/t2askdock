@@ -57,7 +57,8 @@ export class BoardWebviewPanel {
         return;
       }
       if (isCardCreateMessage(message)) {
-        await this.executeCommand('taskDock.createTask', message);
+        const { type: _type, ...createArgs } = message;
+        await this.executeCommand('taskDock.createTask', createArgs);
       }
     });
     void panel.webview.postMessage?.({ type: 'board:init', tasks: tasks.map((task, index) => ({ ...task, sequenceNumber: task.sequenceNumber ?? index + 1 })) });
