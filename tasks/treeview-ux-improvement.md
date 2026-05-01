@@ -7,7 +7,7 @@
 
 ## グループI: ホバーボタンの無効化
 
-- [ ] **I-1 inline ボタンを右クリックメニューのみに変更**
+- [x] **I-1 inline ボタンを右クリックメニューのみに変更**
   - `package.json` の `view/item/context` で `group: "inline"` を `group: "navigation"` に変更する
   - 対象: `taskDock.openTaskDetail`・`taskDock.updateTask`
   - これにより、ホバー時にボタンが出なくなり右クリックが使えるようになる
@@ -17,13 +17,13 @@
 
 ## グループJ: 選択アイテムへのコマンド適用
 
-- [ ] **J-1 `registerTreeDataProvider` → `createTreeView` に移行**
+- [x] **J-1 `registerTreeDataProvider` → `createTreeView` に移行**
   - `extension.ts` で `vscode.window.registerTreeDataProvider` を
     `vscode.window.createTreeView` に切り替える
   - 戻り値の `TreeView` オブジェクトを変数に保持する（`myRecentTasksView` / `allProjectsView`）
   - `createTreeView` の戻り値は `Disposable` なので `context.subscriptions.push` に追加する
 
-- [ ] **J-2 コマンドが引数なしの場合に選択アイテムを使用**
+- [x] **J-2 コマンドが引数なしの場合に選択アイテムを使用**
   - `taskDock.deleteTask` / `taskDock.createSubtask` / `taskDock.updateTask` /
     `taskDock.openTaskDetail` の各コマンドを修正する
   - 引数 `item` が undefined の場合、`myRecentTasksView.selection[0]` または
@@ -34,7 +34,7 @@
 
 ## グループK: 完了タスクの表示制御
 
-- [ ] **K-1 `allProjects` にトグルボタンを追加（推奨方式）**
+- [x] **K-1 `allProjects` にトグルボタンを追加（推奨方式）**
   - `package.json` の `view/title` に `taskDock.allProjects.toggleDone` コマンドを追加する
     - アイコン: `$(eye)` （表示時）/ `$(eye-closed)`（非表示時）
     - `when: "view == taskDock.allProjects"`
@@ -44,7 +44,7 @@
     （現状の `excludeDone: true` を State で制御する形に変更）
   - `extension.ts` に `taskDock.allProjects.toggleDone` コマンドを登録する
 
-- [ ] **K-2 トグル状態をアイコンに反映**
+- [x] **K-2 トグル状態をアイコンに反映**
   - `showDone` の状態に応じてコマンドのアイコンを切り替えるために
     `vscode.commands.executeCommand('setContext', 'taskDock.showDone', showDone)` を使う
   - `package.json` の `when` 条件で `taskDock.showDone` を参照し
