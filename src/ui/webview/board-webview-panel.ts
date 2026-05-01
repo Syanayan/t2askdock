@@ -25,7 +25,7 @@ export class BoardWebviewPanel {
   public constructor(
     private readonly moveTaskStatusUseCase: MoveTaskStatusUseCase,
     private readonly eventBus: UiEventBus,
-    private readonly executeCommand: (command: string, args?: { taskId?: string; status?: TaskStatus }) => Promise<unknown> = async () => undefined
+    private readonly executeCommand: (command: string, args?: { taskId?: string; status?: TaskStatus; title?: string }) => Promise<unknown> = async () => undefined
   ) {}
 
   public render(panel: Pick<vscode.WebviewPanel, 'webview' | 'title'>, tasks: BoardTask[]): void {
@@ -47,7 +47,7 @@ export class BoardWebviewPanel {
         return;
       }
       if (isCardCreateMessage(message)) {
-        await this.executeCommand('taskDock.createTask', { status: message.status });
+        await this.executeCommand('taskDock.createTask', { status: message.status, title: message.title });
       }
     });
     void panel.webview.postMessage?.({
@@ -73,7 +73,11 @@ export class BoardWebviewPanel {
       .column[data-status="blocked"] { border-top-color: #F44336; }
       .column[data-status="done"] { border-top-color: #9C27B0; }
       .column-header { display:flex; justify-content: space-between; align-items:center; margin-bottom: 6px; }
+      .column-actions { position: relative; }
       .column h3 { margin: 0; font-size: 13px; }
+      .toolbar { display: flex; gap: 8px; margin: 8px 0; }
+      .toolbar button { border: 1px solid #ccc; background: #f7f7f7; border-radius: 4px; padding: 4px 8px; cursor: pointer; }
+      .toolbar button[disabled] { opacity: 0.5; cursor: not-allowed; }
       .count-badge { font-size: 11px; border-radius: 999px; background: #eee; padding: 1px 6px; }
       .add-task { width: 100%; margin-bottom: 8px; border: 1px dashed #bbb; background: #fafafa; border-radius: 4px; padding: 4px; font-size: 12px; cursor: pointer; }
       .task { border: 1px solid #ccc; border-radius: 4px; padding: 6px; margin-bottom: 6px; background: #fff; cursor: grab; }
@@ -86,24 +90,37 @@ export class BoardWebviewPanel {
       .priority-high { background: #ffedd5; color: #9a3412; }
       .priority-critical { background: #fee2e2; color: #991b1b; }
       .due-overdue { color: #b91c1c; }
+      body.collapsed .task-desc, body.collapsed .task-meta { display: none; }
+      .column-menu-list { position: absolute; right: 0; top: 100%; background: #fff; border: 1px solid #ddd; border-radius: 4px; padding: 4px; display: none; z-index: 2; }
+      .column-menu-list.show { display: block; }
+      .inline-create { display: none; margin-bottom: 8px; }
+      .inline-create.show { display: block; }
+      .inline-create input { width: 100%; box-sizing: border-box; }
     </style>
   </head>
   <body>
     <h2>Task Board</h2>
+    <div class="toolbar">
+      <button type="button" disabled>フィルター</button>
+      <button type="button" id="my-tasks-toggle">マイタスク</button>
+      <button type="button" disabled>アーカイブ</button>
+      <button type="button" id="collapse-toggle">折り畳む</button>
+    </div>
     <p class="hint">カードをドラッグ&ドロップして状態を更新できます。</p>
     <section class="board">
-      <article class="column" data-status="todo"><div class="column-header"><h3>Todo <span class="count-badge">0</span></h3></div><button class="add-task" type="button">+ タスクを追加</button><div class="tasks"></div></article>
-      <article class="column" data-status="in_progress"><div class="column-header"><h3>In Progress <span class="count-badge">0</span></h3></div><button class="add-task" type="button">+ タスクを追加</button><div class="tasks"></div></article>
-      <article class="column" data-status="blocked"><div class="column-header"><h3>Blocked <span class="count-badge">0</span></h3></div><button class="add-task" type="button">+ タスクを追加</button><div class="tasks"></div></article>
-      <article class="column" data-status="done"><div class="column-header"><h3>Done <span class="count-badge">0</span></h3></div><button class="add-task" type="button">+ タスクを追加</button><div class="tasks"></div></article>
+      <article class="column" data-status="todo"><div class="column-header"><h3>Todo <span class="count-badge">0</span></h3><div class="column-actions"><button class="column-menu" type="button">...</button><div class="column-menu-list"><button type="button" class="column-complete">このカラムをすべて完了にする</button></div></div></div><button class="add-task" type="button">+ タスクを追加</button><div class="inline-create"><input type="text" placeholder="タスクタイトルを入力" /></div><div class="tasks"></div></article>
+      <article class="column" data-status="in_progress"><div class="column-header"><h3>In Progress <span class="count-badge">0</span></h3><div class="column-actions"><button class="column-menu" type="button">...</button><div class="column-menu-list"><button type="button" class="column-complete">このカラムをすべて完了にする</button></div></div></div><button class="add-task" type="button">+ タスクを追加</button><div class="inline-create"><input type="text" placeholder="タスクタイトルを入力" /></div><div class="tasks"></div></article>
+      <article class="column" data-status="blocked"><div class="column-header"><h3>Blocked <span class="count-badge">0</span></h3><div class="column-actions"><button class="column-menu" type="button">...</button><div class="column-menu-list"><button type="button" class="column-complete">このカラムをすべて完了にする</button></div></div></div><button class="add-task" type="button">+ タスクを追加</button><div class="inline-create"><input type="text" placeholder="タスクタイトルを入力" /></div><div class="tasks"></div></article>
+      <article class="column" data-status="done"><div class="column-header"><h3>Done <span class="count-badge">0</span></h3><div class="column-actions"><button class="column-menu" type="button">...</button><div class="column-menu-list"><button type="button" class="column-complete">このカラムをすべて完了にする</button></div></div></div><button class="add-task" type="button">+ タスクを追加</button><div class="inline-create"><input type="text" placeholder="タスクタイトルを入力" /></div><div class="tasks"></div></article>
     </section>
     <script>
       const vscode = acquireVsCodeApi();
       let tasks = [];
+      let myTasksOnly = false;
       const statuses = ['todo', 'in_progress', 'blocked', 'done'];
       const render = () => {
         for (const status of statuses) {
-          const inStatus = tasks.filter(t => t.status === status);
+          const inStatus = tasks.filter(t => t.status === status && (!myTasksOnly || t.assignee === 'system'));
           const list = document.querySelector('.column[data-status="' + status + '"] .tasks');
           document.querySelector('.column[data-status="' + status + '"] .count-badge').textContent = String(inStatus.length);
           list.innerHTML = '';
@@ -134,7 +151,51 @@ export class BoardWebviewPanel {
         button.addEventListener('click', () => {
           const status = button.closest('.column')?.dataset.status;
           if (!status) return;
-          vscode.postMessage({ type: 'card:create', status });
+          const inline = button.parentElement?.querySelector('.inline-create');
+          inline?.classList.add('show');
+          const input = inline?.querySelector('input');
+          input?.focus();
+          if (!input) {
+            vscode.postMessage({ type: 'card:create', status });
+          }
+        });
+      });
+      document.querySelectorAll('.inline-create input').forEach(input => {
+        input.addEventListener('keydown', (event) => {
+          const status = input.closest('.column')?.dataset.status;
+          if (!status) return;
+          if (event.key === 'Escape') {
+            input.value = '';
+            input.closest('.inline-create')?.classList.remove('show');
+            return;
+          }
+          if (event.key === 'Enter') {
+            const title = input.value.trim();
+            if (title.length > 0) {
+              vscode.postMessage({ type: 'card:create', status, title });
+            }
+            input.value = '';
+            input.closest('.inline-create')?.classList.remove('show');
+          }
+        });
+      });
+      document.getElementById('my-tasks-toggle')?.addEventListener('click', () => {
+        myTasksOnly = !myTasksOnly;
+        render();
+      });
+      document.getElementById('collapse-toggle')?.addEventListener('click', () => {
+        document.body.classList.toggle('collapsed');
+      });
+      document.querySelectorAll('.column-menu').forEach(button => {
+        button.addEventListener('click', () => {
+          const menu = button.parentElement?.querySelector('.column-menu-list');
+          menu?.classList.toggle('show');
+        });
+      });
+      document.querySelectorAll('.column-complete').forEach(button => {
+        button.addEventListener('click', () => {
+          const menu = button.closest('.column-menu-list');
+          menu?.classList.remove('show');
         });
       });
 
@@ -228,10 +289,12 @@ function isCardMenuMessage(value: unknown): value is { type: 'card:menu'; action
   return candidate.type === 'card:menu' && (candidate.action === 'edit' || candidate.action === 'delete') && typeof candidate.taskId === 'string';
 }
 
-function isCardCreateMessage(value: unknown): value is { type: 'card:create'; status: TaskStatus } {
+function isCardCreateMessage(value: unknown): value is { type: 'card:create'; status: TaskStatus; title?: string } {
   if (!value || typeof value !== 'object') {
     return false;
   }
   const candidate = value as Record<string, unknown>;
-  return candidate.type === 'card:create' && ['todo', 'in_progress', 'blocked', 'done'].includes(String(candidate.status));
+  return candidate.type === 'card:create' &&
+    ['todo', 'in_progress', 'blocked', 'done'].includes(String(candidate.status)) &&
+    (candidate.title === undefined || typeof candidate.title === 'string');
 }
