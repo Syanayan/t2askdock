@@ -24,7 +24,7 @@ export class BoardWebviewPanel {
   public constructor(
     private readonly moveTaskStatusUseCase: MoveTaskStatusUseCase,
     private readonly eventBus: UiEventBus,
-    private readonly executeCommand: (command: string, args: { taskId: string }) => Promise<unknown> = async () => undefined
+    private readonly executeCommand: (command: string, args?: { taskId?: string; status?: TaskStatus }) => Promise<unknown> = async () => undefined
   ) {}
 
   public render(panel: Pick<vscode.WebviewPanel, 'webview' | 'title'>, tasks: BoardTask[]): void {
@@ -43,6 +43,10 @@ export class BoardWebviewPanel {
       if (isCardMenuMessage(message)) {
         const command = message.action === 'edit' ? 'taskDock.updateTask' : 'taskDock.deleteTask';
         await this.executeCommand(command, { taskId: message.taskId });
+        return;
+      }
+      if (isCardCreateMessage(message)) {
+        await this.executeCommand('taskDock.createTask', { status: message.status });
       }
     });
     void panel.webview.postMessage?.({
@@ -219,4 +223,12 @@ function isCardMenuMessage(value: unknown): value is { type: 'card:menu'; action
   }
   const candidate = value as Record<string, unknown>;
   return candidate.type === 'card:menu' && (candidate.action === 'edit' || candidate.action === 'delete') && typeof candidate.taskId === 'string';
+}
+
+function isCardCreateMessage(value: unknown): value is { type: 'card:create'; status: TaskStatus } {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+  const candidate = value as Record<string, unknown>;
+  return candidate.type === 'card:create' && typeof candidate.status === 'string';
 }

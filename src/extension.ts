@@ -295,21 +295,25 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       const projects = await appContainer.buildProjectTaskLoader().listProjects();
       const targetProjects = input.projectId ? projects.filter(project => project.projectId === input.projectId) : projects;
       const loader = appContainer.buildProjectTaskLoader();
+      const taskOperator = appContainer.buildTaskOperator();
       const boardTasks = (
         await Promise.all(targetProjects.map(async project => {
           const tasks = await loader.listTasksByProject({ projectId: project.projectId, offset: 0, limit: 100 });
-          return tasks.map(task => ({
-            taskId: task.taskId,
-            projectId: project.projectId,
-            title: task.title,
-            status: task.status,
-            priority: task.priority,
-            description: null,
-            assignee: null,
-            dueDate: null,
-            tags: [],
-            parentTaskId: null,
-            version: task.version
+          return Promise.all(tasks.map(async task => {
+            const detail = await taskOperator.findDetailById(task.taskId);
+            return {
+              taskId: task.taskId,
+              projectId: project.projectId,
+              title: task.title,
+              status: task.status,
+              priority: task.priority,
+              description: detail?.description ?? null,
+              assignee: detail?.assignee ?? null,
+              dueDate: detail?.dueDate ?? null,
+              tags: detail?.tags ?? [],
+              parentTaskId: detail?.parentTaskId ?? null,
+              version: task.version
+            };
           }));
         }))
       ).flat();

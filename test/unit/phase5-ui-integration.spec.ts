@@ -170,7 +170,9 @@ describe('Phase5 UI integration', () => {
     expect(fakePanel.webview.html).toContain('count-badge');
 
     await handler?.({ type: 'card:menu', action: 'edit', taskId: 't1' });
+    await handler?.({ type: 'card:create', status: 'todo' });
     expect(executeCommand).toHaveBeenCalledWith('taskDock.updateTask', { taskId: 't1' });
+    expect(executeCommand).toHaveBeenCalledWith('taskDock.createTask', { status: 'todo' });
   });
   it('supports comment thread list/add/update/delete', async () => {
     const panel = new CommentThreadPanel(
