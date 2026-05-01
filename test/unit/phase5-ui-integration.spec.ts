@@ -126,6 +126,54 @@ describe('Phase5 UI integration', () => {
     expect(taskUpdated).toHaveBeenCalledOnce();
   });
 
+
+  it('renders enhanced board html and handles card menu command delegation', async () => {
+    const moveTaskStatusUseCase = { execute: vi.fn() };
+    const bus = new UiEventBus();
+    const executeCommand = vi.fn().mockResolvedValue(undefined);
+    const panel = new BoardWebviewPanel(moveTaskStatusUseCase as never, bus, executeCommand);
+
+    let handler: ((m: unknown) => Promise<void>) | undefined;
+    const postMessage = vi.fn();
+    const fakePanel = {
+      title: '',
+      webview: {
+        html: '',
+          onDidReceiveMessage: (cb: (m: unknown) => Promise<void>) => {
+            handler = cb;
+            return { dispose: () => undefined } as never;
+          },
+          postMessage
+        }
+    };
+    panel.render(fakePanel as never, [
+        {
+          taskId: 't1',
+          projectId: 'p1',
+          title: 'Task',
+          status: 'todo',
+          priority: 'high',
+          description: 'desc',
+          assignee: null,
+          dueDate: null,
+          tags: ['ui'],
+          parentTaskId: null,
+          version: 1
+        }
+      ]
+    );
+
+    expect(postMessage).toHaveBeenCalledWith({
+      type: 'board:init',
+      tasks: [expect.objectContaining({ sequenceNumber: 1 })]
+    });
+    expect(fakePanel.webview.html).toContain('count-badge');
+
+    await handler?.({ type: 'card:menu', action: 'edit', taskId: 't1' });
+    await handler?.({ type: 'card:create', status: 'todo' });
+    expect(executeCommand).toHaveBeenCalledWith('taskDock.updateTask', { taskId: 't1' });
+    expect(executeCommand).toHaveBeenCalledWith('taskDock.createTask', { status: 'todo' });
+  });
   it('supports comment thread list/add/update/delete', async () => {
     const panel = new CommentThreadPanel(
       { execute: vi.fn().mockResolvedValue([{ commentId: 'c1' }]) } as never,

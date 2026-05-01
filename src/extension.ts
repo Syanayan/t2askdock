@@ -295,21 +295,26 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       const projects = await appContainer.buildProjectTaskLoader().listProjects();
       const targetProjects = input.projectId ? projects.filter(project => project.projectId === input.projectId) : projects;
       const loader = appContainer.buildProjectTaskLoader();
+      const taskOperator = appContainer.buildTaskOperator();
       const boardTasks = (
         await Promise.all(targetProjects.map(async project => {
           const tasks = await loader.listTasksByProject({ projectId: project.projectId, offset: 0, limit: 100 });
-          return tasks.map(task => ({
-            taskId: task.taskId,
-            projectId: project.projectId,
-            title: task.title,
-            status: task.status,
-            priority: task.priority,
-            description: null,
-            assignee: null,
-            dueDate: null,
-            tags: [],
-            parentTaskId: null,
-            version: task.version
+          return Promise.all(tasks.map(async task => {
+            const detail = await taskOperator.findDetailById(task.taskId);
+            return {
+              taskId: task.taskId,
+              projectId: project.projectId,
+              title: task.title,
+              status: task.status,
+              priority: task.priority,
+              description: detail?.description ?? null,
+              assignee: detail?.assignee ?? null,
+              dueDate: detail?.dueDate ?? null,
+              tags: detail?.tags ?? [],
+              parentTaskId: detail?.parentTaskId ?? null,
+              version: task.version,
+              hasChildren: task.hasChildren
+            };
           }));
         }))
       ).flat();
@@ -344,7 +349,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           actorRole: input.actorRole ?? 'admin'
         })
     ),
-    vscode.commands.registerCommand('taskDock.createTask', async (input?: { title?: string; projectId?: string; parentTaskId?: string | null }) => {
+    vscode.commands.registerCommand(
+      'taskDock.createTask',
+      async (input?: { title?: string; projectId?: string; parentTaskId?: string | null; status?: 'todo' | 'in_progress' | 'blocked' | 'done' }) => {
       try {
         const title = input?.title ?? (await vscode.window.showInputBox({ prompt: 'タスクタイトルを入力してください', ignoreFocusOut: true }));
         if (!title) {
@@ -366,7 +373,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           projectId,
           title,
           description: null,
-          status: 'todo',
+          status: input?.status ?? 'todo',
           priority: 'medium',
           assignee: null,
           dueDate: null,
@@ -379,7 +386,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         void vscode.window.showErrorMessage(toUserFacingMessage(error));
         return undefined;
       }
-    }),
+      }
+    ),
 
     vscode.commands.registerCommand('taskDock.createSubtask', async (item?: TaskTreeItem) => {
       item = resolveSelectedItem(item);
