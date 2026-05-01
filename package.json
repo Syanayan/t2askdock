@@ -107,9 +107,14 @@
         "icon": "$(calendar)"
       },
       {
-        "command": "taskDock.allProjects.toggleDone",
-        "title": "Toggle Done Tasks",
+        "command": "taskDock.allProjects.showDoneOnly",
+        "title": "Show Done Only",
         "icon": "$(eye)"
+      },
+      {
+        "command": "taskDock.allProjects.showActiveOnly",
+        "title": "Show Active Only",
+        "icon": "$(eye-closed)"
       }
     ],
     "menus": {
@@ -130,12 +135,12 @@
           "group": "navigation"
         },
         {
-          "command": "taskDock.allProjects.toggleDone",
+          "command": "taskDock.allProjects.showActiveOnly",
           "when": "view == taskDock.allProjects && taskDock.showDone",
           "group": "navigation"
         },
         {
-          "command": "taskDock.allProjects.toggleDone",
+          "command": "taskDock.allProjects.showDoneOnly",
           "when": "view == taskDock.allProjects && !taskDock.showDone",
           "group": "navigation"
         },

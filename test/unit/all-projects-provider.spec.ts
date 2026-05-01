@@ -41,7 +41,7 @@ describe('AllProjectsProvider', () => {
     expect(loader.listTasksByProject).toHaveBeenCalledWith({ projectId: 'p1', offset: 0, limit: 5, sortBy: 'priority', excludeDone: true });
   });
 
-  it('toggles done-task visibility for tasks and subtasks', async () => {
+  it('toggles between active-only and done-only visibility for tasks and subtasks', async () => {
     const loader = {
       listProjects: vi.fn().mockResolvedValue([]),
       listTasksByProject: vi.fn().mockResolvedValue([
@@ -61,11 +61,11 @@ describe('AllProjectsProvider', () => {
 
     provider.toggleDone();
 
-    const shownDone = await provider.getChildren({ id: 'p1', label: 'P1', kind: 'project', hasChildren: true, projectId: 'p1' });
-    expect(shownDone.map(task => task.id)).toEqual(['t1', 't2']);
+    const doneOnly = await provider.getChildren({ id: 'p1', label: 'P1', kind: 'project', hasChildren: true, projectId: 'p1' });
+    expect(doneOnly.map(task => task.id)).toEqual(['t2']);
     expect(loader.listTasksByProject).toHaveBeenLastCalledWith({ projectId: 'p1', offset: 0, limit: 5, sortBy: 'updatedAt', excludeDone: false });
 
-    const shownSubtasks = await provider.getChildren({
+    const doneOnlySubtasks = await provider.getChildren({
       id: 't1',
       label: 'Task 1',
       kind: 'task',
@@ -74,6 +74,6 @@ describe('AllProjectsProvider', () => {
       hasChildren: true,
       projectId: 'p1'
     });
-    expect(shownSubtasks.map(task => task.id)).toEqual(['s1', 's2']);
+    expect(doneOnlySubtasks.map(task => task.id)).toEqual(['s2']);
   });
 });

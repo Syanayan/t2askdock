@@ -283,7 +283,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.commands.registerCommand('taskDock.allProjects.sortUpdated', () => allProjectsProvider.setSort('updatedAt')),
     vscode.commands.registerCommand('taskDock.allProjects.sortPriority', () => allProjectsProvider.setSort('priority')),
     vscode.commands.registerCommand('taskDock.allProjects.sortDeadline', () => allProjectsProvider.setSort('dueDate')),
-    vscode.commands.registerCommand('taskDock.allProjects.toggleDone', async () => {
+    vscode.commands.registerCommand('taskDock.allProjects.showDoneOnly', async () => {
+      allProjectsProvider.toggleDone();
+      await vscode.commands.executeCommand('setContext', 'taskDock.showDone', allProjectsProvider.isShowingDone());
+    }),
+    vscode.commands.registerCommand('taskDock.allProjects.showActiveOnly', async () => {
       allProjectsProvider.toggleDone();
       await vscode.commands.executeCommand('setContext', 'taskDock.showDone', allProjectsProvider.isShowingDone());
     }),

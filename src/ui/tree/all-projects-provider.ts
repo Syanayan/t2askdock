@@ -4,7 +4,7 @@ import type { ProjectTaskLoader, TaskTreeItem } from './task-tree-view-provider.
 export class AllProjectsProvider {
   private readonly listeners = new Set<() => void>();
   private sortBy: SortKey = 'updatedAt';
-  private showDone = false;
+  private doneFilter: 'active' | 'done' = 'active';
 
   public constructor(private readonly loader: ProjectTaskLoader) {}
 
@@ -25,11 +25,11 @@ export class AllProjectsProvider {
   }
 
   public isShowingDone(): boolean {
-    return this.showDone;
+    return this.doneFilter === 'done';
   }
 
   public toggleDone(): void {
-    this.showDone = !this.showDone;
+    this.doneFilter = this.doneFilter === 'active' ? 'done' : 'active';
     this.refresh();
   }
 
@@ -51,10 +51,10 @@ export class AllProjectsProvider {
         offset: 0,
         limit: 5,
         sortBy: this.sortBy,
-        excludeDone: !this.showDone
+        excludeDone: this.doneFilter === 'active'
       });
       return tasks
-        .filter(task => this.showDone || task.status !== 'done')
+        .filter(task => (this.doneFilter === 'done' ? task.status === 'done' : task.status !== 'done'))
         .map(task => ({
           id: task.taskId,
           label: task.title,
@@ -69,7 +69,7 @@ export class AllProjectsProvider {
     if ((parent.kind === 'task' || parent.kind === 'subtask') && parent.hasChildren) {
       const subtasks = await this.loader.listSubtasksByParent(parent.id);
       return subtasks
-        .filter(task => this.showDone || task.status !== 'done')
+        .filter(task => (this.doneFilter === 'done' ? task.status === 'done' : task.status !== 'done'))
         .map(task => ({
           id: task.taskId,
           label: task.title,
