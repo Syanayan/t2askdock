@@ -4,6 +4,7 @@ import type { ProjectTaskLoader, TaskTreeItem } from './task-tree-view-provider.
 export class AllProjectsProvider {
   private readonly listeners = new Set<() => void>();
   private sortBy: SortKey = 'updatedAt';
+  private showDone = false;
 
   public constructor(private readonly loader: ProjectTaskLoader) {}
 
@@ -20,6 +21,15 @@ export class AllProjectsProvider {
 
   public setSort(sortBy: SortKey): void {
     this.sortBy = sortBy;
+    this.refresh();
+  }
+
+  public isShowingDone(): boolean {
+    return this.showDone;
+  }
+
+  public toggleDone(): void {
+    this.showDone = !this.showDone;
     this.refresh();
   }
 
@@ -41,10 +51,10 @@ export class AllProjectsProvider {
         offset: 0,
         limit: 5,
         sortBy: this.sortBy,
-        excludeDone: true
+        excludeDone: !this.showDone
       });
       return tasks
-        .filter(task => task.status !== 'done')
+        .filter(task => this.showDone || task.status !== 'done')
         .map(task => ({
           id: task.taskId,
           label: task.title,
@@ -59,7 +69,7 @@ export class AllProjectsProvider {
     if ((parent.kind === 'task' || parent.kind === 'subtask') && parent.hasChildren) {
       const subtasks = await this.loader.listSubtasksByParent(parent.id);
       return subtasks
-        .filter(task => task.status !== 'done')
+        .filter(task => this.showDone || task.status !== 'done')
         .map(task => ({
           id: task.taskId,
           label: task.title,

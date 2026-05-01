@@ -105,6 +105,11 @@
         "command": "taskDock.allProjects.sortDeadline",
         "title": "Sort by Deadline",
         "icon": "$(calendar)"
+      },
+      {
+        "command": "taskDock.allProjects.toggleDone",
+        "title": "Toggle Done Tasks",
+        "icon": "$(eye)"
       }
     ],
     "menus": {
@@ -122,6 +127,16 @@
         {
           "command": "taskDock.myRecentTasks.sortDeadline",
           "when": "view == taskDock.myRecentTasks",
+          "group": "navigation"
+        },
+        {
+          "command": "taskDock.allProjects.toggleDone",
+          "when": "view == taskDock.allProjects && taskDock.showDone",
+          "group": "navigation"
+        },
+        {
+          "command": "taskDock.allProjects.toggleDone",
+          "when": "view == taskDock.allProjects && !taskDock.showDone",
           "group": "navigation"
         },
         {
@@ -144,12 +159,12 @@
         {
           "command": "taskDock.openTaskDetail",
           "when": "(view == taskDock.myRecentTasks || view == taskDock.allProjects) && viewItem == task",
-          "group": "inline"
+          "group": "navigation"
         },
         {
           "command": "taskDock.updateTask",
           "when": "(view == taskDock.myRecentTasks || view == taskDock.allProjects) && viewItem == task",
-          "group": "inline"
+          "group": "navigation"
         },
         {
           "command": "taskDock.deleteTask",
