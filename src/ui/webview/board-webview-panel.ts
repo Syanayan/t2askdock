@@ -1,3 +1,4 @@
+import type * as vscode from 'vscode';
 import type { Priority, TaskStatus } from '../../core/domain/entities/task.js';
 import type { MoveTaskStatusUseCase } from '../../core/usecase/move-task-status-usecase.js';
 import type { UiEventBus } from '../events/ui-event-bus.js';
