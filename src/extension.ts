@@ -185,20 +185,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const disposeMyRecentTasksRefresh = myRecentTasksProvider.onRefresh(() => myRecentTasksChangeEmitter.fire());
   const allProjectsChangeEmitter = new vscode.EventEmitter<TaskTreeItem | undefined | null | void>();
   const disposeAllProjectsRefresh = allProjectsProvider.onRefresh(() => allProjectsChangeEmitter.fire());
-
-  context.subscriptions.push(
-    dbStatusBarItem,
-    modeStatusBarItem,
-    healthStatusBarItem,
-    { dispose: disposeProfileSwitched },
-    { dispose: disposeModeChanged },
-    { dispose: disposeHealthChanged },
-    { dispose: disposeTaskUpdated },
-    { dispose: disposeMyRecentTasksRefresh },
-    { dispose: disposeAllProjectsRefresh },
-    myRecentTasksChangeEmitter,
-    allProjectsChangeEmitter,
-    vscode.window.registerTreeDataProvider<TaskTreeItem>('taskDock.myRecentTasks', {
+  const myRecentTasksTreeView = vscode.window.createTreeView<TaskTreeItem>('taskDock.myRecentTasks', {
+    treeDataProvider: {
       onDidChangeTreeData: myRecentTasksChangeEmitter.event,
       getChildren: async (element?: TaskTreeItem) => myRecentTasksProvider.getChildren(element),
       getTreeItem: (element: TaskTreeItem) => {
@@ -228,8 +216,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         }
         return treeItem;
       }
-    }),
-    vscode.window.registerTreeDataProvider<TaskTreeItem>('taskDock.allProjects', {
+    }
+  });
+  const allProjectsTreeView = vscode.window.createTreeView<TaskTreeItem>('taskDock.allProjects', {
+    treeDataProvider: {
       onDidChangeTreeData: allProjectsChangeEmitter.event,
       getChildren: async (element?: TaskTreeItem) => allProjectsProvider.getChildren(element),
       getTreeItem: (element: TaskTreeItem) => {
@@ -263,7 +253,26 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         }
         return treeItem;
       }
-    }),
+    }
+  });
+  const resolveSelectedItem = (item?: TaskTreeItem): TaskTreeItem | undefined =>
+    item ?? myRecentTasksTreeView.selection[0] ?? allProjectsTreeView.selection[0];
+  void vscode.commands.executeCommand('setContext', 'taskDock.showDone', allProjectsProvider.isShowingDone());
+
+  context.subscriptions.push(
+    dbStatusBarItem,
+    modeStatusBarItem,
+    healthStatusBarItem,
+    { dispose: disposeProfileSwitched },
+    { dispose: disposeModeChanged },
+    { dispose: disposeHealthChanged },
+    { dispose: disposeTaskUpdated },
+    { dispose: disposeMyRecentTasksRefresh },
+    { dispose: disposeAllProjectsRefresh },
+    myRecentTasksChangeEmitter,
+    allProjectsChangeEmitter,
+    myRecentTasksTreeView,
+    allProjectsTreeView,
     vscode.commands.registerCommand('taskDock.openTree', async () => {
       await vscode.commands.executeCommand('taskDock.myRecentTasks.focus');
       return commands['taskDock.openTree']();
@@ -274,6 +283,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.commands.registerCommand('taskDock.allProjects.sortUpdated', () => allProjectsProvider.setSort('updatedAt')),
     vscode.commands.registerCommand('taskDock.allProjects.sortPriority', () => allProjectsProvider.setSort('priority')),
     vscode.commands.registerCommand('taskDock.allProjects.sortDeadline', () => allProjectsProvider.setSort('dueDate')),
+    vscode.commands.registerCommand('taskDock.allProjects.showDoneOnly', async () => {
+      allProjectsProvider.toggleDone();
+      await vscode.commands.executeCommand('setContext', 'taskDock.showDone', allProjectsProvider.isShowingDone());
+    }),
+    vscode.commands.registerCommand('taskDock.allProjects.showActiveOnly', async () => {
+      allProjectsProvider.toggleDone();
+      await vscode.commands.executeCommand('setContext', 'taskDock.showDone', allProjectsProvider.isShowingDone());
+    }),
     vscode.commands.registerCommand('taskDock.openBoard', async (input: { projectId?: string } = {}) => {
       const projects = await appContainer.buildProjectTaskLoader().listProjects();
       const targetProjects = input.projectId ? projects.filter(project => project.projectId === input.projectId) : projects;
@@ -365,6 +382,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }),
 
     vscode.commands.registerCommand('taskDock.createSubtask', async (item?: TaskTreeItem) => {
+      item = resolveSelectedItem(item);
       if (!item || (item.kind !== 'task' && item.kind !== 'subtask')) return;
       if (!item.projectId) return;
       await vscode.commands.executeCommand('taskDock.createTask', {
@@ -373,6 +391,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       });
     }),
     vscode.commands.registerCommand('taskDock.openTaskDetail', async (item?: TaskTreeItem) => {
+      item = resolveSelectedItem(item);
       if (!item || (item.kind !== 'task' && item.kind !== 'subtask')) return;
       const detail = await appContainer.buildTaskOperator().findDetailById(item.id);
       if (!detail) return;
@@ -380,6 +399,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       panel.webview.html = `<html><body><h2>${detail.title}</h2><p>status: ${detail.status}</p><p>priority: ${detail.priority}</p><p>tags: ${detail.tags.join(', ') || '(none)'}</p></body></html>`;
     }),
     vscode.commands.registerCommand('taskDock.updateTask', async (item?: TaskTreeItem) => {
+      item = resolveSelectedItem(item);
       if (!item || (item.kind !== 'task' && item.kind !== 'subtask')) return;
       const detail = await appContainer.buildTaskOperator().findDetailById(item.id);
       if (!detail) return;
@@ -396,6 +416,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       } catch (error) { void vscode.window.showErrorMessage(toUserFacingMessage(error)); }
     }),
     vscode.commands.registerCommand('taskDock.deleteTask', async (item?: TaskTreeItem) => {
+      item = resolveSelectedItem(item);
       if (!item || (item.kind !== 'task' && item.kind !== 'subtask')) return;
       const confirmed = await vscode.window.showWarningMessage('このタスクを削除しますか？', { modal: true }, '削除');
       if (confirmed !== '削除') return;

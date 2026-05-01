@@ -14,6 +14,7 @@ vi.mock('vscode', () => ({
     showInputBox: vi.fn(),
     showErrorMessage: vi.fn(),
     registerTreeDataProvider: vi.fn(),
+    createTreeView: vi.fn(() => ({ selection: [], dispose: vi.fn() })),
     createStatusBarItem: vi.fn(() => ({ show: vi.fn(), dispose: vi.fn() })),
     createWebviewPanel: vi.fn(() => ({ webview: { html: '' }, title: '' }))
   },
@@ -86,23 +87,29 @@ describe('extension bootstrapMigrations', () => {
     const vscode = await import('vscode');
     const registerCommand = vi.mocked(vscode.commands.registerCommand);
     const registerTreeDataProvider = vi.mocked(vscode.window.registerTreeDataProvider);
+    const createTreeView = vi.mocked(vscode.window.createTreeView);
     const createStatusBarItem = vi.mocked(vscode.window.createStatusBarItem);
     const createWebviewPanel = vi.mocked(vscode.window.createWebviewPanel);
     registerCommand.mockReturnValue({ dispose: vi.fn() } as never);
     registerTreeDataProvider.mockReturnValue({ dispose: vi.fn() } as never);
+    createTreeView.mockReturnValue({ selection: [], dispose: vi.fn() } as never);
 
     await activate({
       globalStorageUri: { fsPath: '/tmp/taskdock' },
       subscriptions: []
     } as never);
 
-    expect(registerTreeDataProvider).toHaveBeenCalledWith('taskDock.myRecentTasks', expect.objectContaining({
-      getChildren: expect.any(Function),
-      getTreeItem: expect.any(Function)
+    expect(createTreeView).toHaveBeenCalledWith('taskDock.myRecentTasks', expect.objectContaining({
+      treeDataProvider: expect.objectContaining({
+        getChildren: expect.any(Function),
+        getTreeItem: expect.any(Function)
+      })
     }));
-    expect(registerTreeDataProvider).toHaveBeenCalledWith('taskDock.allProjects', expect.objectContaining({
-      getChildren: expect.any(Function),
-      getTreeItem: expect.any(Function)
+    expect(createTreeView).toHaveBeenCalledWith('taskDock.allProjects', expect.objectContaining({
+      treeDataProvider: expect.objectContaining({
+        getChildren: expect.any(Function),
+        getTreeItem: expect.any(Function)
+      })
     }));
     expect(registerCommand).toHaveBeenCalledWith('taskDock.openTree', expect.any(Function));
     expect(registerCommand).toHaveBeenCalledWith('taskDock.openBoard', expect.any(Function));

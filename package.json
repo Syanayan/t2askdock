@@ -105,6 +105,16 @@
         "command": "taskDock.allProjects.sortDeadline",
         "title": "Sort by Deadline",
         "icon": "$(calendar)"
+      },
+      {
+        "command": "taskDock.allProjects.showDoneOnly",
+        "title": "Show Done Only",
+        "icon": "$(eye)"
+      },
+      {
+        "command": "taskDock.allProjects.showActiveOnly",
+        "title": "Show Active Only",
+        "icon": "$(eye-closed)"
       }
     ],
     "menus": {
@@ -122,6 +132,16 @@
         {
           "command": "taskDock.myRecentTasks.sortDeadline",
           "when": "view == taskDock.myRecentTasks",
+          "group": "navigation"
+        },
+        {
+          "command": "taskDock.allProjects.showActiveOnly",
+          "when": "view == taskDock.allProjects && taskDock.showDone",
+          "group": "navigation"
+        },
+        {
+          "command": "taskDock.allProjects.showDoneOnly",
+          "when": "view == taskDock.allProjects && !taskDock.showDone",
           "group": "navigation"
         },
         {
@@ -144,12 +164,12 @@
         {
           "command": "taskDock.openTaskDetail",
           "when": "(view == taskDock.myRecentTasks || view == taskDock.allProjects) && viewItem == task",
-          "group": "inline"
+          "group": "navigation"
         },
         {
           "command": "taskDock.updateTask",
           "when": "(view == taskDock.myRecentTasks || view == taskDock.allProjects) && viewItem == task",
-          "group": "inline"
+          "group": "navigation"
         },
         {
           "command": "taskDock.deleteTask",
