@@ -16,6 +16,7 @@ type BoardTask = {
   parentTaskId: string | null;
   version: number;
   sequenceNumber?: number;
+  hasChildren?: boolean;
 };
 
 export class BoardWebviewPanel {
@@ -114,7 +115,9 @@ export class BoardWebviewPanel {
             const tagBadges = (task.tags ?? []).map((tag, index) => '<span class="badge" style="background:' + ['#dbeafe','#dcfce7','#fef3c7','#fee2e2','#ede9fe'][index % 5] + '">' + tag + '</span>').join('');
             const due = task.dueDate ? '<span class="badge ' + dueClass + '">' + new Date(task.dueDate).toLocaleDateString('ja-JP') + '</span>' : '';
             const desc = task.description ? '<div class="task-desc">' + task.description + '</div>' : '';
-            el.innerHTML = '<div class="task-header"><span class="task-seq">#' + (task.sequenceNumber ?? '') + '</span><button type="button" data-action="menu">...</button></div><div>' + task.title + '</div>' + desc + '<div class="task-meta">' + priorityBadge + tagBadges + due + '</div>';
+            const assignee = task.assignee ? '<span class="badge" title="' + task.assignee + '">👤 ' + task.assignee.slice(0, 1).toUpperCase() + '</span>' : '';
+            const hasChildren = task.parentTaskId === null && task.hasChildren ? '<span class="badge" title="subtasks">≡</span>' : '';
+            el.innerHTML = '<div class="task-header"><span class="task-seq">#' + (task.sequenceNumber ?? '') + '</span><button type="button" data-action="menu">...</button></div><div>' + task.title + '</div>' + desc + '<div class="task-meta">' + priorityBadge + tagBadges + due + assignee + hasChildren + '</div>';
             el.draggable = true;
             el.dataset.taskId = task.taskId;
             el.querySelector('button[data-action="menu"]').addEventListener('click', () => {
@@ -230,5 +233,5 @@ function isCardCreateMessage(value: unknown): value is { type: 'card:create'; st
     return false;
   }
   const candidate = value as Record<string, unknown>;
-  return candidate.type === 'card:create' && typeof candidate.status === 'string';
+  return candidate.type === 'card:create' && ['todo', 'in_progress', 'blocked', 'done'].includes(String(candidate.status));
 }
