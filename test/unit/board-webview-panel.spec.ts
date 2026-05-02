@@ -91,6 +91,11 @@ describe('BoardWebviewPanel', () => {
     expect(webview.html).toContain('.card-menu-btn');
     expect(webview.html).toContain('.card-menu-popup');
     expect(webview.html).toContain('var(--vscode-menu-background)');
+    expect(webview.html).toContain("const isDone=task.status==='done'");
+    expect(webview.html).toContain("if(evt.key==='ArrowDown')");
+    expect(webview.html).toContain("if(evt.key==='ArrowUp')");
+    expect(webview.html).toContain("if(evt.key==='Enter')");
+    expect(webview.html).toContain("popup.addEventListener('focusout'");
     expect(webview.html).toContain("type:'card:menuAction'");
   });
 
