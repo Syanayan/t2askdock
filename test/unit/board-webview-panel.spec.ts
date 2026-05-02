@@ -55,4 +55,19 @@ describe('BoardWebviewPanel', () => {
     expect(disposeFirst).toHaveBeenCalledTimes(1);
     expect(onDidReceiveMessage).toHaveBeenCalledTimes(2);
   });
+
+  it('uses VSCode theme variables and flat style tokens', () => {
+    const panel = new BoardWebviewPanel({ execute: vi.fn() } as never, { publish: vi.fn() } as never, vi.fn());
+    const webview = { html: '', postMessage: vi.fn(), onDidReceiveMessage: vi.fn(() => ({ dispose: vi.fn() })) };
+    panel.render({ title: '', webview }, []);
+
+    expect(webview.html).toContain('var(--vscode-editor-background)');
+    expect(webview.html).toContain('var(--vscode-editor-foreground)');
+    expect(webview.html).toContain('var(--vscode-panel-border)');
+    expect(webview.html).toContain('var(--vscode-sideBar-background)');
+    expect(webview.html).toContain('setDragImage');
+    expect(webview.html).toContain('if(hasChildren&&isOpen)addRows');
+    expect(webview.html).toContain('.task{border:1px solid var(--vscode-panel-border)');
+    expect(webview.html).not.toContain('transform:translateY(-1px)');
+  });
 });

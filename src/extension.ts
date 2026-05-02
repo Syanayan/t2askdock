@@ -134,6 +134,34 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     eventBus,
     async (command, args) => vscode.commands.executeCommand(command, args)
   );
+  const projectTaskLoader = appContainer.buildProjectTaskLoader();
+  let currentBoardProjectId: string | undefined;
+  const fetchBoardTasks = async (projectId?: string) => {
+    const projects = await projectTaskLoader.listProjects();
+    const targetProjects = projectId ? projects.filter(project => project.projectId === projectId) : projects;
+    return (
+      await Promise.all(targetProjects.map(async project => {
+        const tasks = await projectTaskLoader.listTasksByProject({ projectId: project.projectId, offset: 0, limit: 100 });
+        return Promise.all(tasks.map(async task => {
+          const detail = await taskOperator.findDetailById(task.taskId);
+          return {
+            taskId: task.taskId,
+            projectId: project.projectId,
+            title: task.title,
+            status: task.status,
+            priority: task.priority,
+            description: detail?.description ?? null,
+            assignee: detail?.assignee ?? null,
+            dueDate: detail?.dueDate ?? null,
+            tags: detail?.tags ?? [],
+            parentTaskId: detail?.parentTaskId ?? null,
+            version: task.version,
+            hasChildren: task.hasChildren
+          };
+        }));
+      }))
+    ).flat();
+  };
   const taskOperator = appContainer.buildTaskOperator();
   const tableLoader = appContainer.buildTaskTreeLoader();
   let boardWebviewPanel: vscode.WebviewPanel | undefined;
@@ -179,9 +207,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const disposeModeChanged = eventBus.subscribe('MODE_CHANGED', refreshStatusBar);
   const disposeHealthChanged = eventBus.subscribe('CONNECTION_HEALTH_CHANGED', refreshStatusBar);
 
-  const disposeTaskUpdated = eventBus.subscribe('TASK_UPDATED', () => {
+  const disposeTaskUpdated = eventBus.subscribe('TASK_UPDATED', async () => {
     myRecentTasksProvider.refresh();
     allProjectsProvider.refresh();
+    if (boardWebviewPanel) {
+      try {
+        const boardTasks = await fetchBoardTasks(currentBoardProjectId);
+        boardPanel.render(boardWebviewPanel, boardTasks);
+      } catch (error) {
+        void vscode.window.showErrorMessage(toUserFacingMessage(error));
+      }
+    }
   });
   const myRecentTasksChangeEmitter = new vscode.EventEmitter<TaskTreeItem | undefined | null | void>();
   const disposeMyRecentTasksRefresh = myRecentTasksProvider.onRefresh(() => myRecentTasksChangeEmitter.fire());
@@ -294,39 +330,26 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       await vscode.commands.executeCommand('setContext', 'taskDock.showDone', allProjectsProvider.isShowingDone());
     }),
     vscode.commands.registerCommand('taskDock.openBoard', async (input: { projectId?: string } = {}) => {
-      const projects = await appContainer.buildProjectTaskLoader().listProjects();
-      const targetProjects = input.projectId ? projects.filter(project => project.projectId === input.projectId) : projects;
-      const loader = appContainer.buildProjectTaskLoader();
-      const taskOperator = appContainer.buildTaskOperator();
-      const boardTasks = (
-        await Promise.all(targetProjects.map(async project => {
-          const tasks = await loader.listTasksByProject({ projectId: project.projectId, offset: 0, limit: 100 });
-          return Promise.all(tasks.map(async task => {
-            const detail = await taskOperator.findDetailById(task.taskId);
-            return {
-              taskId: task.taskId,
-              projectId: project.projectId,
-              title: task.title,
-              status: task.status,
-              priority: task.priority,
-              description: detail?.description ?? null,
-              assignee: detail?.assignee ?? null,
-              dueDate: detail?.dueDate ?? null,
-              tags: detail?.tags ?? [],
-              parentTaskId: detail?.parentTaskId ?? null,
-              version: task.version,
-              hasChildren: task.hasChildren
-            };
-          }));
-        }))
-      ).flat();
+      currentBoardProjectId = input.projectId;
+      const boardTasks = await fetchBoardTasks(currentBoardProjectId);
       if (!boardWebviewPanel) {
         boardWebviewPanel = vscode.window.createWebviewPanel(
           BoardWebviewPanel.VIEW_TYPE,
           'Task Dock Board',
           vscode.ViewColumn.One,
-          { enableScripts: true }
+          { enableScripts: true, retainContextWhenHidden: true }
         );
+        boardWebviewPanel.onDidChangeViewState(({ webviewPanel }) => {
+          if (webviewPanel.active && boardWebviewPanel) {
+            void fetchBoardTasks(currentBoardProjectId)
+              .then(tasks => {
+                boardPanel.render(boardWebviewPanel!, tasks);
+              })
+              .catch(error => {
+                void vscode.window.showErrorMessage(toUserFacingMessage(error));
+              });
+          }
+        });
         boardWebviewPanel.onDidDispose(() => {
           boardWebviewPanel = undefined;
         });
@@ -378,7 +401,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           `INSERT OR IGNORE INTO projects(project_id, name, archived, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
           [projectId, projectId, 0, now, now]
         );
-        return commands['taskDock.createTask']({
+        const output = await commands['taskDock.createTask']({
           taskId: idGenerator.nextUlid(),
           projectId,
           title,
@@ -392,6 +415,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           actorId: 'system',
           now
         });
+        eventBus.publish({ type: 'TASK_UPDATED', payload: { taskId: output.id } });
+        return output;
       } catch (error) {
         void vscode.window.showErrorMessage(toUserFacingMessage(error));
         return undefined;
