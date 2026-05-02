@@ -19,16 +19,7 @@ type BoardTask = {
   hasChildren?: boolean;
 };
 
-type CreateTaskCommandArgs = {
-  taskId?: string;
-  status?: TaskStatus;
-  title?: string;
-  projectId?: string;
-  priority?: Priority;
-  assignee?: string | null;
-  dueDate?: string | null;
-  tags?: string[];
-};
+type WebviewCommandArgs = Record<string, unknown>;
 
 export class BoardWebviewPanel {
   public static readonly VIEW_TYPE = 'taskDock.boardView';
@@ -37,7 +28,7 @@ export class BoardWebviewPanel {
   public constructor(
     private readonly moveTaskStatusUseCase: MoveTaskStatusUseCase,
     private readonly eventBus: UiEventBus,
-    private readonly executeCommand: (command: string, args?: CreateTaskCommandArgs) => Promise<unknown> = async () => undefined
+    private readonly executeCommand: (command: string, args?: WebviewCommandArgs) => Promise<unknown> = async () => undefined
   ) {}
 
   public render(panel: Pick<vscode.WebviewPanel, 'webview' | 'title'>, tasks: BoardTask[]): void {
