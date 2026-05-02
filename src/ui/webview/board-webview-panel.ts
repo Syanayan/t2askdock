@@ -32,6 +32,7 @@ type CreateTaskCommandArgs = {
 
 export class BoardWebviewPanel {
   public static readonly VIEW_TYPE = 'taskDock.boardView';
+  private messageListenerDisposable: vscode.Disposable | undefined;
 
   public constructor(
     private readonly moveTaskStatusUseCase: MoveTaskStatusUseCase,
@@ -43,7 +44,8 @@ export class BoardWebviewPanel {
     panel.title = 'Task Dock Board';
     const projectId = tasks[0]?.projectId ?? null;
     panel.webview.html = this.buildHtml(projectId);
-    panel.webview.onDidReceiveMessage?.(async (message: unknown) => {
+    this.messageListenerDisposable?.dispose();
+    this.messageListenerDisposable = panel.webview.onDidReceiveMessage?.(async (message: unknown) => {
       if (isDropMessage(message)) {
         await this.onDrop({ ...message.task, toStatus: message.toStatus, actorId: 'system', now: new Date().toISOString() });
         return;
