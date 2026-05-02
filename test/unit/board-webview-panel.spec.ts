@@ -127,6 +127,7 @@ describe('BoardWebviewPanel', () => {
     expect(webview.html).toContain('width:12px;height:12px');
     expect(webview.html).toContain("(isOpen?'v':'>')");
     expect(webview.html).toContain("tr.addEventListener('click',()=>{if(!hasChildren)return;");
+    expect(webview.html).toContain("btn.addEventListener('dblclick',e=>e.stopPropagation())");
     expect(webview.html).toContain("tr.addEventListener('dblclick',()=>vscode.postMessage({type:'card:open',taskId:task.taskId}))");
   });
 
