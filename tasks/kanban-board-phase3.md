@@ -23,24 +23,24 @@
 
 ## グループQ: リストビュー改善
 
-- [ ] **Q-1 デフォルトビューをリストに変更**
+- [x] **Q-1 デフォルトビューをリストに変更**
   - `board-webview-panel.ts` のJS変数 `let currentView='kanban'` を `let currentView='list'` に変更する
   - `window.addEventListener('message', ...)` 内の初回 `renderView()` はそのまま（list が先に表示される）
 
-- [ ] **Q-2 サブタスクの展開/折りたたみ**
+- [x] **Q-2 サブタスクの展開/折りたたみ**
   - `hasChildren === true` の行に展開ボタン `▶` を追加する
   - 展開状態を `const expanded = new Set()` で管理し、ボタンクリックで taskId を追加/削除して `renderList()` を再呼び出しする
   - `addRows(parentId, depth)` は `expanded.has(parentId)` が true の場合のみ子行を描画する
   - 展開ボタンのアイコン: `▶`（折りたたみ）/ `▼`（展開中）
   - ボタンクリック時は `event.stopPropagation()` で行クリック（詳細表示）と干渉しないようにする
 
-- [ ] **Q-3 リストの Done 表示トグル**
+- [x] **Q-3 リストの Done 表示トグル**
   - ツールバーに「Done を表示」ボタンを追加する（カンバンの「折り畳む」と同列）
   - `let showDoneInList = false` を JS 変数として持つ
   - `renderList()` のフィルタに `showDoneInList || task.status !== 'done'` を追加する
   - ボタンのラベルをトグルに合わせて切り替える: `「Done を表示」/ 「Done を隠す」`
 
-- [ ] **Q-4 リスト行でのステータス変更**
+- [x] **Q-4 リスト行でのステータス変更**
   - Status 列のセルに `<select>` を配置する:
     ```html
     <select class="status-select" data-task-id="...">
@@ -55,7 +55,7 @@
   - 送信後に `tasks` 配列内の該当タスクの `status` / `version` を楽観的に更新し `renderList()` を呼ぶ
   - `<select>` のクリックは `event.stopPropagation()` で行クリックと干渉しないようにする
 
-- [ ] **Q-5 リスト列ヘッダーのソート**
+- [x] **Q-5 リスト列ヘッダーのソート**
   - `let listSort = { col: 'title', dir: 'asc' }` を JS 変数として持つ
   - 列ヘッダー `<th>` をクリックするとソート列と方向を切り替えて `renderList()` を呼ぶ
   - 同じ列を再クリックすると `asc` ↔ `desc` を切り替える
@@ -67,7 +67,7 @@
 
 ## グループR: ステータスカラーの統一
 
-- [ ] **R-1 ステータス色定義の共通化**
+- [x] **R-1 ステータス色定義の共通化**
   - CSS に以下のスタイルを追加する:
     ```css
     .status-todo    { background: #EFF6FF; color: #1D4ED8; border: 1px solid #BFDBFE; }
@@ -83,7 +83,7 @@
 
 ## グループS: サイドバーツリーの重複修正
 
-- [ ] **S-1 listTasksByProject でルートタスクのみ返す**
+- [x] **S-1 listTasksByProject でルートタスクのみ返す**
   - `src/infra/sqlite/repositories/task-repository.ts` の `listTasksByProject` SQL に
     `AND t.parent_task_id IS NULL` フィルタを追加する
   - 現在はサブタスクもルートレベルに返っているため、allProjects ツリーでサブタスクが
@@ -95,13 +95,13 @@
 
 ## グループT: ビュー状態の永続化
 
-- [ ] **T-1 WebView の state に currentView を保存**
+- [x] **T-1 WebView の state に currentView を保存**
   - Webview JS 側: `vscode.setState({ currentView })` を `currentView` 変更時に呼び出す
   - 初期化時: `const saved = vscode.getState(); let currentView = saved?.currentView ?? 'list';` で前回状態を復元する
   - これにより `taskDock.openBoard` で同じプロジェクトを再度開いた際（または詳細から戻った際）
     に前回のビュー（カンバン/リスト）が復元される
 
-- [ ] **T-2 openBoard で既存パネルを再利用する**
+- [x] **T-2 openBoard で既存パネルを再利用する**
   - `extension.ts` の `taskDock.openBoard` コマンドで毎回 `createWebviewPanel` している箇所を修正し、
     既存のパネルが生きていれば `reveal()` して `boardPanel.render()` を再呼び出しする
   - パネルの参照を `let boardWebviewPanel: vscode.WebviewPanel | undefined` として `openBoard` の外側で保持する
@@ -112,7 +112,7 @@
 
 ## グループU: モダン UI
 
-- [ ] **U-1 全体ビジュアルのリフレッシュ**
+- [x] **U-1 全体ビジュアルのリフレッシュ**
   - **フォント**: `font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;`
   - **カンバンカード**:
     - `box-shadow: 0 1px 3px rgba(0,0,0,.08);`
