@@ -107,4 +107,29 @@ describe('BoardWebviewPanel', () => {
     expect(webview.html).toContain('const normalizeTreeTasks=(nodes,parentTaskId=null)=>');
     expect(webview.html).toContain('tasks=normalizeTreeTasks(event.data.tasks??[])');
   });
+  it('uses css-based indentation for subtasks, not &nbsp;', () => {
+    const panel = new BoardWebviewPanel({ execute: vi.fn() } as never, { publish: vi.fn() } as never, vi.fn());
+    const webview = { html: '', postMessage: vi.fn(), onDidReceiveMessage: vi.fn(() => ({ dispose: vi.fn() })) };
+    panel.render({ title: '', webview }, []);
+
+    expect(webview.html).not.toContain('&amp;nbsp;');
+    expect(webview.html).toContain('task-indent');
+    expect(webview.html).toContain('subtask-connector');
+    expect(webview.html).toContain('.expand{display:inline-flex');
+    expect(webview.html).toContain('task-title-text');
+  });
+
+  it('uses compact chevron-right expand toggle and row click/double-click behavior in list view', () => {
+    const panel = new BoardWebviewPanel({ execute: vi.fn() } as never, { publish: vi.fn() } as never, vi.fn());
+    const webview = { html: '', postMessage: vi.fn(), onDidReceiveMessage: vi.fn(() => ({ dispose: vi.fn() })) };
+    panel.render({ title: '', webview }, []);
+
+    expect(webview.html).toContain('width:12px;height:12px');
+    expect(webview.html).toContain('.expand-icon');
+    expect(webview.html).toContain('.expand-icon.open{transform:rotate(135deg)}');
+    expect(webview.html).toContain("tr.addEventListener('click',()=>{if(!hasChildren)return;");
+    expect(webview.html).toContain("btn.addEventListener('dblclick',e=>e.stopPropagation())");
+    expect(webview.html).toContain("tr.addEventListener('dblclick',()=>vscode.postMessage({type:'card:open',taskId:task.taskId}))");
+  });
+
 });

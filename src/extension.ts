@@ -22,6 +22,7 @@ import { StatusBarController } from './ui/status/status-bar-controller.js';
 import { BoardWebviewPanel } from './ui/webview/board-webview-panel.js';
 import { TaskTableWebviewPanel } from './ui/webview/task-table-webview-panel.js';
 import { ERROR_CODES } from './core/errors/error-codes.js';
+import type { Priority, TaskStatus } from './core/domain/entities/task.js';
 
 type BootstrapMigrationDependencies = {
   ensureDirectory: (dirPath: string) => Promise<void>;
@@ -136,7 +137,51 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   );
   const projectTaskLoader = appContainer.buildProjectTaskLoader();
   let currentBoardProjectId: string | undefined;
+  type BoardTask = {
+    taskId: string;
+    projectId: string;
+    title: string;
+    status: TaskStatus;
+    priority: Priority;
+    description: string | null;
+    assignee: string | null;
+    dueDate: string | null;
+    tags: string[];
+    parentTaskId: string | null;
+    version: number;
+    hasChildren: boolean;
+  };
+
   const fetchBoardTasks = async (projectId?: string) => {
+    const collectSubtasks = async (
+      parentTaskId: string,
+      projectIdOfTask: string
+    ): Promise<BoardTask[]> => {
+      const subtasks = await projectTaskLoader.listSubtasksByParent(parentTaskId);
+      const result: BoardTask[] = [];
+      for (const sub of subtasks) {
+        const detail = await taskOperator.findDetailById(sub.taskId);
+        result.push({
+          taskId: sub.taskId,
+          projectId: projectIdOfTask,
+          title: sub.title,
+          status: sub.status,
+          priority: sub.priority,
+          description: detail?.description ?? null,
+          assignee: detail?.assignee ?? null,
+          dueDate: detail?.dueDate ?? null,
+          tags: detail?.tags ?? [],
+          parentTaskId: detail?.parentTaskId ?? parentTaskId,
+          version: detail?.version ?? 1,
+          hasChildren: sub.hasChildren
+        });
+        if (sub.hasChildren) {
+          result.push(...(await collectSubtasks(sub.taskId, projectIdOfTask)));
+        }
+      }
+      return result;
+    };
+
     const projects = await projectTaskLoader.listProjects();
     const targetProjects = projectId ? projects.filter(project => project.projectId === projectId) : projects;
     return (
@@ -144,7 +189,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         const tasks = await projectTaskLoader.listTasksByProject({ projectId: project.projectId, offset: 0, limit: 100 });
         return Promise.all(tasks.map(async task => {
           const detail = await taskOperator.findDetailById(task.taskId);
-          return {
+          const root = {
             taskId: task.taskId,
             projectId: project.projectId,
             title: task.title,
@@ -158,7 +203,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             version: task.version,
             hasChildren: task.hasChildren
           };
-        }));
+          if (task.hasChildren) {
+            const children = await collectSubtasks(task.taskId, project.projectId);
+            return [root, ...children];
+          }
+          return [root];
+        })).then(groups => groups.flat());
       }))
     ).flat();
   };
