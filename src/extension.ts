@@ -136,6 +136,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   );
   const taskOperator = appContainer.buildTaskOperator();
   const tableLoader = appContainer.buildTaskTreeLoader();
+  let boardWebviewPanel: vscode.WebviewPanel | undefined;
   const tablePanel = new TaskTableWebviewPanel(
     useCases.moveTaskStatusUseCase,
     useCases.updateTaskUseCase,
@@ -319,13 +320,21 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           }));
         }))
       ).flat();
-      const webviewPanel = vscode.window.createWebviewPanel(
-        BoardWebviewPanel.VIEW_TYPE,
-        'Task Dock Board',
-        vscode.ViewColumn.One,
-        { enableScripts: true }
-      );
-      boardPanel.render(webviewPanel, boardTasks);
+      if (!boardWebviewPanel) {
+        boardWebviewPanel = vscode.window.createWebviewPanel(
+          BoardWebviewPanel.VIEW_TYPE,
+          'Task Dock Board',
+          vscode.ViewColumn.One,
+          { enableScripts: true }
+        );
+        boardWebviewPanel.onDidDispose(() => {
+          boardWebviewPanel = undefined;
+        });
+      } else {
+        boardWebviewPanel.reveal(vscode.ViewColumn.One);
+      }
+
+      boardPanel.render(boardWebviewPanel, boardTasks);
       return commands['taskDock.openBoard']();
     }),
     vscode.commands.registerCommand('taskDock.openTable', async () => {
