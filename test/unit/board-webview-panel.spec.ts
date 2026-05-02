@@ -65,6 +65,8 @@ describe('BoardWebviewPanel', () => {
     expect(webview.html).toContain('var(--vscode-editor-foreground)');
     expect(webview.html).toContain('var(--vscode-panel-border)');
     expect(webview.html).toContain('var(--vscode-sideBar-background)');
+    expect(webview.html).toContain('setDragImage');
+    expect(webview.html).toContain('if(hasChildren&&isOpen)addRows');
     expect(webview.html).toContain('.task{border:1px solid var(--vscode-panel-border)');
     expect(webview.html).not.toContain('transform:translateY(-1px)');
   });
