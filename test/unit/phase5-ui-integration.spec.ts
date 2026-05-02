@@ -176,7 +176,7 @@ describe('Phase5 UI integration', () => {
     await handler?.({ type: 'card:menu', action: 'edit', taskId: 't1' });
     await handler?.({ type: 'card:create', status: 'todo' });
     await handler?.({ type: 'card:create', status: 'done', title: 'quick create' });
-    expect(executeCommand).toHaveBeenCalledWith('taskDock.updateTask', expect.objectContaining({ taskId: 't1' }));
+    expect(executeCommand).toHaveBeenCalledWith('taskDock.updateTask', expect.objectContaining({ id: 't1', kind: 'task' }));
     expect(executeCommand).toHaveBeenCalledWith('taskDock.createTask', expect.objectContaining({ status: 'todo' }));
     expect(executeCommand).toHaveBeenCalledWith('taskDock.createTask', expect.objectContaining({ status: 'done', title: 'quick create' }));
   });

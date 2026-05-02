@@ -37,6 +37,9 @@ describe('BoardWebviewPanel', () => {
 
     await handlerRef.current?.({ type: 'card:open', taskId: 't-open' });
     expect(executeCommand).toHaveBeenCalledWith('taskDock.openTaskDetail', { taskId: 't-open' });
+
+    await handlerRef.current?.({ type: 'card:menuAction', action: 'edit', taskId: 't-open' });
+    expect(executeCommand).toHaveBeenCalledWith('taskDock.updateTask', expect.objectContaining({ id: 't-open', kind: 'task' }));
   });
 
   it('disposes previous webview message listener before re-registering', async () => {
@@ -65,9 +68,43 @@ describe('BoardWebviewPanel', () => {
     expect(webview.html).toContain('var(--vscode-editor-foreground)');
     expect(webview.html).toContain('var(--vscode-panel-border)');
     expect(webview.html).toContain('var(--vscode-sideBar-background)');
-    expect(webview.html).toContain('setDragImage');
     expect(webview.html).toContain('if(hasChildren&&isOpen)addRows');
     expect(webview.html).toContain('.task{border:1px solid var(--vscode-panel-border)');
     expect(webview.html).not.toContain('transform:translateY(-1px)');
+  });
+
+  it('includes keyboard add shortcuts and blank cancel behavior in inline create UI', () => {
+    const panel = new BoardWebviewPanel({ execute: vi.fn() } as never, { publish: vi.fn() } as never, vi.fn());
+    const webview = { html: '', postMessage: vi.fn(), onDidReceiveMessage: vi.fn(() => ({ dispose: vi.fn() })) };
+    panel.render({ title: '', webview }, []);
+
+    expect(webview.html).toContain("if((event.ctrlKey||event.metaKey)&&event.key==='Enter')");
+    expect(webview.html).toContain("if(!title){resetInline(inline);return;}");
+    expect(webview.html).toContain("if(event.key==='Escape'){event.preventDefault();resetInline(inline);}");
+  });
+
+  it('uses themed styles for card menu popup and menu trigger', () => {
+    const panel = new BoardWebviewPanel({ execute: vi.fn() } as never, { publish: vi.fn() } as never, vi.fn());
+    const webview = { html: '', postMessage: vi.fn(), onDidReceiveMessage: vi.fn(() => ({ dispose: vi.fn() })) };
+    panel.render({ title: '', webview }, []);
+
+    expect(webview.html).toContain('.card-menu-btn');
+    expect(webview.html).toContain('.card-menu-popup');
+    expect(webview.html).toContain('var(--vscode-menu-background)');
+    expect(webview.html).toContain("const isDone=task.status==='done'");
+    expect(webview.html).toContain("if(evt.key==='ArrowDown')");
+    expect(webview.html).toContain("if(evt.key==='ArrowUp')");
+    expect(webview.html).toContain("if(evt.key==='Enter')");
+    expect(webview.html).toContain("popup.addEventListener('focusout'");
+    expect(webview.html).toContain("type:'card:menuAction'");
+  });
+
+  it('normalizes nested tasks from board:init so subtasks can appear in list hierarchy', () => {
+    const panel = new BoardWebviewPanel({ execute: vi.fn() } as never, { publish: vi.fn() } as never, vi.fn());
+    const webview = { html: '', postMessage: vi.fn(), onDidReceiveMessage: vi.fn(() => ({ dispose: vi.fn() })) };
+    panel.render({ title: '', webview }, []);
+
+    expect(webview.html).toContain('const normalizeTreeTasks=(nodes,parentTaskId=null)=>');
+    expect(webview.html).toContain('tasks=normalizeTreeTasks(event.data.tasks??[])');
   });
 });
