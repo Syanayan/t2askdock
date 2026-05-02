@@ -119,4 +119,15 @@ describe('BoardWebviewPanel', () => {
     expect(webview.html).toContain('task-title-text');
   });
 
+  it('uses compact v/> expand toggle and row click/double-click behavior in list view', () => {
+    const panel = new BoardWebviewPanel({ execute: vi.fn() } as never, { publish: vi.fn() } as never, vi.fn());
+    const webview = { html: '', postMessage: vi.fn(), onDidReceiveMessage: vi.fn(() => ({ dispose: vi.fn() })) };
+    panel.render({ title: '', webview }, []);
+
+    expect(webview.html).toContain('width:12px;height:12px');
+    expect(webview.html).toContain("(isOpen?'v':'>')");
+    expect(webview.html).toContain("tr.addEventListener('click',()=>{if(!hasChildren)return;");
+    expect(webview.html).toContain("tr.addEventListener('dblclick',()=>vscode.postMessage({type:'card:open',taskId:task.taskId}))");
+  });
+
 });
