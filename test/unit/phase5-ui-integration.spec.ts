@@ -165,6 +165,7 @@ describe('Phase5 UI integration', () => {
 
     expect(postMessage).toHaveBeenCalledWith({
       type: 'board:init',
+      projectId: 'p1',
       tasks: [expect.objectContaining({ sequenceNumber: 1 })]
     });
     expect(fakePanel.webview.html).toContain('count-badge');
