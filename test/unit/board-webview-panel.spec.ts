@@ -107,4 +107,14 @@ describe('BoardWebviewPanel', () => {
     expect(webview.html).toContain('const normalizeTreeTasks=(nodes,parentTaskId=null)=>');
     expect(webview.html).toContain('tasks=normalizeTreeTasks(event.data.tasks??[])');
   });
+  it('uses css-based indentation for subtasks, not &nbsp;', () => {
+    const panel = new BoardWebviewPanel({ execute: vi.fn() } as never, { publish: vi.fn() } as never, vi.fn());
+    const webview = { html: '', postMessage: vi.fn(), onDidReceiveMessage: vi.fn(() => ({ dispose: vi.fn() })) };
+    panel.render({ title: '', webview }, []);
+
+    expect(webview.html).not.toContain('&amp;nbsp;');
+    expect(webview.html).toContain('task-indent');
+    expect(webview.html).toContain('subtask-connector');
+  });
+
 });
