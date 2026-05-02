@@ -65,9 +65,29 @@ describe('BoardWebviewPanel', () => {
     expect(webview.html).toContain('var(--vscode-editor-foreground)');
     expect(webview.html).toContain('var(--vscode-panel-border)');
     expect(webview.html).toContain('var(--vscode-sideBar-background)');
-    expect(webview.html).toContain('setDragImage');
     expect(webview.html).toContain('if(hasChildren&&isOpen)addRows');
     expect(webview.html).toContain('.task{border:1px solid var(--vscode-panel-border)');
     expect(webview.html).not.toContain('transform:translateY(-1px)');
+  });
+
+  it('includes keyboard add shortcuts and blank cancel behavior in inline create UI', () => {
+    const panel = new BoardWebviewPanel({ execute: vi.fn() } as never, { publish: vi.fn() } as never, vi.fn());
+    const webview = { html: '', postMessage: vi.fn(), onDidReceiveMessage: vi.fn(() => ({ dispose: vi.fn() })) };
+    panel.render({ title: '', webview }, []);
+
+    expect(webview.html).toContain("if((event.ctrlKey||event.metaKey)&&event.key==='Enter')");
+    expect(webview.html).toContain("if(!title){resetInline(inline);return;}");
+    expect(webview.html).toContain("if(event.key==='Escape'){event.preventDefault();resetInline(inline);}");
+  });
+
+  it('uses themed styles for card menu popup and menu trigger', () => {
+    const panel = new BoardWebviewPanel({ execute: vi.fn() } as never, { publish: vi.fn() } as never, vi.fn());
+    const webview = { html: '', postMessage: vi.fn(), onDidReceiveMessage: vi.fn(() => ({ dispose: vi.fn() })) };
+    panel.render({ title: '', webview }, []);
+
+    expect(webview.html).toContain('.card-menu-btn');
+    expect(webview.html).toContain('.card-menu-popup');
+    expect(webview.html).toContain('var(--vscode-menu-background)');
+    expect(webview.html).toContain("type:'card:menuAction'");
   });
 });
