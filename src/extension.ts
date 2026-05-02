@@ -131,7 +131,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   );
   const boardPanel = new BoardWebviewPanel(
     useCases.moveTaskStatusUseCase,
-    eventBus
+    eventBus,
+    async (command, args) => vscode.commands.executeCommand(command, args)
   );
   const taskOperator = appContainer.buildTaskOperator();
   const tableLoader = appContainer.buildTaskTreeLoader();
@@ -351,7 +352,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     ),
     vscode.commands.registerCommand(
       'taskDock.createTask',
-      async (input?: { title?: string; projectId?: string; parentTaskId?: string | null; status?: 'todo' | 'in_progress' | 'blocked' | 'done' }) => {
+      async (input?: { title?: string; projectId?: string; parentTaskId?: string | null; status?: 'todo' | 'in_progress' | 'blocked' | 'done'; priority?: 'low' | 'medium' | 'high' | 'critical'; assignee?: string | null; dueDate?: string | null; tags?: string[] }) => {
       try {
         const title = input?.title ?? (await vscode.window.showInputBox({ prompt: 'タスクタイトルを入力してください', ignoreFocusOut: true }));
         if (!title) {
@@ -374,10 +375,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           title,
           description: null,
           status: input?.status ?? 'todo',
-          priority: 'medium',
-          assignee: null,
-          dueDate: null,
-          tags: [],
+          priority: input?.priority ?? 'medium',
+          assignee: input?.assignee ?? null,
+          dueDate: input?.dueDate ?? null,
+          tags: input?.tags ?? [],
           parentTaskId: input?.parentTaskId ?? null,
           actorId: 'system',
           now
@@ -398,8 +399,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         parentTaskId: item.id
       });
     }),
-    vscode.commands.registerCommand('taskDock.openTaskDetail', async (item?: TaskTreeItem) => {
-      item = resolveSelectedItem(item);
+    vscode.commands.registerCommand('taskDock.openTaskDetail', async (item?: TaskTreeItem | { taskId?: string }) => {
+      if (item && 'taskId' in item && typeof item.taskId === 'string') {
+        const directDetail = await appContainer.buildTaskOperator().findDetailById(item.taskId);
+        if (!directDetail) return;
+        const panel = vscode.window.createWebviewPanel('taskDock.taskDetail', `Task: ${directDetail.title}`, vscode.ViewColumn.Active, { enableScripts: true });
+        panel.webview.html = `<html><body><h2>${directDetail.title}</h2><p>status: ${directDetail.status}</p><p>priority: ${directDetail.priority}</p><p>tags: ${directDetail.tags.join(', ') || '(none)'}</p></body></html>`;
+        return;
+      }
+      item = resolveSelectedItem(item as TaskTreeItem | undefined);
       if (!item || (item.kind !== 'task' && item.kind !== 'subtask')) return;
       const detail = await appContainer.buildTaskOperator().findDetailById(item.id);
       if (!detail) return;
