@@ -38,4 +38,21 @@ describe('BoardWebviewPanel', () => {
     await handlerRef.current?.({ type: 'card:open', taskId: 't-open' });
     expect(executeCommand).toHaveBeenCalledWith('taskDock.openTaskDetail', { taskId: 't-open' });
   });
+
+  it('disposes previous webview message listener before re-registering', async () => {
+    const handlerRef: { current?: (m: unknown) => Promise<void> } = {};
+    const disposeFirst = vi.fn();
+    const onDidReceiveMessage = vi
+      .fn()
+      .mockImplementationOnce((h: (m: unknown) => Promise<void>) => { handlerRef.current = h; return { dispose: disposeFirst }; })
+      .mockImplementationOnce((h: (m: unknown) => Promise<void>) => { handlerRef.current = h; return { dispose: vi.fn() }; });
+    const panel = new BoardWebviewPanel({ execute: vi.fn() } as never, { publish: vi.fn() } as never, vi.fn());
+    const webview = { html: '', postMessage: vi.fn(), onDidReceiveMessage };
+
+    panel.render({ title: '', webview }, []);
+    panel.render({ title: '', webview }, []);
+
+    expect(disposeFirst).toHaveBeenCalledTimes(1);
+    expect(onDidReceiveMessage).toHaveBeenCalledTimes(2);
+  });
 });

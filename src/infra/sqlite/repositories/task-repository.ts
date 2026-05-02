@@ -105,6 +105,7 @@ export class TaskRepository implements TaskRepositoryPort {
           : 't.updated_at DESC';
     const filters = [
       't.project_id = ?',
+      't.parent_task_id IS NULL',
       ...(input.excludeDone ? [`t.status != 'done'`] : []),
       ...(sortBy === 'priority' ? [`t.priority != 'low'`] : [])
     ];
@@ -148,6 +149,7 @@ export class TaskRepository implements TaskRepositoryPort {
               EXISTS(SELECT 1 FROM tasks c WHERE c.parent_task_id = t.task_id) AS hasChildren
        FROM tasks t
        WHERE ((t.created_by = ? AND t.assignee IS NULL) OR t.assignee = ?)
+         AND t.parent_task_id IS NULL
          AND t.status != 'done'
        ORDER BY ${orderBy}
        LIMIT ?`,
