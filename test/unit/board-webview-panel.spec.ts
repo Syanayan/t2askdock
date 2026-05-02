@@ -37,6 +37,9 @@ describe('BoardWebviewPanel', () => {
 
     await handlerRef.current?.({ type: 'card:open', taskId: 't-open' });
     expect(executeCommand).toHaveBeenCalledWith('taskDock.openTaskDetail', { taskId: 't-open' });
+
+    await handlerRef.current?.({ type: 'card:menuAction', action: 'edit', taskId: 't-open' });
+    expect(executeCommand).toHaveBeenCalledWith('taskDock.updateTask', expect.objectContaining({ id: 't-open', kind: 'task' }));
   });
 
   it('disposes previous webview message listener before re-registering', async () => {
@@ -89,5 +92,14 @@ describe('BoardWebviewPanel', () => {
     expect(webview.html).toContain('.card-menu-popup');
     expect(webview.html).toContain('var(--vscode-menu-background)');
     expect(webview.html).toContain("type:'card:menuAction'");
+  });
+
+  it('normalizes nested tasks from board:init so subtasks can appear in list hierarchy', () => {
+    const panel = new BoardWebviewPanel({ execute: vi.fn() } as never, { publish: vi.fn() } as never, vi.fn());
+    const webview = { html: '', postMessage: vi.fn(), onDidReceiveMessage: vi.fn(() => ({ dispose: vi.fn() })) };
+    panel.render({ title: '', webview }, []);
+
+    expect(webview.html).toContain('const normalizeTreeTasks=(nodes,parentTaskId=null)=>');
+    expect(webview.html).toContain('tasks=normalizeTreeTasks(event.data.tasks??[])');
   });
 });
