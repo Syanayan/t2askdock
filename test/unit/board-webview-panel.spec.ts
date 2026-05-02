@@ -115,6 +115,8 @@ describe('BoardWebviewPanel', () => {
     expect(webview.html).not.toContain('&amp;nbsp;');
     expect(webview.html).toContain('task-indent');
     expect(webview.html).toContain('subtask-connector');
+    expect(webview.html).toContain('.expand{display:inline-flex');
+    expect(webview.html).toContain('task-title-text');
   });
 
 });
