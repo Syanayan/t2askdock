@@ -5,9 +5,10 @@ import type { SecretStorageService } from '../../ports/services/secret-storage-s
 
 export class RegisterDatabaseDirectoryUseCase {
   public constructor(
-    private readonly databaseProfileRepository: { save(input: any): Promise<void> },
+    private readonly databaseProfileRepository: { save(input: any): Promise<void>; findAll?(): Promise<Array<{ path: string }>> },
     private readonly osFileAccessChecker: OsFileAccessChecker,
-    private readonly secretStorageService: SecretStorageService
+    private readonly secretStorageService: SecretStorageService,
+    private readonly idGenerator: { nextUlid(): string }
   ) {}
 
   public async execute(input: { directoryPath: string; actorRole: 'admin' | 'general' }): Promise<{ registeredProfiles: Array<{ profileId: string; path: string }> }> {
@@ -20,7 +21,7 @@ export class RegisterDatabaseDirectoryUseCase {
     for (const filePath of sqliteFiles) {
       const access = await this.osFileAccessChecker.check(filePath);
       if (!access.exists || !access.readable) continue;
-      const profileId = `profile-${Date.now()}-${registeredProfiles.length}`;
+      const profileId = this.idGenerator.nextUlid();
       await this.databaseProfileRepository.save({
         profileId,
         name: basename(filePath),

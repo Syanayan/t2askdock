@@ -15,7 +15,8 @@ describe('directory management + move task usecases', () => {
         listSqliteFiles: vi.fn().mockResolvedValue(['/db/a.sqlite', '/db/b.db', '/db/c.sqlite3']),
         check: vi.fn().mockResolvedValue({ exists: true, readable: true, writable: true })
       },
-      { saveDirectoryRegistration, saveMountKey: vi.fn(), deleteMountKey: vi.fn(), getMountKey: vi.fn(), getDirectoryRegistrations: vi.fn(), deleteDirectoryRegistration: vi.fn() }
+      { saveDirectoryRegistration, saveMountKey: vi.fn(), deleteMountKey: vi.fn(), getMountKey: vi.fn(), getDirectoryRegistrations: vi.fn(), deleteDirectoryRegistration: vi.fn() },
+      { nextUlid: vi.fn().mockReturnValue('p1') }
     );
 
     await expect(usecase.execute({ directoryPath: '/db', actorRole: 'general' })).rejects.toThrow(ERROR_CODES.FORBIDDEN);
@@ -29,12 +30,14 @@ describe('directory management + move task usecases', () => {
     const publish = vi.fn();
     const scan = new ScanDatabaseDirectoryUseCase(
       { findAll: vi.fn().mockResolvedValue([{ path: '/db/a.sqlite', mountSource: 'directory', accessAllowed: true }]) },
-      { check: vi.fn().mockResolvedValue({ exists: false, readable: false, writable: false }), checkDirectory: vi.fn(), listSqliteFiles: vi.fn() },
+      { check: vi.fn().mockResolvedValue({ exists: false, readable: false, writable: false }), checkDirectory: vi.fn(), listSqliteFiles: vi.fn().mockResolvedValue(['/db/a.sqlite', '/db/new.sqlite']) },
+      { saveMountKey: vi.fn(), deleteMountKey: vi.fn(), getMountKey: vi.fn(), saveDirectoryRegistration: vi.fn(), getDirectoryRegistrations: vi.fn().mockResolvedValue(['/db']), deleteDirectoryRegistration: vi.fn() },
       { publish }
     );
 
     const out = await scan.execute();
     expect(out.scanResult.removed).toEqual(['/db/a.sqlite']);
+    expect(out.scanResult.added).toEqual(['/db/new.sqlite']);
     expect(publish).toHaveBeenCalledWith(expect.objectContaining({ type: 'DATABASE_DIRECTORY_UPDATED' }));
   });
 

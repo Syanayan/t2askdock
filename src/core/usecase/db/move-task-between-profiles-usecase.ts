@@ -32,7 +32,7 @@ export class MoveTaskBetweenProfilesUseCase {
       targetType: 'task',
       targetId: input.taskId,
       payloadDiffJson: JSON.stringify({ sourceProfileId: input.sourceProfileId, targetProfileId: input.targetProfileId, copyMode: input.copyMode }),
-      retentionClass: 'standard',
+      retentionClass: 'default',
       createdAt: input.now
     });
 

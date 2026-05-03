@@ -13,7 +13,8 @@ describe('mount/unmount usecases', () => {
       { save },
       { check: vi.fn().mockResolvedValue({ exists: true, readable: true, writable: true }), checkDirectory: vi.fn(), listSqliteFiles: vi.fn() },
       { check: vi.fn().mockResolvedValue('healthy') },
-      { saveMountKey, deleteMountKey, getMountKey: vi.fn(), saveDirectoryRegistration: vi.fn(), getDirectoryRegistrations: vi.fn(), deleteDirectoryRegistration: vi.fn() }
+      { saveMountKey, deleteMountKey, getMountKey: vi.fn(), saveDirectoryRegistration: vi.fn(), getDirectoryRegistrations: vi.fn(), deleteDirectoryRegistration: vi.fn() },
+      { nextUlid: vi.fn().mockReturnValue('p1') }
     );
     await expect(usecase.execute({ path: '/tmp/a.sqlite', name: 'A', mode: 'readWrite', actorRole: 'general' })).rejects.toThrow(ERROR_CODES.FORBIDDEN);
 
@@ -21,7 +22,8 @@ describe('mount/unmount usecases', () => {
       { save },
       { check: vi.fn().mockResolvedValue({ exists: false, readable: false, writable: false }), checkDirectory: vi.fn(), listSqliteFiles: vi.fn() },
       { check: vi.fn().mockResolvedValue('healthy') },
-      { saveMountKey, deleteMountKey, getMountKey: vi.fn(), saveDirectoryRegistration: vi.fn(), getDirectoryRegistrations: vi.fn(), deleteDirectoryRegistration: vi.fn() }
+      { saveMountKey, deleteMountKey, getMountKey: vi.fn(), saveDirectoryRegistration: vi.fn(), getDirectoryRegistrations: vi.fn(), deleteDirectoryRegistration: vi.fn() },
+      { nextUlid: vi.fn().mockReturnValue('p1') }
     );
     await expect(noFile.execute({ path: '/tmp/missing.sqlite', name: 'A', mode: 'readWrite', actorRole: 'admin' })).rejects.toThrow(ERROR_CODES.FILE_NOT_FOUND);
 
@@ -32,7 +34,8 @@ describe('mount/unmount usecases', () => {
 
     const unmount = new UnmountDatabaseUseCase(
       { delete: del },
-      { saveMountKey, deleteMountKey, getMountKey: vi.fn(), saveDirectoryRegistration: vi.fn(), getDirectoryRegistrations: vi.fn(), deleteDirectoryRegistration: vi.fn() }
+      { saveMountKey, deleteMountKey, getMountKey: vi.fn(), saveDirectoryRegistration: vi.fn(), getDirectoryRegistrations: vi.fn(), deleteDirectoryRegistration: vi.fn() },
+      { nextUlid: vi.fn().mockReturnValue('p1') }
     );
     await unmount.execute({ profileId: 'p1', actorRole: 'admin' });
     expect(del).toHaveBeenCalledWith('p1');
