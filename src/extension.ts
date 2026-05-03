@@ -14,6 +14,7 @@ import { CommentRepository } from './infra/sqlite/repositories/comment-repositor
 import { DatabaseProfileRepository } from './infra/sqlite/repositories/database-profile-repository.js';
 import { FeatureFlagRepository } from './infra/sqlite/repositories/feature-flag-repository.js';
 import { TaskRepository } from './infra/sqlite/repositories/task-repository.js';
+import { ConnectorSettingsRepository } from './infra/sqlite/repositories/connector-settings-repository.js';
 import { TransactionManager } from './infra/sqlite/tx/transaction-manager.js';
 import type { TaskTreeItem } from './ui/tree/task-tree-view-provider.js';
 import { MyRecentTasksProvider } from './ui/tree/my-recent-tasks-provider.js';
@@ -23,6 +24,7 @@ import { BoardWebviewPanel } from './ui/webview/board-webview-panel.js';
 import { TaskTableWebviewPanel } from './ui/webview/task-table-webview-panel.js';
 import { ERROR_CODES } from './core/errors/error-codes.js';
 import type { Priority, TaskStatus } from './core/domain/entities/task.js';
+import { AiTaskCreator } from './infra/services/ai-task-creator.js';
 
 type BootstrapMigrationDependencies = {
   ensureDirectory: (dirPath: string) => Promise<void>;
@@ -116,6 +118,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }
   });
   const useCases = appContainer.buildUseCases();
+  const connectorSettingsRepository = new ConnectorSettingsRepository(client);
+  const aiTaskCreator = new AiTaskCreator();
 
   const eventBus = new UiEventBus();
   const stateStore = new ExtensionStateStore();
@@ -473,6 +477,39 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
       }
     ),
+    vscode.commands.registerCommand('taskDock.createTaskFromAI', async () => {
+      try {
+        const naturalLanguage = await vscode.window.showInputBox({ prompt: 'AIに作成させるタスク内容を入力してください', ignoreFocusOut: true });
+        if (!naturalLanguage) return undefined;
+        const projectId = await vscode.window.showInputBox({ prompt: 'プロジェクトIDを入力してください', ignoreFocusOut: true });
+        if (!projectId) return undefined;
+
+        const settings = await connectorSettingsRepository.findByConnectorAndProfile('ai', stateStore.getState().activeProfile ?? 'default');
+        const parsedSettings = settings?.settingsJson ? JSON.parse(settings.settingsJson) as { apiKey?: string; model?: string } : {};
+        if (!parsedSettings.apiKey) {
+          void vscode.window.showErrorMessage('AI APIキーが未設定です。connector_settings (connector_id=ai) を設定してください。');
+          return undefined;
+        }
+
+        const draft = await aiTaskCreator.createDraft({ apiKey: parsedSettings.apiKey, model: parsedSettings.model ?? 'claude-3-5-haiku-latest', prompt: naturalLanguage });
+        const confirmed = await vscode.window.showInformationMessage(
+          `AI提案: ${draft.title} / priority=${draft.priority} / due=${draft.dueDate ?? '-'} / tags=${draft.tags.join(',') || '-'}`,
+          { modal: true },
+          '作成する'
+        );
+        if (confirmed !== '作成する') return undefined;
+        return vscode.commands.executeCommand('taskDock.createTask', {
+          title: draft.title,
+          projectId,
+          priority: draft.priority,
+          dueDate: draft.dueDate,
+          tags: draft.tags
+        });
+      } catch (error) {
+        void vscode.window.showErrorMessage(toUserFacingMessage(error));
+        return undefined;
+      }
+    }),
 
     vscode.commands.registerCommand('taskDock.createSubtask', async (item?: TaskTreeItem) => {
       item = resolveSelectedItem(item);

@@ -61,6 +61,10 @@
         "title": "Task Dock: Create Task"
       },
       {
+        "command": "taskDock.createTaskFromAI",
+        "title": "Task Dock: Create Task from AI"
+      },
+      {
         "command": "taskDock.openTaskDetail",
         "title": "Task Dock: Open Task Detail"
       },
