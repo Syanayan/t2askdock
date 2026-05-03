@@ -59,7 +59,7 @@ export class TaskDetailWebviewPanel {
         await this.render(panel, taskId);
       }
       if (m.type === 'detail:comment:add' && typeof m.body === 'string' && m.body.trim()) {
-        await this.addCommentUseCase.execute({ commentId: crypto.randomUUID(), taskId, body: m.body, createdBy: 'system' });
+        await this.addCommentUseCase.execute({ commentId: crypto.randomUUID(), taskId, body: m.body, actorId: '01ARZ3NDEKTSV4RRFFQ69G5FAV', now: new Date().toISOString() });
         const refreshed = await this.listComments(taskId);
         await panel.webview.postMessage({ type: 'detail:comments:refresh', comments: refreshed });
       }
