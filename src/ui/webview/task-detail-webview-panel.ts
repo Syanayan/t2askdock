@@ -7,15 +7,9 @@ import type { MoveTaskStatusUseCase } from '../../core/usecase/move-task-status-
 import type { UpdateTaskUseCase } from '../../core/usecase/update-task-usecase.js';
 
 type SubtaskItem = { taskId: string; title: string; status: TaskStatus; priority: Priority; hasChildren: boolean };
-const ACTOR_ID = '01ARZ3NDEKTSV4RRFFQ69G5FAV';
+const ACTOR_ID = 'system';
 const ULID_CHARS = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
-const nextUlid = (): string => {
-  const time = Date.now();
-  let t = time;
-  const timeChars = Array.from({ length: 10 }, () => { const c = ULID_CHARS[t % 32]; t = Math.floor(t / 32); return c; }).reverse().join('');
-  const randomChars = Array.from({ length: 16 }, () => ULID_CHARS[Math.floor(Math.random() * 32)]).join('');
-  return `${timeChars}${randomChars}`;
-};
+const nextUlid = (): string => Array.from({ length: 26 }, () => ULID_CHARS[Math.floor(Math.random() * ULID_CHARS.length)]).join('');
 
 export class TaskDetailWebviewPanel {
   private messageListenerDisposable: vscode.Disposable | undefined;
@@ -81,7 +75,7 @@ export class TaskDetailWebviewPanel {
     .btn.secondary{background:transparent;color:var(--vscode-editor-foreground)} .badge{border:1px solid var(--vscode-panel-border);border-radius:999px;padding:2px 8px}
     body.editing .view-only{display:none} body:not(.editing) .edit-only{display:none}
     .field{display:grid;grid-template-columns:90px 1fr;gap:8px;align-items:center;margin-bottom:8px}
-    input,select,textarea{background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:6px;padding:6px}
+    input,select,textarea{background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:6px;padding:6px;box-sizing:border-box;width:100%} textarea{resize:vertical;min-height:84px}
     .comment{display:grid;grid-template-columns:32px 1fr;gap:8px;padding:8px 0;border-bottom:1px solid var(--vscode-panel-border)}
     .vote{display:flex;flex-direction:column;align-items:center;opacity:.7;font-size:11px}.meta{opacity:.8;font-size:12px}
     .history{font-size:11px;opacity:.7;margin-top:4px}
