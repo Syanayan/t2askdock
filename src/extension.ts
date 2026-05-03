@@ -27,6 +27,7 @@ import { TaskDetailWebviewPanel } from './ui/webview/task-detail-webview-panel.j
 import { ERROR_CODES } from './core/errors/error-codes.js';
 import type { Priority, TaskStatus } from './core/domain/entities/task.js';
 import { AiTaskCreator } from './infra/services/ai-task-creator.js';
+import { NodeOsFileAccessChecker } from './infra/node/node-os-file-access-checker.js';
 
 type BootstrapMigrationDependencies = {
   ensureDirectory: (dirPath: string) => Promise<void>;
@@ -104,6 +105,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     databaseProfileRepository: new DatabaseProfileRepository(client),
     authStateReader: { isAuthenticated: () => true },
     connectionHealthChecker: { check: async () => 'healthy' },
+    osFileAccessChecker: new NodeOsFileAccessChecker(),
     featureFlagRepository: new FeatureFlagRepository(client),
     backupSnapshotFactory: { createSnapshot: async () => ({ storagePath: '', checksum: '', sizeBytes: 0 }) },
     backupSnapshotRepository: {
