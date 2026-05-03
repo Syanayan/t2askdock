@@ -8,6 +8,14 @@ import type { UpdateTaskUseCase } from '../../core/usecase/update-task-usecase.j
 
 type SubtaskItem = { taskId: string; title: string; status: TaskStatus; priority: Priority; hasChildren: boolean };
 const ACTOR_ID = '01ARZ3NDEKTSV4RRFFQ69G5FAV';
+const ULID_CHARS = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+const nextUlid = (): string => {
+  const time = Date.now();
+  let t = time;
+  const timeChars = Array.from({ length: 10 }, () => { const c = ULID_CHARS[t % 32]; t = Math.floor(t / 32); return c; }).reverse().join('');
+  const randomChars = Array.from({ length: 16 }, () => ULID_CHARS[Math.floor(Math.random() * 32)]).join('');
+  return `${timeChars}${randomChars}`;
+};
 
 export class TaskDetailWebviewPanel {
   private messageListenerDisposable: vscode.Disposable | undefined;
@@ -28,6 +36,7 @@ export class TaskDetailWebviewPanel {
     panel.webview.html = this.buildHtml(detail, subtasks, comments);
     this.messageListenerDisposable?.dispose();
     this.messageListenerDisposable = panel.webview.onDidReceiveMessage(async (message: unknown) => {
+      try {
       if (!message || typeof message !== 'object') return;
       const m = message as Record<string, unknown>;
       if (m.type === 'detail:close') panel.dispose();
@@ -50,10 +59,14 @@ export class TaskDetailWebviewPanel {
         await this.render(panel, taskId);
       }
       if (m.type === 'detail:comment:add' && typeof m.body === 'string' && m.body.trim()) {
-        await this.addCommentUseCase.execute({ commentId: crypto.randomUUID(), taskId, body: m.body, actorId: ACTOR_ID, now: new Date().toISOString() });
+        await this.addCommentUseCase.execute({ commentId: nextUlid(), taskId, body: m.body, actorId: ACTOR_ID, now: new Date().toISOString() });
         await panel.webview.postMessage({ type: 'detail:comments:refresh', comments: await this.listComments(taskId) });
       }
       if (m.type === 'detail:file:open' && typeof m.path === 'string') await this.executeCommand('vscode.open', { fsPath: m.path });
+      } catch (error) {
+        const messageText = error instanceof Error ? error.message : String(error);
+        await panel.webview.postMessage({ type: 'detail:error', message: messageText });
+      }
     });
   }
 
@@ -74,7 +87,7 @@ export class TaskDetailWebviewPanel {
     .history{font-size:11px;opacity:.7;margin-top:4px}
     </style></head><body>
     <div class="layout detail-layout"><div class="main detail-main">
-      <section class="panel"><div class="row"><h2 style="margin:0" class="view-only">${safe(detail.title)}</h2><input class="edit-only" id="edit-title" value="${safe(detail.title)}" style="flex:1"/>
+      <section class="panel"><div id="error-banner" style="display:none;color:var(--vscode-errorForeground);margin-bottom:8px"></div><div class="row"><h2 style="margin:0" class="view-only">${safe(detail.title)}</h2><input class="edit-only" id="edit-title" value="${safe(detail.title)}" style="flex:1"/>
       <span class="badge">${detail.status}</span><span class="badge">${detail.priority}</span><span>Progress ${detail.progress}%</span>
       <span style="margin-left:auto"></span><button id="btn-edit" class="btn secondary view-only">Edit</button><button id="btn-save" class="btn edit-only">Save</button><button id="btn-cancel" class="btn secondary edit-only">Cancel</button><button id="btn-close" class="btn secondary">Close</button></div></section>
       <section class="panel"><h3>Description</h3><div class="view-only" id="desc-view">${safe(detail.description ?? '—')}</div><textarea class="edit-only" id="edit-description" rows="6">${safe(detail.description ?? '')}</textarea></section>
@@ -96,7 +109,7 @@ export class TaskDetailWebviewPanel {
       document.getElementById('btn-save').onclick=()=>{vscode.postMessage({type:'detail:save',title:document.getElementById('edit-title').value,description:document.getElementById('edit-description').value,status:document.getElementById('edit-status').value,priority:document.getElementById('edit-priority').value,assignee:document.getElementById('edit-assignee').value,dueDate:document.getElementById('edit-dueDate').value,tags:document.getElementById('edit-tags').value,progress:Number(document.getElementById('edit-progress').value)});};
       document.querySelectorAll('[data-subtask-id]').forEach(el=>el.onchange=(e)=>{const t=e.target;vscode.postMessage({type:'detail:subtask:toggle',taskId:t.dataset.subtaskId,newStatus:t.checked?'done':'todo'});});
       document.getElementById('btn-comment-add').onclick=()=>{const el=document.getElementById('comment-input');const body=el.value.trim();if(!body)return;vscode.postMessage({type:'detail:comment:add',body});el.value='';};
-      window.addEventListener('message',(event)=>{if(event.data?.type!=='detail:comments:refresh') return; location.reload();});
+      window.addEventListener('message',(event)=>{if(event.data?.type==='detail:comments:refresh'){ location.reload(); return;} if(event.data?.type==='detail:error'){const b=document.getElementById('error-banner'); b.textContent=event.data.message||'error'; b.style.display='block';}});
     </script></body></html>`;
   }
 }
