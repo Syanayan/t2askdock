@@ -59,7 +59,7 @@ export class TaskDetailWebviewPanel {
 
   private buildHtml(detail: TaskDetail, subtasks: SubtaskItem[], comments: ReadonlyArray<CommentRow>): string {
     const safe = (v: string) => v.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
-    const commentRows = comments.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    const commentRows: CommentRow[] = [...comments].sort((a: CommentRow, b: CommentRow) => a.createdAt.localeCompare(b.createdAt));
     return `<!doctype html><html lang="ja"><head><meta charset="UTF-8"/><style>
     body{background:var(--vscode-editor-background);color:var(--vscode-editor-foreground);font-family:var(--vscode-font-family);margin:0;padding:12px}
     .layout,.detail-layout{display:flex;gap:12px;flex-wrap:wrap}.main,.detail-main{flex:7;min-width:0}.side,.detail-side{flex:3;min-width:240px}
@@ -79,7 +79,7 @@ export class TaskDetailWebviewPanel {
       <span style="margin-left:auto"></span><button id="btn-edit" class="btn secondary view-only">Edit</button><button id="btn-save" class="btn edit-only">Save</button><button id="btn-cancel" class="btn secondary edit-only">Cancel</button><button id="btn-close" class="btn secondary">Close</button></div></section>
       <section class="panel"><h3>Description</h3><div class="view-only" id="desc-view">${safe(detail.description ?? '—')}</div><textarea class="edit-only" id="edit-description" rows="6">${safe(detail.description ?? '')}</textarea></section>
       <section class="panel" ${subtasks.length===0?'style="display:none"':''}><h3>Subtasks</h3>${subtasks.map(s=>`<label class="row"><input type="checkbox" data-subtask-id="${s.taskId}" ${s.status==='done'?'checked':''}/> ${safe(s.title)} <span class="badge">${s.status}</span></label>`).join('')}</section>
-      <section class="panel"><h3>Comments / Activity</h3><div id="comments">${commentRows.map(c=>`<div class="comment"><div class="vote">▲<span>•</span>▼</div><div><div class="meta">u/${safe(c.createdBy)} • ${new Date(c.createdAt).toLocaleString('ja-JP')}</div><div>${safe(c.body)}</div><div class="history">updated: ${new Date(c.updatedAt).toLocaleString('ja-JP')} ${c.deletedAt?`• deleted: ${new Date(c.deletedAt).toLocaleString('ja-JP')}`:''}</div></div></div>`).join('')}</div>
+      <section class="panel"><h3>Comments / Activity</h3><div id="comments">${commentRows.map((c: CommentRow)=>`<div class="comment"><div class="vote">▲<span>•</span>▼</div><div><div class="meta">u/${safe(c.createdBy)} • ${new Date(c.createdAt).toLocaleString('ja-JP')}</div><div>${safe(c.body)}</div><div class="history">updated: ${new Date(c.updatedAt).toLocaleString('ja-JP')} ${c.deletedAt?`• deleted: ${new Date(c.deletedAt).toLocaleString('ja-JP')}`:''}</div></div></div>`).join('')}</div>
       <textarea id="comment-input" rows="3" placeholder="コメントを追加..." style="width:100%"></textarea><div class="row"><button id="btn-comment-add" class="btn">送信</button></div></section>
     </div><aside class="side detail-side"><section class="panel"><h3>Properties</h3>
       <div class="field"><label>Assignee</label><div class="view-only">${safe(detail.assignee ?? '—')}</div><input class="edit-only" id="edit-assignee" value="${safe(detail.assignee ?? '')}"/></div>
