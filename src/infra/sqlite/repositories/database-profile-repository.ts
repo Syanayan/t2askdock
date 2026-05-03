@@ -5,6 +5,10 @@ export type DatabaseProfileRecord = {
   name: string;
   path: string;
   mode: 'readWrite' | 'readOnly';
+  isDefault: boolean;
+  lastConnectedAt: string | null;
+  mountSource: 'individual' | 'directory';
+  accessAllowed: boolean;
   encryptedDek: Uint8Array;
   dekWrapSalt: string;
 };
@@ -18,13 +22,34 @@ export class DatabaseProfileRepository {
               name AS name,
               path AS path,
               mode AS mode,
+              is_default AS isDefault,
+              last_connected_at AS lastConnectedAt,
+              mount_source AS mountSource,
               encrypted_dek AS encryptedDek,
               dek_wrap_salt AS dekWrapSalt
          FROM db_profiles
         WHERE profile_id = ?`,
       [profileId]
     );
-    return row ?? null;
+    return row ? { ...row, accessAllowed: true } : null;
+  }
+
+  public async findAll(): Promise<DatabaseProfileRecord[]> {
+    const rows = await this.client.all<DatabaseProfileRecord>(`SELECT profile_id AS profileId,
+              name AS name,
+              path AS path,
+              mode AS mode,
+              is_default AS isDefault,
+              last_connected_at AS lastConnectedAt,
+              mount_source AS mountSource,
+              encrypted_dek AS encryptedDek,
+              dek_wrap_salt AS dekWrapSalt
+         FROM db_profiles`);
+    return rows.map((row) => ({ ...row, accessAllowed: true }));
+  }
+
+  public async delete(profileId: string): Promise<void> {
+    await this.client.run('DELETE FROM db_profiles WHERE profile_id = ?', [profileId]);
   }
 
   public async setMode(profileId: string, mode: 'readWrite' | 'readOnly'): Promise<void> {
@@ -38,9 +63,9 @@ export class DatabaseProfileRepository {
 
   public async save(record: DatabaseProfileRecord): Promise<void> {
     await this.client.run(
-      `INSERT INTO db_profiles(profile_id, name, path, mode, encrypted_dek, dek_wrap_salt)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [record.profileId, record.name, record.path, record.mode, record.encryptedDek, record.dekWrapSalt]
+      `INSERT INTO db_profiles(profile_id, name, path, mode, is_default, last_connected_at, mount_source, encrypted_dek, dek_wrap_salt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [record.profileId, record.name, record.path, record.mode, record.isDefault ? 1 : 0, record.lastConnectedAt, record.mountSource, record.encryptedDek, record.dekWrapSalt]
     );
   }
 }

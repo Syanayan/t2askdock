@@ -5,7 +5,8 @@ export type UiEventName =
   | 'CONFLICT_DETECTED'
   | 'AUTH_EXPIRED'
   | 'CONNECTION_HEALTH_CHANGED'
-  | 'ARCHIVE_SEARCH_COMPLETED';
+  | 'ARCHIVE_SEARCH_COMPLETED'
+  | 'DATABASE_DIRECTORY_UPDATED';
 
 export type UiEvent<TName extends UiEventName = UiEventName, TPayload = unknown> = {
   type: TName;

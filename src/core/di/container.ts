@@ -29,6 +29,7 @@ export type Infrastructure = {
   };
   authStateReader: { isAuthenticated(profileId: string): boolean };
   connectionHealthChecker: { check(profileId: string): Promise<'healthy' | 'degraded' | 'unreachable'> };
+  osFileAccessChecker: import('../ports/services/os-file-access-checker.js').OsFileAccessChecker;
   featureFlagRepository: {
     upsert(input: {
       flagKey: string;
@@ -126,7 +127,8 @@ export class AppContainer {
       switchDatabaseProfileUseCase: new SwitchDatabaseProfileUseCase(
         this.infrastructure.databaseProfileRepository,
         this.infrastructure.authStateReader,
-        this.infrastructure.connectionHealthChecker
+        this.infrastructure.connectionHealthChecker,
+        this.infrastructure.osFileAccessChecker
       ),
       setReadOnlyModeUseCase: new SetReadOnlyModeUseCase(this.infrastructure.databaseProfileRepository),
       setFeatureFlagUseCase: new SetFeatureFlagUseCase(this.infrastructure.featureFlagRepository),
