@@ -21,6 +21,7 @@ import { AllProjectsProvider } from './ui/tree/all-projects-provider.js';
 import { StatusBarController } from './ui/status/status-bar-controller.js';
 import { BoardWebviewPanel } from './ui/webview/board-webview-panel.js';
 import { TaskTableWebviewPanel } from './ui/webview/task-table-webview-panel.js';
+import { TaskDetailWebviewPanel } from './ui/webview/task-detail-webview-panel.js';
 import { ERROR_CODES } from './core/errors/error-codes.js';
 import type { Priority, TaskStatus } from './core/domain/entities/task.js';
 
@@ -484,19 +485,25 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       });
     }),
     vscode.commands.registerCommand('taskDock.openTaskDetail', async (item?: TaskTreeItem | { taskId?: string }) => {
-      if (item && 'taskId' in item && typeof item.taskId === 'string') {
-        const directDetail = await appContainer.buildTaskOperator().findDetailById(item.taskId);
-        if (!directDetail) return;
-        const panel = vscode.window.createWebviewPanel('taskDock.taskDetail', `Task: ${directDetail.title}`, vscode.ViewColumn.Active, { enableScripts: true });
-        panel.webview.html = `<html><body><h2>${directDetail.title}</h2><p>status: ${directDetail.status}</p><p>priority: ${directDetail.priority}</p><p>tags: ${directDetail.tags.join(', ') || '(none)'}</p></body></html>`;
-        return;
-      }
-      item = resolveSelectedItem(item as TaskTreeItem | undefined);
-      if (!item || (item.kind !== 'task' && item.kind !== 'subtask')) return;
-      const detail = await appContainer.buildTaskOperator().findDetailById(item.id);
-      if (!detail) return;
-      const panel = vscode.window.createWebviewPanel('taskDock.taskDetail', `Task: ${detail.title}`, vscode.ViewColumn.Active, { enableScripts: true });
-      panel.webview.html = `<html><body><h2>${detail.title}</h2><p>status: ${detail.status}</p><p>priority: ${detail.priority}</p><p>tags: ${detail.tags.join(', ') || '(none)'}</p></body></html>`;
+      const taskId = item && 'taskId' in item && typeof item.taskId === 'string'
+        ? item.taskId
+        : (() => {
+            const selected = resolveSelectedItem(item as TaskTreeItem | undefined);
+            if (!selected || (selected.kind !== 'task' && selected.kind !== 'subtask')) return null;
+            return selected.id;
+          })();
+      if (!taskId) return;
+      const panel = vscode.window.createWebviewPanel('taskDock.taskDetail', 'Task Detail', vscode.ViewColumn.Active, { enableScripts: true });
+      const detailPanel = new TaskDetailWebviewPanel(
+        (id) => appContainer.buildTaskOperator().findDetailById(id),
+        (parentId) => appContainer.buildProjectTaskLoader().listSubtasksByParent(parentId),
+        (id) => useCases.listTaskCommentsUseCase.execute({ taskId: id }),
+        useCases.updateTaskUseCase,
+        useCases.moveTaskStatusUseCase,
+        useCases.addTaskCommentUseCase,
+        async (cmd, args) => vscode.commands.executeCommand(cmd, args)
+      );
+      await detailPanel.render(panel, taskId);
     }),
     vscode.commands.registerCommand('taskDock.updateTask', async (item?: TaskTreeItem) => {
       item = resolveSelectedItem(item);
