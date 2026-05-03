@@ -23,6 +23,7 @@ describe('directory management + move task usecases', () => {
     const out = await usecase.execute({ directoryPath: '/db', actorRole: 'admin' });
     expect(out.registeredProfiles).toHaveLength(3);
     expect(save).toHaveBeenCalledTimes(3);
+    expect(save).toHaveBeenNthCalledWith(1, expect.objectContaining({ profileId: 'p1' }));
     expect(saveDirectoryRegistration).toHaveBeenCalledWith('/db');
   });
 
@@ -42,8 +43,9 @@ describe('directory management + move task usecases', () => {
   });
 
   it('move task validates profiles/mode and writes audit log', async () => {
+    const missingProfileRepo = { findById: vi.fn().mockResolvedValue({ profileId: 'p1', mode: 'readWrite' }).mockResolvedValueOnce(null) };
     const usecase = new MoveTaskBetweenProfilesUseCase(
-      { findById: vi.fn().mockResolvedValue({ profileId: 'p1', mode: 'readWrite' }).mockResolvedValueOnce(null) },
+      missingProfileRepo,
       { exportTaskGraph: vi.fn(), importTaskGraph: vi.fn(), softDeleteInSource: vi.fn() },
       { append: vi.fn() },
       { nextUlid: vi.fn().mockReturnValue('log1') }
@@ -57,6 +59,6 @@ describe('directory management + move task usecases', () => {
     const out = await ok.execute({ taskId: 't1', sourceProfileId: 's', targetProfileId: 't', expectedVersion: 1, copyMode: false, actorRole: 'admin', actorId: 'u1', now: '2026-05-03T00:00:00.000Z' });
     expect(out.taskMigrationSummary.copied).toBe(false);
     expect(ops.softDeleteInSource).toHaveBeenCalledOnce();
-    expect(append).toHaveBeenCalledWith(expect.objectContaining({ actionType: 'TASK_MOVED_ACROSS_DB' }));
+    expect(append).toHaveBeenCalledWith(expect.objectContaining({ actionType: 'TASK_MOVED_ACROSS_DB', retentionClass: 'default' }));
   });
 });
