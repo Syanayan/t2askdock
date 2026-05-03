@@ -4,6 +4,7 @@ import { UiEventBus } from './ui/events/ui-event-bus.js';
 import { ExtensionStateStore } from './ui/state/extension-state-store.js';
 import { INITIAL_MIGRATION_V1_SQL } from './infra/sqlite/migrations/initial-migration-v1.js';
 import { MIGRATION_V2_SQL } from './infra/sqlite/migrations/initial-migration-v2.js';
+import { MIGRATION_V3_SQL } from './infra/sqlite/migrations/initial-migration-v3.js';
 import type { MigrationDependencies } from './infra/sqlite/migrations/migrator.js';
 import { Migrator } from './infra/sqlite/migrations/migrator.js';
 import { BetterSqlite3Client } from './infra/sqlite/better-sqlite3-client.js';
@@ -76,7 +77,7 @@ export async function bootstrapMigrations(
     appendMigrationFailedAudit: async () => undefined
   });
 
-  await migrator.migrate([{ version: 1, statements: INITIAL_MIGRATION_V1_SQL }, { version: 2, statements: MIGRATION_V2_SQL }]);
+  await migrator.migrate([{ version: 1, statements: INITIAL_MIGRATION_V1_SQL }, { version: 2, statements: MIGRATION_V2_SQL }, { version: 3, statements: MIGRATION_V3_SQL }]);
   context.subscriptions.push({ dispose: () => client.close() });
 }
 

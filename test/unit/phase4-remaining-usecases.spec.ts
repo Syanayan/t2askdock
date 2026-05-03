@@ -122,7 +122,8 @@ describe('phase4 remaining usecases', () => {
     const switchUseCase = new SwitchDatabaseProfileUseCase(
       { findById: vi.fn().mockResolvedValue({ profileId: 'p1', mode: 'readWrite', path: '/tmp/db.sqlite' }) },
       { isAuthenticated: vi.fn().mockReturnValue(true) },
-      { check: vi.fn().mockResolvedValue('healthy') }
+      { check: vi.fn().mockResolvedValue('healthy') },
+      { check: vi.fn().mockResolvedValue({ exists: true, readable: true, writable: true }), checkDirectory: vi.fn(), listSqliteFiles: vi.fn() }
     );
 
     const switched = await switchUseCase.execute({ profileId: 'p1' });
@@ -131,7 +132,8 @@ describe('phase4 remaining usecases', () => {
     const failing = new SwitchDatabaseProfileUseCase(
       { findById: vi.fn().mockResolvedValue({ profileId: 'p1', mode: 'readWrite', path: '/tmp/db.sqlite' }) },
       { isAuthenticated: vi.fn().mockReturnValue(false) },
-      { check: vi.fn().mockResolvedValue('healthy') }
+      { check: vi.fn().mockResolvedValue('healthy') },
+      { check: vi.fn().mockResolvedValue({ exists: true, readable: true, writable: true }), checkDirectory: vi.fn(), listSqliteFiles: vi.fn() }
     );
     await expect(failing.execute({ profileId: 'p1' })).rejects.toThrow(ERROR_CODES.AUTH_FAILED);
 
