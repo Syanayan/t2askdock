@@ -32,7 +32,7 @@
   - APIキーは `connector_settings.settings_json` に格納（`connector_id = 'ai'`）
   - `src/infra/services/ai-task-creator.ts` を新規作成し、SDK呼び出しをラップする
 
-- [ ] **A-2 自然言語タスク作成コマンド**
+- [x] **A-2 自然言語タスク作成コマンド**
   - コマンド `taskDock.createTaskFromAI` を追加
   - `vscode.window.showInputBox` で自然言語入力を受け取る（例: 「来週までにAPIドキュメントを書く、優先度高」）
   - AIに構造化JSONを返させる（`title`, `description`, `priority`, `dueDate`, `tags`）
@@ -56,7 +56,7 @@
 > GitHub・GitLab・その他サービスを統一的に扱うための抽象化層。
 > 新しいサービスを追加する際にこのインターフェースを実装するだけで済む。
 
-- [ ] **B-1 IConnectorProvider インターフェースの定義**
+- [x] **B-1 IConnectorProvider インターフェースの定義**
   - `src/core/ports/connector-provider.ts` を新規作成
   ```ts
   interface IConnectorProvider {
@@ -75,12 +75,12 @@
   };
   ```
 
-- [ ] **B-2 ConnectorRegistry の実装**
+- [x] **B-2 ConnectorRegistry の実装**
   - `src/core/connector/connector-registry.ts` を新規作成
   - `register(provider: IConnectorProvider)` / `get(connectorId: string)` メソッド
   - `AppContainer` でレジストリを生成し、各プロバイダーを登録する
 
-- [ ] **B-3 external_task_map テーブルの追加（マイグレーションv2）**
+- [x] **B-3 external_task_map テーブルの追加（マイグレーションv2）**
   - 外部IssueとローカルタスクのIDマッピングを保持する
   ```sql
   CREATE TABLE IF NOT EXISTS external_task_map (
