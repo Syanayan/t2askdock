@@ -1,8 +1,9 @@
-# 詳細設計書 v0.2
+# 詳細設計書 v0.3
 ## VS Code拡張機能：オフライン共有タスク管理ツール
 
 - 作成日: 2026-04-25
-- 対象基本設計: `BASIC_DESIGN.md` v0.3
+- 更新日: 2026-05-03
+- 対象基本設計: `BASIC_DESIGN.md` v0.4
 - 対象要求仕様: `REQUIREMENTS.md` v1.3
 - 開発方式: TDD（Red → Green → Refactor）
 
@@ -114,6 +115,19 @@ interface Task {
   version: number;
 }
 
+interface DatabaseProfile {
+  profileId: string;
+  name: string;
+  path: string;
+  mode: 'readWrite' | 'readOnly';
+  isDefault: boolean;
+  lastConnectedAt: string | null;
+  mountSource: 'individual' | 'directory';
+  accessAllowed: boolean;
+  encryptedDek: Uint8Array;
+  dekWrapSalt: string;
+}
+
 interface Comment {
   commentId: string;
   taskId: string;
@@ -137,6 +151,7 @@ interface Comment {
 - `dueDate`: `YYYY-MM-DD` 形式、1900-01-01〜2100-12-31
 - `version`: 1以上（新規作成時は1）
 - `comment.body`: 1〜4000文字、改行可、Markdown許容（scriptタグは保存時除去）
+- `path`: 0文字でないこと。存在確認・OS読取/書込権限確認を行い、一般ユーザーは許可のないDBをロードできない。
 
 ### 3.3 ドメインサービス
 
@@ -311,16 +326,70 @@ interface UseCaseResult<T> {
 - 入力: `profileId`
 - 処理:
   1. プロファイル存在確認
-  2. 認証状態確認（未認証ならキー入力導線へ）
-  3. 接続テスト（暗号化、ロック診断）
-  4. 成功時 `activeProfile` 更新 + UIイベント通知
+  2. OSファイルアクセス権確認（一般ユーザーは読み書き可能なDBのみ許可）
+  3. 認証状態確認（未認証ならキー入力導線へ）
+  4. 接続テスト（暗号化、ロック診断）
+  5. 成功時 `activeProfile` 更新 + UIイベント通知
 - 出力: `profileSummary`, `connectionMode`, `healthStatus`
+
+#### MountDatabaseUseCase
+- 入力: `path`, `name`, `mode`, `actorRole`
+- 事前条件: `actorRole === 'admin'`
+- 処理:
+  1. ファイル存在確認とOS読み取り/書き込み権限チェック
+  2. SQLite暗号化/DEK復号の簡易検証
+  3. `db_profiles` にマウント情報を登録
+  4. SecretStorage に最終アクセスキー情報を保持
+- 出力: `profileSummary`
+
+#### UnmountDatabaseUseCase
+- 入力: `profileId`, `actorRole`
+- 事前条件: `actorRole === 'admin'`
+- 処理:
+  1. `db_profiles` から対象プロファイルを削除
+  2. 関連 SecretStorage メタデータをクリーンアップ
+
+#### RegisterDatabaseDirectoryUseCase
+- 入力: `directoryPath`, `actorRole`
+- 事前条件: `actorRole === 'admin'`
+- 処理:
+  1. ディレクトリ存在確認
+  2. 指定ディレクトリ配下の SQLite ファイルを列挙
+  3. 各ファイルに対し `MountDatabaseUseCase` 相当の検証を実行
+  4. `mountSource = 'directory'` として一括登録/監視
+- 出力: `registeredProfiles`
+
+#### ScanDatabaseDirectoryUseCase
+- 入力: `directoryPath`
+- 処理:
+  1. `db_profiles` の `mountSource = 'directory'` を基に再スキャン
+  2. 追加/削除/権限変化を検知
+  3. UIイベント通知 `DATABASE_DIRECTORY_UPDATED`
+- 出力: `scanResult`
+
+#### DB Mount Metadata
+- マウント済みDB一覧および最終アクセスキー参照は `SecretStorage` に保存する。
+- 管理者は `RegisterDatabaseDirectoryUseCase` でディレクトリを指定し、該当ディレクトリ下のDBを一括管理できる。
+- `db_profiles` はマウント済みDBの構成情報を保持し、`SecretStorage` はローカルホスト固有のアクセスキー参照とディレクトリ登録情報を保持する。
 
 #### SetReadOnlyModeUseCase
 - 入力: `enabled: boolean`
 - 制約:
   - 一般ユーザーは `true` への切替のみ許可
   - `false` への復帰は管理者または接続健全化の自動復帰のみ
+
+#### MoveTaskBetweenProfilesUseCase
+- 入力: `taskId`, `sourceProfileId`, `targetProfileId`, `expectedVersion`, `copyMode: boolean`
+- 事前条件:
+  - source/target プロファイルの両方がアクセス可能
+  - `connectionMode === 'READ_WRITE'`
+  - `actorRole === 'admin'` もしくは両プロファイルで編集権限を持つ
+- 処理:
+  1. 既存タスクを source DB から読み込み
+  2. `targetProfile` の DB にタスクと関連タグ/コメントを保存
+  3. `copyMode=false` の場合は source DB から元タスクを論理削除または移動フラグを設定
+  4. 監査ログ `TASK_MOVED_ACROSS_DB` を記録
+- 出力: `taskMigrationSummary`
 
 ### 4.5 競合解決系
 
@@ -483,6 +552,7 @@ CREATE TABLE db_profiles (
   mode TEXT NOT NULL CHECK(mode IN ('readWrite','readOnly')),
   is_default INTEGER NOT NULL DEFAULT 0,
   last_connected_at TEXT,
+  mount_source TEXT NOT NULL CHECK(mount_source IN ('individual','directory')) DEFAULT 'individual',
   key_schema_version INTEGER NOT NULL DEFAULT 1,
   active_kek_version INTEGER NOT NULL DEFAULT 1,
   encrypted_dek BLOB NOT NULL,

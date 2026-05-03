@@ -1,8 +1,8 @@
-# 基本設計書 v0.3
+# 基本設計書 v0.4
 ## VS Code拡張機能：オフライン共有タスク管理ツール
 
 - 作成日: 2026-04-25
-- 更新日: 2026-04-25
+- 更新日: 2026-05-03
 - 対象要求仕様: `REQUIREMENTS.md` v1.3
 - 開発方式: **TDD（テスト駆動開発）**
 
@@ -97,7 +97,8 @@
 - `AuditLog`
   - `logId`, `actorId`, `actionType`, `targetType`, `targetId`, `diff`, `createdAt`, `retentionClass`
 - `DatabaseProfile`
-  - `profileId`, `name`, `path`, `mode(readWrite|readOnly)`, `isDefault`, `lastConnectedAt`
+  - `profileId`, `name`, `path`, `mode(readWrite|readOnly)`, `isDefault`, `lastConnectedAt`, `mountSource(individual|directory)`, `accessAllowed`
+  - `db_profiles` に保存されるマウント情報。実際のローカルマウント一覧や最終アクセスキー参照は `SecretStorage` に保持する。
 - `BackupSnapshot`
   - `snapshotId`, `profileId`, `createdAt`, `generation`, `checksum`
 
@@ -118,9 +119,10 @@
    - `createdBy == currentUser` または
    - `ProjectPermissionGrant.canEdit == true`（未失効）
 2. 読み取り専用接続時は変更系ユースケースを一律拒否する。
-3. 暗号化未設定DBは起動時に利用不可（Fail Fast）。
-4. 競合未解決状態での保存は禁止する。
-5. 監査対象操作（キー運用、権限変更、競合解決、タスク更新、バックアップ復元）を必ず監査ログ化する。
+3. DBファイルロードはOSレベルのファイルアクセス権を検証し、一般ユーザーは自分が読み書き可能なDBファイルのみ登録・利用できる。
+4. 暗号化未設定DBは起動時に利用不可（Fail Fast）。
+5. 競合未解決状態での保存は禁止する。
+6. 監査対象操作（キー運用、権限変更、競合解決、タスク更新、バックアップ復元）を必ず監査ログ化する。
 
 ---
 
@@ -244,10 +246,15 @@
 - `UpdateDatabaseProfileUseCase`（管理者のみ）
 - `RemoveDatabaseProfileUseCase`（管理者のみ）
 - `ListDatabaseProfilesUseCase`
+- `MountDatabaseUseCase`
+- `UnmountDatabaseUseCase`
+- `RegisterDatabaseDirectoryUseCase`（管理者のみ）
+- `ScanDatabaseDirectoryUseCase`（管理者のみ）
 - `SwitchDatabaseProfileUseCase`
 - `OpenDatabaseConnectionUseCase`
 - `SetReadOnlyModeUseCase`
 - `GetConnectionModeUseCase`
+- `MoveTaskBetweenProfilesUseCase`
 
 ### 5.5 競合解決
 
