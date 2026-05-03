@@ -38,10 +38,6 @@ export class Task {
       throw new Error('description must be <= 5000 chars');
     }
 
-    if (props.assignee !== null) {
-      Ulid.from(props.assignee);
-    }
-
     if (props.parentTaskId !== null) {
       Ulid.from(props.parentTaskId);
     }

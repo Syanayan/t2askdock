@@ -45,8 +45,8 @@ export class TaskDetailWebviewPanel {
           description: typeof m.description === 'string' ? m.description : current.description,
           status: typeof m.status === 'string' ? (m.status as TaskStatus) : current.status,
           priority: typeof m.priority === 'string' ? (m.priority as Priority) : current.priority,
-          assignee: typeof m.assignee === 'string' ? m.assignee : current.assignee,
-          dueDate: typeof m.dueDate === 'string' ? m.dueDate : current.dueDate,
+          assignee: typeof m.assignee === 'string' ? (m.assignee.trim() || null) : current.assignee,
+          dueDate: typeof m.dueDate === 'string' ? (m.dueDate.trim() || null) : current.dueDate,
           tags: typeof m.tags === 'string' ? m.tags.split(',').map(v => v.trim()).filter(Boolean) : current.tags,
           progress: typeof m.progress === 'number' ? m.progress : current.progress
         });
@@ -79,14 +79,16 @@ export class TaskDetailWebviewPanel {
     .comment{display:grid;grid-template-columns:32px 1fr;gap:8px;padding:8px 0;border-bottom:1px solid var(--vscode-panel-border)}
     .vote{display:flex;flex-direction:column;align-items:center;opacity:.7;font-size:11px}.meta{opacity:.8;font-size:12px}
     .history{font-size:11px;opacity:.7;margin-top:4px}
+    .comment-author{font-weight:600;color:var(--vscode-editor-foreground)}.comment-date{opacity:.6;font-size:11px;margin-left:6px}.comment-body{white-space:pre-wrap;word-break:break-word;margin:4px 0}
+    .desc-view{white-space:pre-wrap;word-break:break-word}
     </style></head><body>
     <div class="layout detail-layout"><div class="main detail-main">
       <section class="panel"><div id="error-banner" style="display:none;color:var(--vscode-errorForeground);margin-bottom:8px"></div><div class="row"><h2 style="margin:0" class="view-only">${safe(detail.title)}</h2><input class="edit-only" id="edit-title" value="${safe(detail.title)}" style="flex:1"/>
       <span class="badge">${detail.status}</span><span class="badge">${detail.priority}</span><span>Progress ${detail.progress}%</span>
       <span style="margin-left:auto"></span><button id="btn-edit" class="btn secondary view-only">Edit</button><button id="btn-save" class="btn edit-only">Save</button><button id="btn-cancel" class="btn secondary edit-only">Cancel</button><button id="btn-close" class="btn secondary">Close</button></div></section>
-      <section class="panel"><h3>Description</h3><div class="view-only" id="desc-view">${safe(detail.description ?? '—')}</div><textarea class="edit-only" id="edit-description" rows="6">${safe(detail.description ?? '')}</textarea></section>
+      <section class="panel"><h3>Description</h3><div class="view-only desc-view" id="desc-view">${safe(detail.description ?? '—')}</div><textarea class="edit-only" id="edit-description" rows="6">${safe(detail.description ?? '')}</textarea></section>
       <section class="panel" ${subtasks.length===0?'style="display:none"':''}><h3>Subtasks</h3>${subtasks.map(s=>`<label class="row"><input type="checkbox" data-subtask-id="${s.taskId}" ${s.status==='done'?'checked':''}/> ${safe(s.title)} <span class="badge">${s.status}</span></label>`).join('')}</section>
-      <section class="panel"><h3>Comments / Activity</h3><div id="comments">${commentRows.map((c: CommentRow)=>`<div class="comment"><div class="vote">▲<span>•</span>▼</div><div><div class="meta">u/${safe(c.createdBy)} • ${new Date(c.createdAt).toLocaleString('ja-JP')}</div><div>${safe(c.body)}</div><div class="history">updated: ${new Date(c.updatedAt).toLocaleString('ja-JP')} ${c.deletedAt?`• deleted: ${new Date(c.deletedAt).toLocaleString('ja-JP')}`:''}</div></div></div>`).join('')}</div>
+      <section class="panel"><h3>Comments / Activity</h3><div id="comments">${commentRows.map((c: CommentRow)=>`<div class="comment"><div class="vote">▲<span>•</span>▼</div><div><div class="meta"><span class="comment-author">${safe(c.createdBy)}</span><span class="comment-date">${new Date(c.createdAt).toLocaleString('ja-JP')}</span></div><div class="comment-body">${safe(c.body)}</div><div class="history">updated: ${new Date(c.updatedAt).toLocaleString('ja-JP')} ${c.deletedAt?`• deleted: ${new Date(c.deletedAt).toLocaleString('ja-JP')}`:''}</div></div></div>`).join('')}</div>
       <textarea id="comment-input" rows="3" placeholder="コメントを追加..." style="width:100%"></textarea><div class="row"><button id="btn-comment-add" class="btn">送信</button></div></section>
     </div><aside class="side detail-side"><section class="panel"><h3>Properties</h3>
       <div class="field"><label>Assignee</label><div class="view-only">${safe(detail.assignee ?? '—')}</div><input class="edit-only" id="edit-assignee" value="${safe(detail.assignee ?? '')}"/></div>
@@ -103,7 +105,11 @@ export class TaskDetailWebviewPanel {
       document.getElementById('btn-save').onclick=()=>{vscode.postMessage({type:'detail:save',title:document.getElementById('edit-title').value,description:document.getElementById('edit-description').value,status:document.getElementById('edit-status').value,priority:document.getElementById('edit-priority').value,assignee:document.getElementById('edit-assignee').value,dueDate:document.getElementById('edit-dueDate').value,tags:document.getElementById('edit-tags').value,progress:Number(document.getElementById('edit-progress').value)});};
       document.querySelectorAll('[data-subtask-id]').forEach(el=>el.onchange=(e)=>{const t=e.target;vscode.postMessage({type:'detail:subtask:toggle',taskId:t.dataset.subtaskId,newStatus:t.checked?'done':'todo'});});
       document.getElementById('btn-comment-add').onclick=()=>{const el=document.getElementById('comment-input');const body=el.value.trim();if(!body)return;vscode.postMessage({type:'detail:comment:add',body});el.value='';};
-      window.addEventListener('message',(event)=>{if(event.data?.type==='detail:comments:refresh'){ location.reload(); return;} if(event.data?.type==='detail:error'){const b=document.getElementById('error-banner'); b.textContent=event.data.message||'error'; b.style.display='block';}});
+      document.getElementById('comment-input').addEventListener('keydown',(e)=>{if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();document.getElementById('btn-comment-add').click();}});
+      document.addEventListener('keydown',(e)=>{if((e.ctrlKey||e.metaKey)&&e.key==='Enter'&&document.body.classList.contains('editing')&&document.activeElement!==document.getElementById('comment-input')){e.preventDefault();document.getElementById('btn-save').click();}});
+      const esc=(s)=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      const renderComments=(cs)=>[...cs].filter(c=>!c.deletedAt).sort((a,b)=>a.createdAt.localeCompare(b.createdAt)).map(c=>'<div class="comment"><div class="vote">▲<span>•</span>▼</div><div><div class="meta"><span class="comment-author">'+esc(c.createdBy)+'</span><span class="comment-date">'+new Date(c.createdAt).toLocaleString('ja-JP')+'</span></div><div class="comment-body">'+esc(c.body)+'</div><div class="history">updated: '+new Date(c.updatedAt).toLocaleString('ja-JP')+(c.deletedAt?' • deleted: '+new Date(c.deletedAt).toLocaleString('ja-JP'):'')+' </div></div></div>').join('');
+      window.addEventListener('message',(event)=>{if(event.data?.type==='detail:comments:refresh'){document.getElementById('comments').innerHTML=renderComments(event.data.comments??[]);return;} if(event.data?.type==='detail:error'){const b=document.getElementById('error-banner');b.textContent=event.data.message||'error';b.style.display='block';}});
     </script></body></html>`;
   }
 }

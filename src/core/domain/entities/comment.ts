@@ -25,8 +25,6 @@ export class Comment {
   public static from(props: CommentProps): Comment {
     Ulid.from(props.commentId);
     Ulid.from(props.taskId);
-    Ulid.from(props.createdBy);
-    Ulid.from(props.updatedBy);
     Version.from(props.version);
 
     const body = Comment.sanitizeBody(props.body);
