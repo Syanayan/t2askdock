@@ -127,6 +127,10 @@
       {
         "command": "taskDock.registerDatabaseDirectory",
         "title": "Task Dock: DBフォルダを登録"
+      },
+      {
+        "command": "taskDock.createDatabase",
+        "title": "Task Dock: 新しいDBを作成"
       }
     ],
     "menus": {

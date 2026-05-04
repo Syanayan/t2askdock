@@ -57,6 +57,9 @@ function toUserFacingMessage(error: unknown): string {
     [ERROR_CODES.PERMISSION_DENIED]: 'この操作を実行する権限がありません。',
     [ERROR_CODES.READ_ONLY_MODE]: '現在は読み取り専用モードのため、更新できません。',
     [ERROR_CODES.VALIDATION_FAILED]: '入力内容が不正です。タイトルやプロジェクトIDを確認してください。',
+    [ERROR_CODES.FILE_NOT_FOUND]: 'DBファイルが見つかりません。パスを確認してください。',
+    [ERROR_CODES.ACCESS_DENIED]: 'DBファイルへのアクセスが拒否されました。ファイル権限を確認してください。',
+    [ERROR_CODES.FORBIDDEN]: 'この操作には管理者権限が必要です。',
     [ERROR_CODES.TASK_CONFLICT]: 'タスクが他の更新と競合しました。再読み込みして再実行してください。',
     [ERROR_CODES.DB_LOCK_UNSAFE]: 'データベースが安全に利用できない状態です。接続を確認してください。',
     [ERROR_CODES.DB_CORRUPT]: 'データベース破損の可能性があります。バックアップからの復元を検討してください。'
@@ -284,8 +287,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   healthStatusBarItem.show();
 
   const disposeProfileSwitched = eventBus.subscribe('PROFILE_SWITCHED', refreshStatusBar);
+  const disposeDatabaseDirectoryUpdated = eventBus.subscribe('DATABASE_DIRECTORY_UPDATED', refreshStatusBar);
   const disposeModeChanged = eventBus.subscribe('MODE_CHANGED', refreshStatusBar);
   const disposeHealthChanged = eventBus.subscribe('CONNECTION_HEALTH_CHANGED', refreshStatusBar);
+  const disposeProfileSwitchedReload = eventBus.subscribe('PROFILE_SWITCHED', async () => {
+    myRecentTasksProvider.refresh();
+    allProjectsProvider.refresh();
+    if (boardWebviewPanel) {
+      const boardTasks = await fetchBoardTasks(currentBoardProjectId);
+      boardPanel.render(boardWebviewPanel, boardTasks);
+    }
+  });
 
   const disposeTaskUpdated = eventBus.subscribe('TASK_UPDATED', async () => {
     myRecentTasksProvider.refresh();
@@ -382,8 +394,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     modeStatusBarItem,
     healthStatusBarItem,
     { dispose: disposeProfileSwitched },
+    { dispose: disposeDatabaseDirectoryUpdated },
     { dispose: disposeModeChanged },
     { dispose: disposeHealthChanged },
+    { dispose: disposeProfileSwitchedReload },
     { dispose: disposeTaskUpdated },
     { dispose: disposeMyRecentTasksRefresh },
     { dispose: disposeAllProjectsRefresh },
@@ -452,26 +466,41 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }),
     vscode.commands.registerCommand('taskDock.selectDatabase', async () => {
       const profiles = await databaseProfileRepository.findAll();
-      type DbItem = vscode.QuickPickItem & { profileId?: string; action?: 'mount' | 'directory' };
-      const baseItems: DbItem[] = profiles.map(profile => ({
-        label: profile.name,
-        description: profile.path,
-        detail: `${profile.mode} / ${profile.mountSource}`,
-        profileId: profile.profileId,
-        buttons: [{ iconPath: new vscode.ThemeIcon('trash'), tooltip: 'このDBをアンマウント' }]
-      }));
-      const actionItems: DbItem[] = [
-        { label: '$(add) 個別ファイルを追加...', action: 'mount' },
-        { label: '$(folder) フォルダを追加...', action: 'directory' }
-      ];
-      const picked = await vscode.window.showQuickPick([...baseItems, ...actionItems], {
-        title: profiles.length === 0 ? '登録済みのDBはありません。ファイルかフォルダを追加してください。' : '切り替えるDBを選択'
+      type DbItem = vscode.QuickPickItem & { profileId?: string; action?: 'mount' | 'directory' | 'create' };
+      const unmountButton: vscode.QuickInputButton = { iconPath: new vscode.ThemeIcon('trash'), tooltip: 'このDBをアンマウント' };
+      const toProfileItem = (profile: Awaited<ReturnType<typeof databaseProfileRepository.findAll>>[number]): DbItem => ({
+        label: profile.name, description: profile.path, detail: `${profile.mode} / ${profile.mountSource}`, profileId: profile.profileId, buttons: [unmountButton]
+      });
+      const actionItems: DbItem[] = [{ label: '$(new-file) 新しいDBを作成...', action: 'create' }, { label: '$(add) 個別ファイルを追加...', action: 'mount' }, { label: '$(folder) フォルダを追加...', action: 'directory' }];
+      const quickPick = vscode.window.createQuickPick<DbItem>();
+      quickPick.title = profiles.length === 0 ? '登録済みのDBはありません。ファイルかフォルダを追加してください。' : '切り替えるDBを選択';
+      quickPick.items = [...profiles.map(toProfileItem), ...actionItems];
+      const picked = await new Promise<DbItem | undefined>(resolve => {
+        const d1 = quickPick.onDidAccept(() => { resolve(quickPick.selectedItems[0]); quickPick.hide(); });
+        const d2 = quickPick.onDidHide(() => resolve(undefined));
+        const d3 = quickPick.onDidTriggerItemButton(async ({ item, button }) => {
+          if (button !== unmountButton || !item.profileId) return;
+          if (item.profileId === stateStore.getState().activeProfile) return void vscode.window.showErrorMessage('使用中のDBはアンマウントできません');
+          try {
+            await useCases.unmountDatabaseUseCase.execute({ profileId: item.profileId, actorRole: 'admin' });
+            quickPick.items = [...(await databaseProfileRepository.findAll()).map(toProfileItem), ...actionItems];
+          } catch (error) { void vscode.window.showErrorMessage(toUserFacingMessage(error)); }
+        });
+        quickPick.onDidHide(() => { d1.dispose(); d2.dispose(); d3.dispose(); quickPick.dispose(); });
+        quickPick.show();
       });
       if (!picked) return undefined;
+      if (picked.action === 'create') return vscode.commands.executeCommand('taskDock.createDatabase');
       if (picked.action === 'mount') return vscode.commands.executeCommand('taskDock.mountDatabase');
       if (picked.action === 'directory') return vscode.commands.executeCommand('taskDock.registerDatabaseDirectory');
       if (!picked.profileId) return undefined;
       return switchActiveDatabaseProfile(picked.profileId);
+    }),
+    vscode.commands.registerCommand('taskDock.createDatabase', async () => {
+      const uri = await vscode.window.showSaveDialog({ filters: { 'SQLite Database': ['sqlite3'] }, title: '新しいDBファイルの保存先を選択' });
+      if (!uri) return;
+      await vscode.workspace.fs.writeFile(uri, new Uint8Array());
+      await vscode.commands.executeCommand('taskDock.mountDatabase', uri.fsPath);
     }),
     vscode.commands.registerCommand('taskDock.mountDatabase', async () => {
       const uris = await vscode.window.showOpenDialog({
