@@ -13,7 +13,7 @@ export class StatusBarController {
   public snapshot(): StatusBarSnapshot {
     const state = this.stateStore.getState();
     return {
-      db: `DB:${state.activeProfile ?? 'unselected'}`,
+      db: `DB:${state.activeProfileName ?? state.activeProfile ?? 'unselected'}`,
       mode: `Mode:${toModeLabel(state.connectionMode)}`,
       health: `Health:${toHealthLabel(state.healthStatus)}`,
       reconnectCommand: state.healthStatus === 'unreachable' ? 'taskDock.selectDatabase' : null

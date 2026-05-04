@@ -30,6 +30,7 @@ import { AiTaskCreator } from './infra/services/ai-task-creator.js';
 import { NodeOsFileAccessChecker } from './infra/node/node-os-file-access-checker.js';
 import { VscodeSecretStorageService } from './infra/vscode/vscode-secret-storage-service.js';
 import { ActiveClientHolder } from './infra/sqlite/active-client-holder.js';
+import path from 'node:path';
 
 type BootstrapMigrationDependencies = {
   ensureDirectory: (dirPath: string) => Promise<void>;
@@ -102,13 +103,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const eventBus = new UiEventBus();
   const secretStorageService = new VscodeSecretStorageService(context.secrets);
 
+  const databaseProfileRepository = new DatabaseProfileRepository(homeClient);
   const appContainer = new AppContainer({
     taskRepository: new TaskRepository(activeClientHolder),
     commentRepository: new CommentRepository(activeClientHolder),
     auditLogRepository: new AuditLogRepository(activeClientHolder),
     transactionManager: new TransactionManager(activeClientHolder),
     idGenerator,
-    databaseProfileRepository: new DatabaseProfileRepository(homeClient),
+    databaseProfileRepository: databaseProfileRepository,
     authStateReader: { isAuthenticated: () => true },
     connectionHealthChecker: { check: async () => 'healthy' },
     osFileAccessChecker: new NodeOsFileAccessChecker(),
@@ -255,6 +257,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }
   );
   const commands = commandRegistry.register();
+  const switchActiveDatabaseProfile = async (profileId: string) => {
+    const output = await commands['taskDock.selectDatabase']({ profileId });
+    stateStore.patch({ activeProfileName: output.profileSummary.name });
+    return output;
+  };
   const dbStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
   const modeStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 99);
   const healthStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 98);
@@ -443,9 +450,45 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       await tablePanel.render(webviewPanel);
       return { viewId: 'taskDock.tableView' as const };
     }),
-    vscode.commands.registerCommand('taskDock.selectDatabase', async (input: { profileId?: string } = {}) =>
-      commands['taskDock.selectDatabase']({ profileId: input.profileId ?? 'default' })
-    ),
+    vscode.commands.registerCommand('taskDock.selectDatabase', async () => {
+      const profiles = await databaseProfileRepository.findAll();
+      type DbItem = vscode.QuickPickItem & { profileId?: string; action?: 'mount' | 'directory' };
+      const baseItems: DbItem[] = profiles.map(profile => ({
+        label: profile.name,
+        description: profile.path,
+        detail: `${profile.mode} / ${profile.mountSource}`,
+        profileId: profile.profileId,
+        buttons: [{ iconPath: new vscode.ThemeIcon('trash'), tooltip: 'このDBをアンマウント' }]
+      }));
+      const actionItems: DbItem[] = [
+        { label: '$(add) 個別ファイルを追加...', action: 'mount' },
+        { label: '$(folder) フォルダを追加...', action: 'directory' }
+      ];
+      const picked = await vscode.window.showQuickPick([...baseItems, ...actionItems], {
+        title: profiles.length === 0 ? '登録済みのDBはありません。ファイルかフォルダを追加してください。' : '切り替えるDBを選択'
+      });
+      if (!picked) return undefined;
+      if (picked.action === 'mount') return vscode.commands.executeCommand('taskDock.mountDatabase');
+      if (picked.action === 'directory') return vscode.commands.executeCommand('taskDock.registerDatabaseDirectory');
+      if (!picked.profileId) return undefined;
+      return switchActiveDatabaseProfile(picked.profileId);
+    }),
+    vscode.commands.registerCommand('taskDock.mountDatabase', async () => {
+      const uris = await vscode.window.showOpenDialog({
+        canSelectFiles: true, canSelectFolders: false, canSelectMany: false,
+        filters: { 'SQLite Database': ['sqlite', 'sqlite3', 'db'] }, title: 'マウントする SQLite ファイルを選択'
+      });
+      if (!uris?.length) return;
+      const dbPath = uris[0].fsPath;
+      const name = await vscode.window.showInputBox({ prompt: 'このDBの表示名を入力してください', value: path.basename(dbPath), ignoreFocusOut: true });
+      if (!name) return;
+      try { await useCases.mountDatabaseUseCase.execute({ path: dbPath, name, mode: 'readWrite', actorRole: 'admin' }); void vscode.window.showInformationMessage(`DB \"${name}\" をマウントしました`); } catch (error) { void vscode.window.showErrorMessage(toUserFacingMessage(error)); }
+    }),
+    vscode.commands.registerCommand('taskDock.registerDatabaseDirectory', async () => {
+      const uris = await vscode.window.showOpenDialog({ canSelectFiles: false, canSelectFolders: true, canSelectMany: false, title: 'SQLite ファイルを含むフォルダを選択' });
+      if (!uris?.length) return;
+      try { const out = await useCases.registerDatabaseDirectoryUseCase.execute({ directoryPath: uris[0].fsPath, actorRole: 'admin' }); void vscode.window.showInformationMessage(`${out.registeredProfiles.length} 件の DB を登録しました`); } catch (error) { void vscode.window.showErrorMessage(toUserFacingMessage(error)); }
+    }),
     vscode.commands.registerCommand(
       'taskDock.toggleReadOnly',
       async (input: { profileId?: string; enabled?: boolean; actorRole?: 'admin' | 'general' } = {}) =>

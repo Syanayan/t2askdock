@@ -14,6 +14,8 @@ vi.mock('vscode', () => ({
     showInformationMessage: vi.fn(),
     showInputBox: vi.fn(),
     showErrorMessage: vi.fn(),
+    showQuickPick: vi.fn(),
+    showOpenDialog: vi.fn(),
     registerTreeDataProvider: vi.fn(),
     createTreeView: vi.fn(() => ({ selection: [], dispose: vi.fn() })),
     createStatusBarItem: vi.fn(() => ({ show: vi.fn(), dispose: vi.fn() })),
@@ -24,6 +26,7 @@ vi.mock('vscode', () => ({
   ViewColumn: { One: 1 },
   TreeItemCollapsibleState: { None: 0, Collapsed: 1 },
   TreeItem: class { constructor(public label: string, public collapsibleState: number) {} },
+  ThemeIcon: class { constructor(public id: string) {} },
   Uri: {
     file: (p: string) => ({ fsPath: p }),
     joinPath: (...parts: Array<{ fsPath: string } | string>) => ({ fsPath: parts.map((p) => (typeof p === 'string' ? p : p.fsPath)).join('/') })
@@ -117,6 +120,8 @@ describe('extension bootstrapMigrations', () => {
     expect(registerCommand).toHaveBeenCalledWith('taskDock.openBoard', expect.any(Function));
     expect(registerCommand).toHaveBeenCalledWith('taskDock.selectDatabase', expect.any(Function));
     expect(registerCommand).toHaveBeenCalledWith('taskDock.toggleReadOnly', expect.any(Function));
+    expect(registerCommand).toHaveBeenCalledWith('taskDock.mountDatabase', expect.any(Function));
+    expect(registerCommand).toHaveBeenCalledWith('taskDock.registerDatabaseDirectory', expect.any(Function));
     expect(registerCommand).toHaveBeenCalledWith('taskDock.createTask', expect.any(Function));
     expect(registerCommand).toHaveBeenCalledWith('taskDock.myRecentTasks.sortUpdated', expect.any(Function));
     expect(registerCommand).toHaveBeenCalledWith('taskDock.myRecentTasks.sortPriority', expect.any(Function));
