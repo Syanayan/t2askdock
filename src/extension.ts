@@ -502,13 +502,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       await vscode.workspace.fs.writeFile(uri, new Uint8Array());
       await vscode.commands.executeCommand('taskDock.mountDatabase', uri.fsPath);
     }),
-    vscode.commands.registerCommand('taskDock.mountDatabase', async () => {
-      const uris = await vscode.window.showOpenDialog({
-        canSelectFiles: true, canSelectFolders: false, canSelectMany: false,
-        filters: { 'SQLite Database': ['sqlite', 'sqlite3', 'db'] }, title: 'マウントする SQLite ファイルを選択'
-      });
-      if (!uris?.length) return;
-      const dbPath = uris[0].fsPath;
+    vscode.commands.registerCommand('taskDock.mountDatabase', async (inputPath?: string) => {
+      let dbPath = inputPath;
+      if (!dbPath) {
+        const uris = await vscode.window.showOpenDialog({
+          canSelectFiles: true, canSelectFolders: false, canSelectMany: false,
+          filters: { 'SQLite Database': ['sqlite', 'sqlite3', 'db'] }, title: 'マウントする SQLite ファイルを選択'
+        });
+        if (!uris?.length) return;
+        dbPath = uris[0].fsPath;
+      }
       const name = await vscode.window.showInputBox({ prompt: 'このDBの表示名を入力してください', value: path.basename(dbPath), ignoreFocusOut: true });
       if (!name) return;
       try { await useCases.mountDatabaseUseCase.execute({ path: dbPath, name, mode: 'readWrite', actorRole: 'admin' }); void vscode.window.showInformationMessage(`DB \"${name}\" をマウントしました`); } catch (error) { void vscode.window.showErrorMessage(toUserFacingMessage(error)); }
