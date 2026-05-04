@@ -8,6 +8,11 @@ import { RestoreBackupSnapshotUseCase } from '../usecase/backup/restore-backup-s
 import { CreateTaskUseCase } from '../usecase/create-task-usecase.js';
 import { SetReadOnlyModeUseCase } from '../usecase/db/set-read-only-mode-usecase.js';
 import { SwitchDatabaseProfileUseCase } from '../usecase/db/switch-database-profile-usecase.js';
+import { MountDatabaseUseCase } from '../usecase/db/mount-database-usecase.js';
+import { UnmountDatabaseUseCase } from '../usecase/db/unmount-database-usecase.js';
+import { RegisterDatabaseDirectoryUseCase } from '../usecase/db/register-database-directory-usecase.js';
+import { ScanDatabaseDirectoryUseCase } from '../usecase/db/scan-database-directory-usecase.js';
+import { MoveTaskBetweenProfilesUseCase } from '../usecase/db/move-task-between-profiles-usecase.js';
 import { SetFeatureFlagUseCase } from '../usecase/feature-flags/set-feature-flag-usecase.js';
 import { MoveTaskStatusUseCase } from '../usecase/move-task-status-usecase.js';
 import { UpdateTaskUseCase } from '../usecase/update-task-usecase.js';
@@ -25,10 +30,16 @@ export type Infrastructure = {
   idGenerator: IdGenerator;
   databaseProfileRepository: {
     findById(profileId: string): Promise<{ profileId: string; mode: 'readWrite' | 'readOnly'; path: string } | null>;
+    findAll(): Promise<Array<{ path: string; mountSource: 'individual' | 'directory'; accessAllowed: boolean }>>;
+    save(input: unknown): Promise<void>;
+    delete(profileId: string): Promise<void>;
     setMode(profileId: string, mode: 'readWrite' | 'readOnly'): Promise<void>;
   };
   authStateReader: { isAuthenticated(profileId: string): boolean };
   connectionHealthChecker: { check(profileId: string): Promise<'healthy' | 'degraded' | 'unreachable'> };
+  osFileAccessChecker: import('../ports/services/os-file-access-checker.js').OsFileAccessChecker;
+  secretStorageService: import('../ports/services/secret-storage-service.js').SecretStorageService;
+  uiEventBus: import('../../ui/events/ui-event-bus.js').UiEventBus;
   featureFlagRepository: {
     upsert(input: {
       flagKey: string;
@@ -82,6 +93,11 @@ export type UseCases = {
   setFeatureFlagUseCase: SetFeatureFlagUseCase;
   createBackupSnapshotUseCase: CreateBackupSnapshotUseCase;
   restoreBackupSnapshotUseCase: RestoreBackupSnapshotUseCase;
+  mountDatabaseUseCase: MountDatabaseUseCase;
+  unmountDatabaseUseCase: UnmountDatabaseUseCase;
+  registerDatabaseDirectoryUseCase: RegisterDatabaseDirectoryUseCase;
+  scanDatabaseDirectoryUseCase: ScanDatabaseDirectoryUseCase;
+  moveTaskBetweenProfilesUseCase: MoveTaskBetweenProfilesUseCase;
 };
 
 export class AppContainer {
@@ -126,9 +142,40 @@ export class AppContainer {
       switchDatabaseProfileUseCase: new SwitchDatabaseProfileUseCase(
         this.infrastructure.databaseProfileRepository,
         this.infrastructure.authStateReader,
-        this.infrastructure.connectionHealthChecker
+        this.infrastructure.connectionHealthChecker,
+        this.infrastructure.osFileAccessChecker
       ),
       setReadOnlyModeUseCase: new SetReadOnlyModeUseCase(this.infrastructure.databaseProfileRepository),
+      mountDatabaseUseCase: new MountDatabaseUseCase(
+        this.infrastructure.databaseProfileRepository,
+        this.infrastructure.osFileAccessChecker,
+        this.infrastructure.connectionHealthChecker,
+        this.infrastructure.secretStorageService,
+        this.infrastructure.idGenerator
+      ),
+      unmountDatabaseUseCase: new UnmountDatabaseUseCase(this.infrastructure.databaseProfileRepository, this.infrastructure.secretStorageService),
+      registerDatabaseDirectoryUseCase: new RegisterDatabaseDirectoryUseCase(
+        this.infrastructure.databaseProfileRepository,
+        this.infrastructure.osFileAccessChecker,
+        this.infrastructure.secretStorageService,
+        this.infrastructure.idGenerator
+      ),
+      scanDatabaseDirectoryUseCase: new ScanDatabaseDirectoryUseCase(
+        this.infrastructure.databaseProfileRepository,
+        this.infrastructure.osFileAccessChecker,
+        this.infrastructure.secretStorageService,
+        this.infrastructure.uiEventBus
+      ),
+      moveTaskBetweenProfilesUseCase: new MoveTaskBetweenProfilesUseCase(
+        this.infrastructure.databaseProfileRepository,
+        {
+          exportTaskGraph: async () => ({}),
+          importTaskGraph: async () => undefined,
+          softDeleteInSource: async () => undefined
+        },
+        this.infrastructure.auditLogRepository,
+        this.infrastructure.idGenerator
+      ),
       setFeatureFlagUseCase: new SetFeatureFlagUseCase(this.infrastructure.featureFlagRepository),
       createBackupSnapshotUseCase: new CreateBackupSnapshotUseCase(
         this.infrastructure.backupSnapshotFactory,
