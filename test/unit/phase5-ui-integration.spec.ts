@@ -22,6 +22,13 @@ describe('Phase5 UI integration', () => {
       })
     };
     const setReadOnlyModeUseCase = { execute: vi.fn().mockResolvedValue({ mode: 'readWrite' }) };
+    const activeClientHolder = { switch: vi.fn() };
+    const createNewClient = vi.fn().mockReturnValue({
+      run: vi.fn(),
+      get: vi.fn(),
+      all: vi.fn(),
+      exec: vi.fn()
+    });
 
     const stateStore = new ExtensionStateStore();
     const eventBus = new UiEventBus();
@@ -32,6 +39,8 @@ describe('Phase5 UI integration', () => {
       createTaskUseCase as never,
       switchDatabaseProfileUseCase as never,
       setReadOnlyModeUseCase as never,
+      activeClientHolder as never,
+      createNewClient,
       stateStore,
       eventBus
     );
@@ -58,6 +67,8 @@ describe('Phase5 UI integration', () => {
     });
 
     expect(stateStore.getState()).toMatchObject({ activeProfile: 'main', connectionMode: 'readWrite', healthStatus: 'degraded' });
+    expect(createNewClient).toHaveBeenCalledWith('/tmp/main.db');
+    expect(activeClientHolder.switch).toHaveBeenCalledOnce();
     expect(taskUpdated).toHaveBeenCalledOnce();
   });
 

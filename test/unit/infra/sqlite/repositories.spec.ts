@@ -15,7 +15,7 @@ import { FakeSqliteClient } from './fake-client.js';
 describe('SQLite repositories (phase2)', () => {
   it('TaskRepository.create inserts task row and tags', async () => {
     const client = new FakeSqliteClient();
-    const repository = new TaskRepository(client);
+    const repository = new TaskRepository({ get: () => client });
 
     await repository.create(
       Task.from({
@@ -46,7 +46,7 @@ describe('SQLite repositories (phase2)', () => {
   it('TaskRepository.updateWithVersion throws conflict when no row updated', async () => {
     const client = new FakeSqliteClient();
     client.runResult = { changes: 0 };
-    const repository = new TaskRepository(client);
+    const repository = new TaskRepository({ get: () => client });
 
     await expect(
       repository.updateWithVersion(
@@ -72,7 +72,7 @@ describe('SQLite repositories (phase2)', () => {
   it('TaskRepository.updateWithVersion rewrites tags when update succeeds', async () => {
     const client = new FakeSqliteClient();
     client.runResult = { changes: 1 };
-    const repository = new TaskRepository(client);
+    const repository = new TaskRepository({ get: () => client });
 
     await repository.updateWithVersion(
       {
@@ -100,7 +100,7 @@ describe('SQLite repositories (phase2)', () => {
   it('TaskRepository.listProjects groups by project_id and maps projectName to projectId', async () => {
     const client = new FakeSqliteClient();
     client.allResult = [{ projectId: 'p1' }, { projectId: 'p2' }];
-    const repository = new TaskRepository(client);
+    const repository = new TaskRepository({ get: () => client });
 
     const projects = await repository.listProjects();
 
@@ -115,7 +115,7 @@ describe('SQLite repositories (phase2)', () => {
   it('TaskRepository.listTasksByProject returns paged task rows with boolean hasChildren', async () => {
     const client = new FakeSqliteClient();
     client.allResult = [{ taskId: 't1', title: 'todo', status: 'todo', hasChildren: 1 }];
-    const repository = new TaskRepository(client);
+    const repository = new TaskRepository({ get: () => client });
 
     const tasks = await repository.listTasksByProject({ projectId: 'p1', offset: 20, limit: 10 });
 
@@ -127,7 +127,7 @@ describe('SQLite repositories (phase2)', () => {
   it('TaskRepository.listMyTasks excludes done and supports updatedAt sort', async () => {
     const client = new FakeSqliteClient();
     client.allResult = [{ taskId: 't1', projectId: 'p1', title: 'mine', status: 'todo', priority: 'high', version: 1, hasChildren: 0 }];
-    const repository = new TaskRepository(client);
+    const repository = new TaskRepository({ get: () => client });
 
     const tasks = await repository.listMyTasks({ userId: 'u1', limit: 5, sortBy: 'updatedAt' });
 
@@ -141,7 +141,7 @@ describe('SQLite repositories (phase2)', () => {
   it('TaskRepository.listTasksByProject supports dueDate sort and done exclusion', async () => {
     const client = new FakeSqliteClient();
     client.allResult = [{ taskId: 't1', title: 'task', status: 'todo', priority: 'medium', version: 2, hasChildren: 1 }];
-    const repository = new TaskRepository(client);
+    const repository = new TaskRepository({ get: () => client });
 
     const tasks = await repository.listTasksByProject({ projectId: 'p1', offset: 0, limit: 5, sortBy: 'dueDate', excludeDone: true });
 
@@ -153,7 +153,7 @@ describe('SQLite repositories (phase2)', () => {
 
   it('TaskRepository.listTasksByProject hides low priority when sortBy priority', async () => {
     const client = new FakeSqliteClient();
-    const repository = new TaskRepository(client);
+    const repository = new TaskRepository({ get: () => client });
 
     await repository.listTasksByProject({ projectId: 'p1', offset: 0, limit: 5, sortBy: 'priority' });
 
@@ -165,7 +165,7 @@ describe('SQLite repositories (phase2)', () => {
   it('CommentRepository.updateWithVersion throws conflict when no row updated', async () => {
     const client = new FakeSqliteClient();
     client.runResult = { changes: 0 };
-    const repository = new CommentRepository(client);
+    const repository = new CommentRepository({ get: () => client });
 
     await expect(
       repository.updateWithVersion({ commentId: 'c1', body: 'new', updatedBy: 'u1', updatedAt: '2026-04-26T00:00:00Z' }, 1)
@@ -175,7 +175,7 @@ describe('SQLite repositories (phase2)', () => {
   it('CommentRepository.softDelete throws not-found when no row updated', async () => {
     const client = new FakeSqliteClient();
     client.runResult = { changes: 0 };
-    const repository = new CommentRepository(client);
+    const repository = new CommentRepository({ get: () => client });
 
     await expect(repository.softDelete('c1', '2026-04-26T00:00:00Z', 'u1', 1)).rejects.toThrow(ERROR_CODES.COMMENT_NOT_FOUND);
   });
@@ -279,7 +279,7 @@ describe('SQLite repositories (phase2)', () => {
   it('supports repositories for audit/access/profile/wrapper/feature/connector', async () => {
     const client = new FakeSqliteClient();
 
-    await new AuditLogRepository(client).append({
+    await new AuditLogRepository({ get: () => client }).append({
       logId: 'l1', actorId: 'u1', actionType: 'TASK_CREATED', targetType: 'task', targetId: 't1', payloadDiffJson: '{}', retentionClass: 'default', createdAt: '2026-04-26T00:00:00Z'
     });
 
@@ -295,7 +295,7 @@ describe('SQLite repositories (phase2)', () => {
       profileId: 'p1', keyId: 'k1', encryptedDek: new Uint8Array([1]), wrapSalt: 'salt', kekVersion: 1, wrapperStatus: 'active', createdAt: '2026-04-26T00:00:00Z', revokedAt: null
     });
 
-    await new FeatureFlagRepository(client).upsert({
+    await new FeatureFlagRepository({ get: () => client }).upsert({
       flagKey: 'github.sync', enabled: true, scopeType: 'global', scopeId: null, updatedBy: 'admin', updatedAt: '2026-04-26T00:00:00Z'
     });
 

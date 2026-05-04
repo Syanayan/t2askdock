@@ -5,7 +5,7 @@ import { FakeSqliteClient } from './fake-client.js';
 describe('TransactionManager', () => {
   it('commits when work succeeds', async () => {
     const client = new FakeSqliteClient();
-    const tx = new TransactionManager(client);
+    const tx = new TransactionManager({ get: () => client });
 
     const value = await tx.runInTx(async () => 42);
 
@@ -15,7 +15,7 @@ describe('TransactionManager', () => {
 
   it('rolls back when work throws', async () => {
     const client = new FakeSqliteClient();
-    const tx = new TransactionManager(client);
+    const tx = new TransactionManager({ get: () => client });
 
     await expect(tx.runInTx(async () => {
       throw new Error('boom');
