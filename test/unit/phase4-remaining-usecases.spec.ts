@@ -120,7 +120,7 @@ describe('phase4 remaining usecases', () => {
 
   it('SwitchDatabaseProfile and SetReadOnlyMode enforce auth/permission constraints', async () => {
     const switchUseCase = new SwitchDatabaseProfileUseCase(
-      { findById: vi.fn().mockResolvedValue({ profileId: 'p1', mode: 'readWrite', path: '/tmp/db.sqlite' }) },
+      { findById: vi.fn().mockResolvedValue({ profileId: 'p1', name: 'Profile 1', mode: 'readWrite', path: '/tmp/db.sqlite' }) },
       { isAuthenticated: vi.fn().mockReturnValue(true) },
       { check: vi.fn().mockResolvedValue('healthy') },
       { check: vi.fn().mockResolvedValue({ exists: true, readable: true, writable: true }), checkDirectory: vi.fn(), listSqliteFiles: vi.fn() }
@@ -130,7 +130,7 @@ describe('phase4 remaining usecases', () => {
     expect(switched.connectionMode).toBe('readWrite');
 
     const failing = new SwitchDatabaseProfileUseCase(
-      { findById: vi.fn().mockResolvedValue({ profileId: 'p1', mode: 'readWrite', path: '/tmp/db.sqlite' }) },
+      { findById: vi.fn().mockResolvedValue({ profileId: 'p1', name: 'Profile 1', mode: 'readWrite', path: '/tmp/db.sqlite' }) },
       { isAuthenticated: vi.fn().mockReturnValue(false) },
       { check: vi.fn().mockResolvedValue('healthy') },
       { check: vi.fn().mockResolvedValue({ exists: true, readable: true, writable: true }), checkDirectory: vi.fn(), listSqliteFiles: vi.fn() }

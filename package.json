@@ -119,6 +119,14 @@
         "command": "taskDock.allProjects.showActiveOnly",
         "title": "Show Active Only",
         "icon": "$(eye-closed)"
+      },
+      {
+        "command": "taskDock.mountDatabase",
+        "title": "Task Dock: DBファイルをマウント"
+      },
+      {
+        "command": "taskDock.registerDatabaseDirectory",
+        "title": "Task Dock: DBフォルダを登録"
       }
     ],
     "menus": {

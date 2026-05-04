@@ -3,6 +3,7 @@ export type HealthStatus = 'healthy' | 'degraded' | 'unreachable';
 
 export type ExtensionState = {
   activeProfile: string | null;
+  activeProfileName: string | null;
   connectionMode: ConnectionMode;
   healthStatus: HealthStatus;
   currentUser: { userId: string; role: 'admin' | 'general' } | null;
@@ -11,6 +12,7 @@ export type ExtensionState = {
 export class ExtensionStateStore {
   private state: ExtensionState = {
     activeProfile: null,
+    activeProfileName: null,
     connectionMode: 'readWrite',
     healthStatus: 'healthy',
     currentUser: null
