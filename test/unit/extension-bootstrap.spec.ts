@@ -97,6 +97,7 @@ describe('extension bootstrapMigrations', () => {
 
     await activate({
       globalStorageUri: { fsPath: '/tmp/taskdock' },
+      secrets: { get: vi.fn().mockResolvedValue(undefined), store: vi.fn().mockResolvedValue(undefined), delete: vi.fn().mockResolvedValue(undefined), onDidChange: vi.fn() },
       subscriptions: []
     } as never);
 

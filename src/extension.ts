@@ -28,6 +28,7 @@ import { ERROR_CODES } from './core/errors/error-codes.js';
 import type { Priority, TaskStatus } from './core/domain/entities/task.js';
 import { AiTaskCreator } from './infra/services/ai-task-creator.js';
 import { NodeOsFileAccessChecker } from './infra/node/node-os-file-access-checker.js';
+import { VscodeSecretStorageService } from './infra/vscode/vscode-secret-storage-service.js';
 
 type BootstrapMigrationDependencies = {
   ensureDirectory: (dirPath: string) => Promise<void>;
@@ -96,6 +97,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     ['system', 'System', 'admin', 'active', seedNow, seedNow]
   );
 
+  const eventBus = new UiEventBus();
+  const secretStorageService = new VscodeSecretStorageService(context.secrets);
+
   const appContainer = new AppContainer({
     taskRepository: new TaskRepository(client),
     commentRepository: new CommentRepository(client),
@@ -106,6 +110,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     authStateReader: { isAuthenticated: () => true },
     connectionHealthChecker: { check: async () => 'healthy' },
     osFileAccessChecker: new NodeOsFileAccessChecker(),
+    secretStorageService,
+    uiEventBus: eventBus,
     featureFlagRepository: new FeatureFlagRepository(client),
     backupSnapshotFactory: { createSnapshot: async () => ({ storagePath: '', checksum: '', sizeBytes: 0 }) },
     backupSnapshotRepository: {
@@ -125,7 +131,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const connectorSettingsRepository = new ConnectorSettingsRepository(client);
   const aiTaskCreator = new AiTaskCreator();
 
-  const eventBus = new UiEventBus();
+  await useCases.scanDatabaseDirectoryUseCase.execute();
+
   const stateStore = new ExtensionStateStore();
   const userId = vscode.workspace.getConfiguration('taskDock').get<string>('userId', 'system');
   const myRecentTasksProvider = new MyRecentTasksProvider(appContainer.buildProjectTaskLoader(), userId);
