@@ -2,7 +2,7 @@ import { ERROR_CODES } from '../../errors/error-codes.js';
 import type { OsFileAccessChecker } from '../../ports/services/os-file-access-checker.js';
 
 export type DatabaseProfileReader = {
-  findById(profileId: string): Promise<{ profileId: string; mode: 'readWrite' | 'readOnly'; path: string } | null>;
+  findById(profileId: string): Promise<{ profileId: string; name: string; mode: 'readWrite' | 'readOnly'; path: string } | null>;
 };
 
 export type AuthStateReader = {
@@ -22,7 +22,7 @@ export class SwitchDatabaseProfileUseCase {
   ) {}
 
   public async execute(input: { profileId: string }): Promise<{
-    profileSummary: { profileId: string; path: string };
+    profileSummary: { profileId: string; name: string; path: string };
     connectionMode: 'readWrite' | 'readOnly';
     healthStatus: 'healthy' | 'degraded' | 'unreachable';
   }> {
@@ -42,7 +42,7 @@ export class SwitchDatabaseProfileUseCase {
 
     const healthStatus = await this.connectionHealthChecker.check(input.profileId);
     return {
-      profileSummary: { profileId: profile.profileId, path: profile.path },
+      profileSummary: { profileId: profile.profileId, name: profile.name, path: profile.path },
       connectionMode: profile.mode,
       healthStatus
     };

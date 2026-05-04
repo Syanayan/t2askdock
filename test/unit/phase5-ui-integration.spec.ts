@@ -16,7 +16,7 @@ describe('Phase5 UI integration', () => {
     const createTaskUseCase = { execute: vi.fn().mockResolvedValue({ id: 't1', title: 'task' }) };
     const switchDatabaseProfileUseCase = {
       execute: vi.fn().mockResolvedValue({
-        profileSummary: { profileId: 'main', path: '/tmp/main.db' },
+        profileSummary: { profileId: 'main', name: 'Main', path: '/tmp/main.db' },
         connectionMode: 'readOnly',
         healthStatus: 'degraded'
       })
