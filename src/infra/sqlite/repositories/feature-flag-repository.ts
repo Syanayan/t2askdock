@@ -1,4 +1,4 @@
-import type { SqliteClient } from '../sqlite-client.js';
+import type { ActiveClientHolder } from '../active-client-holder.js';
 
 export type FeatureFlagRecord = {
   flagKey: string;
@@ -10,10 +10,10 @@ export type FeatureFlagRecord = {
 };
 
 export class FeatureFlagRepository {
-  public constructor(private readonly client: SqliteClient) {}
+  public constructor(private readonly holder: ActiveClientHolder) {}
 
   public async upsert(record: FeatureFlagRecord): Promise<void> {
-    await this.client.run(
+    await this.holder.get().run(
       `INSERT INTO feature_flags(flag_key, enabled, scope_type, scope_id, updated_by, updated_at)
        VALUES (?, ?, ?, ?, ?, ?)
        ON CONFLICT(flag_key)

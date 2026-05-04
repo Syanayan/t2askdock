@@ -4,13 +4,13 @@ import type {
   CommentRepository as CommentRepositoryPort,
   CommentUpdate
 } from '../../../core/ports/repositories/comment-repository.js';
-import type { SqliteClient } from '../sqlite-client.js';
+import type { ActiveClientHolder } from '../active-client-holder.js';
 
 export class CommentRepository implements CommentRepositoryPort {
-  public constructor(private readonly client: SqliteClient) {}
+  public constructor(private readonly holder: ActiveClientHolder) {}
 
   public async create(comment: Comment): Promise<void> {
-    await this.client.run(
+    await this.holder.get().run(
       `INSERT INTO comments(comment_id, task_id, body, created_by, updated_by, created_at, updated_at, version, deleted_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
@@ -28,7 +28,7 @@ export class CommentRepository implements CommentRepositoryPort {
   }
 
   public async updateWithVersion(comment: CommentUpdate, expectedVersion: number): Promise<void> {
-    const result = await this.client.run(
+    const result = await this.holder.get().run(
       `UPDATE comments
        SET body = ?, updated_by = ?, updated_at = ?, version = version + 1
        WHERE comment_id = ? AND version = ? AND deleted_at IS NULL`,
@@ -41,7 +41,7 @@ export class CommentRepository implements CommentRepositoryPort {
   }
 
   public async softDelete(commentId: string, deletedAt: string, deletedBy: string, expectedVersion: number): Promise<void> {
-    const result = await this.client.run(
+    const result = await this.holder.get().run(
       `UPDATE comments
        SET deleted_at = ?, updated_by = ?, updated_at = ?, version = version + 1
        WHERE comment_id = ? AND version = ? AND deleted_at IS NULL`,
@@ -55,7 +55,7 @@ export class CommentRepository implements CommentRepositoryPort {
 
   public async findByTask(taskId: string, includeDeleted: boolean): Promise<ReadonlyArray<Comment['value']>> {
     const whereDeleted = includeDeleted ? '' : 'AND deleted_at IS NULL';
-    return this.client.all<Comment['value']>(
+    return this.holder.get().all<Comment['value']>(
       `SELECT comment_id AS commentId,
               task_id AS taskId,
               body,

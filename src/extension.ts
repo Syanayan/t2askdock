@@ -29,6 +29,7 @@ import type { Priority, TaskStatus } from './core/domain/entities/task.js';
 import { AiTaskCreator } from './infra/services/ai-task-creator.js';
 import { NodeOsFileAccessChecker } from './infra/node/node-os-file-access-checker.js';
 import { VscodeSecretStorageService } from './infra/vscode/vscode-secret-storage-service.js';
+import { ActiveClientHolder } from './infra/sqlite/active-client-holder.js';
 
 type BootstrapMigrationDependencies = {
   ensureDirectory: (dirPath: string) => Promise<void>;
@@ -87,12 +88,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   await bootstrapMigrations(context);
 
   const databasePath = vscode.Uri.joinPath(context.globalStorageUri, 'taskdock.sqlite3').fsPath;
-  const client = new BetterSqlite3Client(databasePath);
-  context.subscriptions.push({ dispose: () => client.close() });
+  const homeClient = new BetterSqlite3Client(databasePath);
+  const activeClientHolder = new ActiveClientHolder(homeClient);
+  context.subscriptions.push({ dispose: () => homeClient.close() });
 
   const idGenerator = new UlidIdGenerator();
   const seedNow = new Date().toISOString();
-  await client.run(
+  await homeClient.run(
     `INSERT OR IGNORE INTO users(user_id, display_name, role, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
     ['system', 'System', 'admin', 'active', seedNow, seedNow]
   );
@@ -101,18 +103,18 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const secretStorageService = new VscodeSecretStorageService(context.secrets);
 
   const appContainer = new AppContainer({
-    taskRepository: new TaskRepository(client),
-    commentRepository: new CommentRepository(client),
-    auditLogRepository: new AuditLogRepository(client),
-    transactionManager: new TransactionManager(client),
+    taskRepository: new TaskRepository(activeClientHolder),
+    commentRepository: new CommentRepository(activeClientHolder),
+    auditLogRepository: new AuditLogRepository(activeClientHolder),
+    transactionManager: new TransactionManager(activeClientHolder),
     idGenerator,
-    databaseProfileRepository: new DatabaseProfileRepository(client),
+    databaseProfileRepository: new DatabaseProfileRepository(homeClient),
     authStateReader: { isAuthenticated: () => true },
     connectionHealthChecker: { check: async () => 'healthy' },
     osFileAccessChecker: new NodeOsFileAccessChecker(),
     secretStorageService,
     uiEventBus: eventBus,
-    featureFlagRepository: new FeatureFlagRepository(client),
+    featureFlagRepository: new FeatureFlagRepository(activeClientHolder),
     backupSnapshotFactory: { createSnapshot: async () => ({ storagePath: '', checksum: '', sizeBytes: 0 }) },
     backupSnapshotRepository: {
       create: async () => ({ snapshotId: '' }),
@@ -128,7 +130,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }
   });
   const useCases = appContainer.buildUseCases();
-  const connectorSettingsRepository = new ConnectorSettingsRepository(client);
+  const connectorSettingsRepository = new ConnectorSettingsRepository(homeClient);
   const aiTaskCreator = new AiTaskCreator();
 
   await useCases.scanDatabaseDirectoryUseCase.execute();
@@ -462,7 +464,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         }
 
         const now = new Date().toISOString();
-        await client.run(
+        await homeClient.run(
           `INSERT OR IGNORE INTO projects(project_id, name, archived, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
           [projectId, projectId, 0, now, now]
         );
