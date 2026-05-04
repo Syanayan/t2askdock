@@ -144,6 +144,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     useCases.createTaskUseCase,
     useCases.switchDatabaseProfileUseCase,
     useCases.setReadOnlyModeUseCase,
+    activeClientHolder,
+    path => {
+      const nextClient = new BetterSqlite3Client(path);
+      context.subscriptions.push({ dispose: () => nextClient.close() });
+      return nextClient;
+    },
     stateStore,
     eventBus
   );
