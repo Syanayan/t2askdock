@@ -565,6 +565,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.commands.registerCommand(
       'taskDock.createTask',
       async (input?: { title?: string; projectId?: string; profileId?: string; parentTaskId?: string | null; status?: 'todo' | 'in_progress' | 'blocked' | 'done'; priority?: 'low' | 'medium' | 'high' | 'critical'; assignee?: string | null; dueDate?: string | null; tags?: string[] }) => {
+      const previousClient = activeClientHolder.get();
       try {
         const title = input?.title ?? (await vscode.window.showInputBox({ prompt: 'タスクタイトルを入力してください', ignoreFocusOut: true }));
         if (!title) {
@@ -577,11 +578,24 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         }
 
         const now = new Date().toISOString();
-        const targetClient = input?.profileId ? multiDbReadManager.getClient(input.profileId) ?? activeClientHolder.get() : activeClientHolder.get();
-        await targetClient.run(
+        const currentClient = activeClientHolder.get();
+        const targetClient = input?.profileId
+          ? multiDbReadManager.getClient(input.profileId)
+          : currentClient;
+        if (input?.profileId && !targetClient) {
+          void vscode.window.showErrorMessage('指定されたDBに接続できません。DB一覧を更新して再試行してください。');
+          return undefined;
+        }
+        const writeClient = targetClient ?? currentClient;
+        await writeClient.run(
           `INSERT OR IGNORE INTO projects(project_id, name, archived, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
           [projectId, projectId, 0, now, now]
         );
+
+        if (writeClient !== currentClient) {
+          activeClientHolder.switch(writeClient);
+        }
+
         const output = await commands['taskDock.createTask']({
           taskId: idGenerator.nextUlid(),
           projectId,
@@ -596,11 +610,19 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           actorId: 'system',
           now
         });
+
+        if (writeClient !== currentClient) {
+          activeClientHolder.switch(currentClient);
+        }
         eventBus.publish({ type: 'TASK_UPDATED', payload: { taskId: output.id } });
         return output;
       } catch (error) {
         void vscode.window.showErrorMessage(toUserFacingMessage(error));
         return undefined;
+      } finally {
+        if (activeClientHolder.get() !== previousClient) {
+          activeClientHolder.switch(previousClient);
+        }
       }
       }
     ),
