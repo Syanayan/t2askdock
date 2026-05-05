@@ -3,10 +3,12 @@ import type { Priority, TaskStatus } from '../../core/domain/entities/task.js';
 export type TaskTreeItem = {
   id: string;
   label: string;
-  kind: 'project' | 'task' | 'subtask';
+  kind: 'database' | 'project' | 'task' | 'subtask';
   status?: TaskStatus;
   priority?: Priority;
   projectId?: string;
+  profileId?: string;
+  available?: boolean;
   hasChildren: boolean;
 };
 
