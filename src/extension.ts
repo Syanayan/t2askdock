@@ -406,6 +406,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         }
         if (element.kind === 'project') {
           treeItem.command = { command: 'taskDock.openBoard', title: 'Open Board', arguments: [{ projectId: element.id }] };
+          treeItem.tooltip = `カテゴリ: ${element.label}`;
+          treeItem.description = element.projectId && element.projectId !== element.label ? element.projectId : treeItem.description;
           treeItem.contextValue = element.kind;
         }
         if (element.kind === 'task' || element.kind === 'subtask') {
@@ -567,22 +569,61 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       async (input?: { title?: string; projectId?: string; profileId?: string; parentTaskId?: string | null; status?: 'todo' | 'in_progress' | 'blocked' | 'done'; priority?: 'low' | 'medium' | 'high' | 'critical'; assignee?: string | null; dueDate?: string | null; tags?: string[] }) => {
       const previousClient = activeClientHolder.get();
       try {
-        const title = input?.title ?? (await vscode.window.showInputBox({ prompt: 'タスクタイトルを入力してください', ignoreFocusOut: true }));
-        if (!title) {
-          return undefined;
+        let profileId = input?.profileId;
+        if (!profileId) {
+          const profiles = multiDbReadManager.getProfiles().filter(profile => profile.available);
+          if (profiles.length === 0) {
+            void vscode.window.showErrorMessage('DBが登録されていません。まずDBをマウントしてください。');
+            return undefined;
+          }
+          const selectedProfile = await vscode.window.showQuickPick(
+            profiles.map(profile => ({
+              label: profile.name,
+              description: profile.path,
+              profileId: profile.profileId
+            })),
+            { title: 'タスクを作成するDBを選択', ignoreFocusOut: true }
+          );
+          if (!selectedProfile?.profileId) return undefined;
+          profileId = selectedProfile.profileId;
         }
-        const projectId =
-          input?.projectId ?? (await vscode.window.showInputBox({ prompt: 'プロジェクトIDを入力してください', ignoreFocusOut: true }));
+        let projectId = input?.projectId;
+        if (!projectId) {
+          const repo = multiDbReadManager.getRepo(profileId);
+          if (!repo) {
+            void vscode.window.showErrorMessage('指定されたDBに接続できません。DB一覧を更新して再試行してください。');
+            return undefined;
+          }
+          const projects = await repo.listProjects();
+          if (projects.length > 0) {
+            const selectedProject = await vscode.window.showQuickPick(
+              [
+                ...projects.map(project => ({ label: project.projectName, description: project.projectId, projectId: project.projectId })),
+                { label: '$(add) 新しいカテゴリを作成...', projectId: '__new__' }
+              ],
+              { title: 'カテゴリを選択', ignoreFocusOut: true }
+            );
+            if (!selectedProject) return undefined;
+            if (selectedProject.projectId !== '__new__') {
+              projectId = selectedProject.projectId;
+            }
+          }
+          if (!projectId) {
+            projectId = await vscode.window.showInputBox({ prompt: 'カテゴリIDを入力してください', ignoreFocusOut: true });
+          }
+        }
         if (!projectId) {
           return undefined;
         }
+        const title = input?.title ?? (await vscode.window.showInputBox({ prompt: 'タスクタイトルを入力してください', ignoreFocusOut: true }));
+        if (!title) return undefined;
 
         const now = new Date().toISOString();
         const currentClient = activeClientHolder.get();
-        const targetClient = input?.profileId
-          ? multiDbReadManager.getClient(input.profileId)
+        const targetClient = profileId
+          ? multiDbReadManager.getClient(profileId)
           : currentClient;
-        if (input?.profileId && !targetClient) {
+        if (profileId && !targetClient) {
           void vscode.window.showErrorMessage('指定されたDBに接続できません。DB一覧を更新して再試行してください。');
           return undefined;
         }
@@ -630,7 +671,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       try {
         const naturalLanguage = await vscode.window.showInputBox({ prompt: 'AIに作成させるタスク内容を入力してください', ignoreFocusOut: true });
         if (!naturalLanguage) return undefined;
-        const projectId = await vscode.window.showInputBox({ prompt: 'プロジェクトIDを入力してください', ignoreFocusOut: true });
+        const projectId = await vscode.window.showInputBox({ prompt: 'カテゴリIDを入力してください', ignoreFocusOut: true });
         if (!projectId) return undefined;
 
         const settings = await connectorSettingsRepository.findByConnectorAndProfile('ai', stateStore.getState().activeProfile ?? 'default');
@@ -669,6 +710,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         profileId: item.profileId,
         parentTaskId: item.id
       });
+    }),
+    vscode.commands.registerCommand('taskDock.createTaskInDb', async (item?: TaskTreeItem) => {
+      item = resolveSelectedItem(item);
+      if (!item || item.kind !== 'database' || !item.profileId) return;
+      await vscode.commands.executeCommand('taskDock.createTask', { profileId: item.profileId });
+    }),
+    vscode.commands.registerCommand('taskDock.createTaskInProject', async (item?: TaskTreeItem) => {
+      item = resolveSelectedItem(item);
+      if (!item || item.kind !== 'project' || !item.profileId) return;
+      await vscode.commands.executeCommand('taskDock.createTask', { profileId: item.profileId, projectId: item.projectId });
     }),
     vscode.commands.registerCommand('taskDock.openTaskDetail', async (item?: TaskTreeItem | { taskId?: string }) => {
       const taskId = item && 'taskId' in item && typeof item.taskId === 'string'

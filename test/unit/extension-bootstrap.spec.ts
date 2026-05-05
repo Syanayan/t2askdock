@@ -136,6 +136,8 @@ describe('extension bootstrapMigrations', () => {
     expect(registerCommand).toHaveBeenCalledWith('taskDock.registerDatabaseDirectory', expect.any(Function));
     expect(registerCommand).toHaveBeenCalledWith('taskDock.createDatabase', expect.any(Function));
     expect(registerCommand).toHaveBeenCalledWith('taskDock.createTask', expect.any(Function));
+    expect(registerCommand).toHaveBeenCalledWith('taskDock.createTaskInDb', expect.any(Function));
+    expect(registerCommand).toHaveBeenCalledWith('taskDock.createTaskInProject', expect.any(Function));
     expect(registerCommand).toHaveBeenCalledWith('taskDock.myRecentTasks.sortUpdated', expect.any(Function));
     expect(registerCommand).toHaveBeenCalledWith('taskDock.myRecentTasks.sortPriority', expect.any(Function));
     expect(registerCommand).toHaveBeenCalledWith('taskDock.myRecentTasks.sortDeadline', expect.any(Function));

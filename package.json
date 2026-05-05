@@ -61,6 +61,14 @@
         "title": "Task Dock: Create Task"
       },
       {
+        "command": "taskDock.createTaskInDb",
+        "title": "Task Dock: このDBにタスクを作成"
+      },
+      {
+        "command": "taskDock.createTaskInProject",
+        "title": "Task Dock: このカテゴリにタスクを作成"
+      },
+      {
         "command": "taskDock.createTaskFromAI",
         "title": "Task Dock: Create Task from AI"
       },
@@ -195,6 +203,16 @@
         {
           "command": "taskDock.createSubtask",
           "when": "(view == taskDock.myRecentTasks || view == taskDock.allProjects) && (viewItem == task || viewItem == subtask)",
+          "group": "navigation"
+        },
+        {
+          "command": "taskDock.createTaskInDb",
+          "when": "view == taskDock.allProjects && viewItem == database",
+          "group": "navigation"
+        },
+        {
+          "command": "taskDock.createTaskInProject",
+          "when": "view == taskDock.allProjects && viewItem == project",
           "group": "navigation"
         }
       ]
