@@ -30,6 +30,7 @@ import { AiTaskCreator } from './infra/services/ai-task-creator.js';
 import { NodeOsFileAccessChecker } from './infra/node/node-os-file-access-checker.js';
 import { VscodeSecretStorageService } from './infra/vscode/vscode-secret-storage-service.js';
 import { ActiveClientHolder } from './infra/sqlite/active-client-holder.js';
+import { MultiDbReadManager } from './infra/sqlite/multi-db-read-manager.js';
 import path from 'node:path';
 
 type BootstrapMigrationDependencies = {
@@ -107,6 +108,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const secretStorageService = new VscodeSecretStorageService(context.secrets);
 
   const databaseProfileRepository = new DatabaseProfileRepository(homeClient);
+  const osFileAccessChecker = new NodeOsFileAccessChecker();
+  const multiDbReadManager = new MultiDbReadManager(databaseProfileRepository, osFileAccessChecker);
+  await multiDbReadManager.refresh();
+  context.subscriptions.push({ dispose: () => multiDbReadManager.closeAll() });
   const appContainer = new AppContainer({
     taskRepository: new TaskRepository(activeClientHolder),
     commentRepository: new CommentRepository(activeClientHolder),
@@ -116,7 +121,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     databaseProfileRepository: databaseProfileRepository,
     authStateReader: { isAuthenticated: () => true },
     connectionHealthChecker: { check: async () => 'healthy' },
-    osFileAccessChecker: new NodeOsFileAccessChecker(),
+    osFileAccessChecker,
     secretStorageService,
     uiEventBus: eventBus,
     featureFlagRepository: new FeatureFlagRepository(activeClientHolder),
@@ -143,7 +148,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const stateStore = new ExtensionStateStore();
   const userId = vscode.workspace.getConfiguration('taskDock').get<string>('userId', 'system');
   const myRecentTasksProvider = new MyRecentTasksProvider(appContainer.buildProjectTaskLoader(), userId);
-  const allProjectsProvider = new AllProjectsProvider(appContainer.buildProjectTaskLoader());
+  const allProjectsProvider = new AllProjectsProvider(appContainer.buildProjectTaskLoader(), multiDbReadManager);
   const statusBarController = new StatusBarController(stateStore);
   const commandRegistry = new TaskDockCommandRegistry(
     useCases.createTaskUseCase,
@@ -291,12 +296,18 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const disposeModeChanged = eventBus.subscribe('MODE_CHANGED', refreshStatusBar);
   const disposeHealthChanged = eventBus.subscribe('CONNECTION_HEALTH_CHANGED', refreshStatusBar);
   const disposeProfileSwitchedReload = eventBus.subscribe('PROFILE_SWITCHED', async () => {
+    await multiDbReadManager.refresh();
     myRecentTasksProvider.refresh();
     allProjectsProvider.refresh();
     if (boardWebviewPanel) {
       const boardTasks = await fetchBoardTasks(currentBoardProjectId);
       boardPanel.render(boardWebviewPanel, boardTasks);
     }
+  });
+
+  const disposeDatabaseDirectoryReload = eventBus.subscribe('DATABASE_DIRECTORY_UPDATED', async () => {
+    await multiDbReadManager.refresh();
+    allProjectsProvider.refresh();
   });
 
   const disposeTaskUpdated = eventBus.subscribe('TASK_UPDATED', async () => {
@@ -324,6 +335,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           ? vscode.TreeItemCollapsibleState.Collapsed
           : vscode.TreeItemCollapsibleState.None;
         const treeItem = new vscode.TreeItem(element.label, collapsibleState);
+        if (element.kind === 'database') {
+          treeItem.iconPath = element.available
+            ? new vscode.ThemeIcon('database', new vscode.ThemeColor('charts.green'))
+            : new vscode.ThemeIcon('database', new vscode.ThemeColor('charts.gray'));
+          treeItem.description = element.available ? undefined : '(接続不可)';
+          treeItem.collapsibleState = element.available
+            ? vscode.TreeItemCollapsibleState.Collapsed
+            : vscode.TreeItemCollapsibleState.None;
+          treeItem.contextValue = 'database';
+        }
         if (element.status) {
           treeItem.description = `[${element.status}]`;
           const iconByPriority: Record<string, vscode.ThemeIcon> = {
@@ -357,6 +378,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           ? vscode.TreeItemCollapsibleState.Collapsed
           : vscode.TreeItemCollapsibleState.None;
         const treeItem = new vscode.TreeItem(element.label, collapsibleState);
+        if (element.kind === 'database') {
+          treeItem.iconPath = element.available
+            ? new vscode.ThemeIcon('database', new vscode.ThemeColor('charts.green'))
+            : new vscode.ThemeIcon('database', new vscode.ThemeColor('charts.gray'));
+          treeItem.description = element.available ? undefined : '(接続不可)';
+          treeItem.collapsibleState = element.available
+            ? vscode.TreeItemCollapsibleState.Collapsed
+            : vscode.TreeItemCollapsibleState.None;
+          treeItem.contextValue = 'database';
+        }
         if (element.status) {
           treeItem.description = `[${element.status}]`;
           const iconByPriority: Record<string, vscode.ThemeIcon> = {
@@ -398,6 +429,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     { dispose: disposeModeChanged },
     { dispose: disposeHealthChanged },
     { dispose: disposeProfileSwitchedReload },
+    { dispose: disposeDatabaseDirectoryReload },
     { dispose: disposeTaskUpdated },
     { dispose: disposeMyRecentTasksRefresh },
     { dispose: disposeAllProjectsRefresh },
@@ -532,7 +564,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     ),
     vscode.commands.registerCommand(
       'taskDock.createTask',
-      async (input?: { title?: string; projectId?: string; parentTaskId?: string | null; status?: 'todo' | 'in_progress' | 'blocked' | 'done'; priority?: 'low' | 'medium' | 'high' | 'critical'; assignee?: string | null; dueDate?: string | null; tags?: string[] }) => {
+      async (input?: { title?: string; projectId?: string; profileId?: string; parentTaskId?: string | null; status?: 'todo' | 'in_progress' | 'blocked' | 'done'; priority?: 'low' | 'medium' | 'high' | 'critical'; assignee?: string | null; dueDate?: string | null; tags?: string[] }) => {
+      const previousClient = activeClientHolder.get();
       try {
         const title = input?.title ?? (await vscode.window.showInputBox({ prompt: 'タスクタイトルを入力してください', ignoreFocusOut: true }));
         if (!title) {
@@ -545,10 +578,24 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         }
 
         const now = new Date().toISOString();
-        await homeClient.run(
+        const currentClient = activeClientHolder.get();
+        const targetClient = input?.profileId
+          ? multiDbReadManager.getClient(input.profileId)
+          : currentClient;
+        if (input?.profileId && !targetClient) {
+          void vscode.window.showErrorMessage('指定されたDBに接続できません。DB一覧を更新して再試行してください。');
+          return undefined;
+        }
+        const writeClient = targetClient ?? currentClient;
+        await writeClient.run(
           `INSERT OR IGNORE INTO projects(project_id, name, archived, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
           [projectId, projectId, 0, now, now]
         );
+
+        if (writeClient !== currentClient) {
+          activeClientHolder.switch(writeClient);
+        }
+
         const output = await commands['taskDock.createTask']({
           taskId: idGenerator.nextUlid(),
           projectId,
@@ -563,11 +610,19 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           actorId: 'system',
           now
         });
+
+        if (writeClient !== currentClient) {
+          activeClientHolder.switch(currentClient);
+        }
         eventBus.publish({ type: 'TASK_UPDATED', payload: { taskId: output.id } });
         return output;
       } catch (error) {
         void vscode.window.showErrorMessage(toUserFacingMessage(error));
         return undefined;
+      } finally {
+        if (activeClientHolder.get() !== previousClient) {
+          activeClientHolder.switch(previousClient);
+        }
       }
       }
     ),
@@ -611,6 +666,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       if (!item.projectId) return;
       await vscode.commands.executeCommand('taskDock.createTask', {
         projectId: item.projectId,
+        profileId: item.profileId,
         parentTaskId: item.id
       });
     }),

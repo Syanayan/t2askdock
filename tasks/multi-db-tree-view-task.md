@@ -32,7 +32,7 @@
 
 ## グループ A: 読み取り接続管理
 
-- [ ] **A-1 `MultiDbReadManager` を実装**
+- [x] **A-1 `MultiDbReadManager` を実装**
 
   **ファイル**: `src/infra/sqlite/multi-db-read-manager.ts`（新規作成）
 
@@ -67,7 +67,7 @@
     - 削除済みプロファイル → `client.close()` してマップから除去
     - ファイルが存在しない/アクセス不可 → `available: false` としてマップに登録しない
 
-- [ ] **A-2 `extension.ts` で `MultiDbReadManager` を初期化・DI**
+- [x] **A-2 `extension.ts` で `MultiDbReadManager` を初期化・DI**
 
   **ファイル**: `src/extension.ts`
 
@@ -83,7 +83,7 @@
 
 ## グループ B: ツリービュー UI 改修
 
-- [ ] **B-1 `TaskTreeItem` に `'database'` kind を追加**
+- [x] **B-1 `TaskTreeItem` に `'database'` kind を追加**
 
   **ファイル**: `src/ui/tree/task-tree-view-provider.ts`（既存）
 
@@ -99,7 +99,7 @@
   `profileId` フィールドを `'project'` / `'task'` / `'subtask'` にも追加し、
   どのDBのアイテムかを追跡できるようにする。
 
-- [ ] **B-2 `AllProjectsProvider` を DB レベル対応に改修**
+- [x] **B-2 `AllProjectsProvider` を DB レベル対応に改修**
 
   **ファイル**: `src/ui/tree/all-projects-provider.ts`（既存）
 
@@ -119,7 +119,7 @@
     → 既存のサブタスク取得ロジックを流用
   ```
 
-- [ ] **B-3 DB レベルのツリーアイテムにアイコン・状態表示を設定**
+- [x] **B-3 DB レベルのツリーアイテムにアイコン・状態表示を設定**
 
   **ファイル**: `src/extension.ts`（`getTreeItem` 内）
 
@@ -140,7 +140,7 @@
 
 ## グループ C: イベント連携・自動更新
 
-- [ ] **C-1 プロファイル変更時にツリーを自動更新**
+- [x] **C-1 プロファイル変更時にツリーを自動更新**
 
   **ファイル**: `src/extension.ts`
 
@@ -163,7 +163,7 @@
 
 ## グループ D: タスク作成の DB 指定
 
-- [ ] **D-1 `taskDock.createTask` に `profileId` を渡せるよう拡張**
+- [x] **D-1 `taskDock.createTask` に `profileId` を渡せるよう拡張**
 
   **ファイル**: `src/extension.ts`（`taskDock.createTask` コマンド）
 
@@ -174,7 +174,7 @@
   > 現在は `homeClient.run('INSERT OR IGNORE INTO projects ...')` で固定。
   > 切り替え先DBにプロジェクトを作る場合は対象クライアントを使う必要がある。
 
-- [ ] **D-2 ツリーのプロジェクトノード右クリックからタスク作成時に `profileId` を渡す**
+- [x] **D-2 ツリーのプロジェクトノード右クリックからタスク作成時に `profileId` を渡す**
 
   **ファイル**: `src/extension.ts`（`taskDock.createSubtask` 付近）
 
