@@ -22,7 +22,8 @@ export class MultiDbReadManager {
 
   public constructor(
     private readonly profileRepository: Pick<DatabaseProfileRepository, 'findAll'>,
-    private readonly osFileAccessChecker: Pick<OsFileAccessChecker, 'check'>
+    private readonly osFileAccessChecker: Pick<OsFileAccessChecker, 'check'>,
+    private readonly onConnect?: (client: BetterSqlite3Client) => Promise<void>
   ) {}
 
   public async refresh(): Promise<void> {
@@ -46,6 +47,9 @@ export class MultiDbReadManager {
       }
       if (!this.connections.has(profile.profileId)) {
         const client = new BetterSqlite3Client(profile.path);
+        if (this.onConnect) {
+          await this.onConnect(client);
+        }
         const repo = new TaskRepository(new ActiveClientHolder(client));
         this.connections.set(profile.profileId, { client, repo });
       }

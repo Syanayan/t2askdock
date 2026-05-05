@@ -109,7 +109,22 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   const databaseProfileRepository = new DatabaseProfileRepository(homeClient);
   const osFileAccessChecker = new NodeOsFileAccessChecker();
-  const multiDbReadManager = new MultiDbReadManager(databaseProfileRepository, osFileAccessChecker);
+  const initializeDbClient = async (client: BetterSqlite3Client): Promise<void> => {
+    const migrator = new Migrator({
+      client,
+      snapshot: async () => undefined,
+      restoreSnapshot: async () => undefined,
+      reconnectReadOnly: async () => undefined,
+      appendMigrationFailedAudit: async () => undefined
+    });
+    await migrator.migrate([{ version: 1, statements: INITIAL_MIGRATION_V1_SQL }, { version: 2, statements: MIGRATION_V2_SQL }, { version: 3, statements: MIGRATION_V3_SQL }]);
+    const now = new Date().toISOString();
+    await client.run(
+      `INSERT OR IGNORE INTO users(user_id, display_name, role, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
+      ['system', 'System', 'admin', 'active', now, now]
+    );
+  };
+  const multiDbReadManager = new MultiDbReadManager(databaseProfileRepository, osFileAccessChecker, initializeDbClient);
   await multiDbReadManager.refresh();
   context.subscriptions.push({ dispose: () => multiDbReadManager.closeAll() });
   const appContainer = new AppContainer({
@@ -548,7 +563,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
       const name = await vscode.window.showInputBox({ prompt: 'このDBの表示名を入力してください', value: path.basename(dbPath), ignoreFocusOut: true });
       if (!name) return;
-      try { await useCases.mountDatabaseUseCase.execute({ path: dbPath, name, mode: 'readWrite', actorRole: 'admin' }); void vscode.window.showInformationMessage(`DB \"${name}\" をマウントしました`); } catch (error) { void vscode.window.showErrorMessage(toUserFacingMessage(error)); }
+      try {
+        await useCases.mountDatabaseUseCase.execute({ path: dbPath, name, mode: 'readWrite', actorRole: 'admin' });
+        const mountedClient = new BetterSqlite3Client(dbPath);
+        try {
+          await initializeDbClient(mountedClient);
+        } finally {
+          mountedClient.close();
+        }
+        void vscode.window.showInformationMessage(`DB "${name}" をマウントしました`);
+      } catch (error) { void vscode.window.showErrorMessage(toUserFacingMessage(error)); }
     }),
     vscode.commands.registerCommand('taskDock.registerDatabaseDirectory', async () => {
       const uris = await vscode.window.showOpenDialog({ canSelectFiles: false, canSelectFolders: true, canSelectMany: false, title: 'SQLite ファイルを含むフォルダを選択' });
