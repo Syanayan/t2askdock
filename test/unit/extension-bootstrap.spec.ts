@@ -15,13 +15,25 @@ vi.mock('vscode', () => ({
     showInputBox: vi.fn(),
     showErrorMessage: vi.fn(),
     showQuickPick: vi.fn(),
+    showSaveDialog: vi.fn(),
     showOpenDialog: vi.fn(),
+    createQuickPick: vi.fn(() => ({
+      items: [],
+      selectedItems: [],
+      title: '',
+      show: vi.fn(),
+      hide: vi.fn(),
+      dispose: vi.fn(),
+      onDidAccept: vi.fn(() => ({ dispose: vi.fn() })),
+      onDidHide: vi.fn(() => ({ dispose: vi.fn() })),
+      onDidTriggerItemButton: vi.fn(() => ({ dispose: vi.fn() }))
+    })),
     registerTreeDataProvider: vi.fn(),
     createTreeView: vi.fn(() => ({ selection: [], dispose: vi.fn() })),
     createStatusBarItem: vi.fn(() => ({ show: vi.fn(), dispose: vi.fn() })),
     createWebviewPanel: vi.fn(() => ({ webview: { html: '' }, title: '' }))
   },
-  workspace: { fs: { createDirectory: vi.fn() }, getConfiguration: vi.fn(() => ({ get: vi.fn(() => 'system') })) },
+  workspace: { fs: { createDirectory: vi.fn(), writeFile: vi.fn() }, getConfiguration: vi.fn(() => ({ get: vi.fn(() => 'system') })) },
   StatusBarAlignment: { Left: 1, Right: 2 },
   ViewColumn: { One: 1 },
   TreeItemCollapsibleState: { None: 0, Collapsed: 1 },
@@ -122,6 +134,7 @@ describe('extension bootstrapMigrations', () => {
     expect(registerCommand).toHaveBeenCalledWith('taskDock.toggleReadOnly', expect.any(Function));
     expect(registerCommand).toHaveBeenCalledWith('taskDock.mountDatabase', expect.any(Function));
     expect(registerCommand).toHaveBeenCalledWith('taskDock.registerDatabaseDirectory', expect.any(Function));
+    expect(registerCommand).toHaveBeenCalledWith('taskDock.createDatabase', expect.any(Function));
     expect(registerCommand).toHaveBeenCalledWith('taskDock.createTask', expect.any(Function));
     expect(registerCommand).toHaveBeenCalledWith('taskDock.myRecentTasks.sortUpdated', expect.any(Function));
     expect(registerCommand).toHaveBeenCalledWith('taskDock.myRecentTasks.sortPriority', expect.any(Function));

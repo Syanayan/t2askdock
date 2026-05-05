@@ -29,7 +29,7 @@ export type Infrastructure = {
   transactionManager: TransactionManager;
   idGenerator: IdGenerator;
   databaseProfileRepository: {
-    findById(profileId: string): Promise<{ profileId: string; mode: 'readWrite' | 'readOnly'; path: string } | null>;
+    findById(profileId: string): Promise<{ profileId: string; name: string; mode: 'readWrite' | 'readOnly'; path: string } | null>;
     findAll(): Promise<Array<{ path: string; mountSource: 'individual' | 'directory'; accessAllowed: boolean }>>;
     save(input: unknown): Promise<void>;
     delete(profileId: string): Promise<void>;
