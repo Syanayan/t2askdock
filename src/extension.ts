@@ -57,7 +57,7 @@ function toUserFacingMessage(error: unknown): string {
     [ERROR_CODES.KEY_EXPIRED]: 'アクセスキーの有効期限が切れています。再発行してください。',
     [ERROR_CODES.PERMISSION_DENIED]: 'この操作を実行する権限がありません。',
     [ERROR_CODES.READ_ONLY_MODE]: '現在は読み取り専用モードのため、更新できません。',
-    [ERROR_CODES.VALIDATION_FAILED]: '入力内容が不正です。タイトルやプロジェクトIDを確認してください。',
+    [ERROR_CODES.VALIDATION_FAILED]: '入力内容が不正です。タイトルやカテゴリIDを確認してください。',
     [ERROR_CODES.FILE_NOT_FOUND]: 'DBファイルが見つかりません。パスを確認してください。',
     [ERROR_CODES.ACCESS_DENIED]: 'DBファイルへのアクセスが拒否されました。ファイル権限を確認してください。',
     [ERROR_CODES.FORBIDDEN]: 'この操作には管理者権限が必要です。',
