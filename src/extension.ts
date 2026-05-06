@@ -185,6 +185,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   );
   const projectTaskLoader = appContainer.buildProjectTaskLoader();
   let currentBoardProjectId: string | undefined;
+  let currentBoardProfileId: string | undefined;
   type BoardTask = {
     taskId: string;
     projectId: string;
@@ -261,6 +262,20 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     ).flat();
   };
   const taskOperator = appContainer.buildTaskOperator();
+  const withProfileClient = async <T>(profileId: string | undefined, fn: () => Promise<T>): Promise<T> => {
+    const targetClient = profileId ? multiDbReadManager.getClient(profileId) : undefined;
+    const currentClient = activeClientHolder.get();
+    if (targetClient && targetClient !== currentClient) {
+      activeClientHolder.switch(targetClient);
+    }
+    try {
+      return await fn();
+    } finally {
+      if (targetClient && targetClient !== currentClient && activeClientHolder.get() === targetClient) {
+        activeClientHolder.switch(currentClient);
+      }
+    }
+  };
   const tableLoader = appContainer.buildTaskTreeLoader();
   let boardWebviewPanel: vscode.WebviewPanel | undefined;
   const tablePanel = new TaskTableWebviewPanel(
@@ -315,7 +330,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     myRecentTasksProvider.refresh();
     allProjectsProvider.refresh();
     if (boardWebviewPanel) {
-      const boardTasks = await fetchBoardTasks(currentBoardProjectId);
+      const boardTasks = await withProfileClient(currentBoardProfileId, () => fetchBoardTasks(currentBoardProjectId));
       boardPanel.render(boardWebviewPanel, boardTasks);
     }
   });
@@ -330,7 +345,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     allProjectsProvider.refresh();
     if (boardWebviewPanel) {
       try {
-        const boardTasks = await fetchBoardTasks(currentBoardProjectId);
+        const boardTasks = await withProfileClient(currentBoardProfileId, () => fetchBoardTasks(currentBoardProjectId));
         boardPanel.render(boardWebviewPanel, boardTasks);
       } catch (error) {
         void vscode.window.showErrorMessage(toUserFacingMessage(error));
@@ -402,6 +417,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             ? vscode.TreeItemCollapsibleState.Collapsed
             : vscode.TreeItemCollapsibleState.None;
           treeItem.contextValue = 'database';
+          if (element.available) {
+            treeItem.command = { command: 'taskDock.openDbTable', title: 'Open Table', arguments: [element] };
+          }
         }
         if (element.status) {
           treeItem.description = `[${element.status}]`;
@@ -420,7 +438,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           treeItem.iconPath = iconByStatus[element.status] ?? (element.priority && iconByPriority[element.priority]) ?? new vscode.ThemeIcon('circle-outline');
         }
         if (element.kind === 'project') {
-          treeItem.command = { command: 'taskDock.openBoard', title: 'Open Board', arguments: [{ projectId: element.id }] };
+          treeItem.command = { command: 'taskDock.openBoard', title: 'Open Board', arguments: [{ projectId: element.id, profileId: element.profileId }] };
           treeItem.tooltip = `カテゴリ: ${element.label}`;
           treeItem.description = element.projectId && element.projectId !== element.label ? element.projectId : treeItem.description;
           treeItem.contextValue = element.kind;
@@ -472,9 +490,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       allProjectsProvider.toggleDone();
       await vscode.commands.executeCommand('setContext', 'taskDock.showDone', allProjectsProvider.isShowingDone());
     }),
-    vscode.commands.registerCommand('taskDock.openBoard', async (input: { projectId?: string } = {}) => {
+    vscode.commands.registerCommand('taskDock.openBoard', async (input: { projectId?: string; profileId?: string } = {}) => {
       currentBoardProjectId = input.projectId;
-      const boardTasks = await fetchBoardTasks(currentBoardProjectId);
+      currentBoardProfileId = input.profileId;
+      const boardTasks = await withProfileClient(currentBoardProfileId, () => fetchBoardTasks(currentBoardProjectId));
       if (!boardWebviewPanel) {
         boardWebviewPanel = vscode.window.createWebviewPanel(
           BoardWebviewPanel.VIEW_TYPE,
@@ -484,7 +503,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         );
         boardWebviewPanel.onDidChangeViewState(({ webviewPanel }) => {
           if (webviewPanel.active && boardWebviewPanel) {
-            void fetchBoardTasks(currentBoardProjectId)
+            void withProfileClient(currentBoardProfileId, () => fetchBoardTasks(currentBoardProjectId))
               .then(tasks => {
                 boardPanel.render(boardWebviewPanel!, tasks);
               })
@@ -495,6 +514,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         });
         boardWebviewPanel.onDidDispose(() => {
           boardWebviewPanel = undefined;
+          currentBoardProfileId = undefined;
         });
       } else {
         boardWebviewPanel.reveal(vscode.ViewColumn.One);
@@ -754,14 +774,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             return selected.id;
           })();
       if (!taskId) return;
+      const profileId = item && 'profileId' in item ? (item as TaskTreeItem).profileId : undefined;
+      const run = <T>(fn: () => Promise<T>) => withProfileClient(profileId, fn);
       const panel = vscode.window.createWebviewPanel('taskDock.taskDetail', 'Task Detail', vscode.ViewColumn.Active, { enableScripts: true });
       const detailPanel = new TaskDetailWebviewPanel(
-        (id) => appContainer.buildTaskOperator().findDetailById(id),
-        (parentId) => appContainer.buildProjectTaskLoader().listSubtasksByParent(parentId),
-        (id) => useCases.listTaskCommentsUseCase.execute({ taskId: id }),
-        useCases.updateTaskUseCase,
-        useCases.moveTaskStatusUseCase,
-        useCases.addTaskCommentUseCase,
+        (id) => run(() => appContainer.buildTaskOperator().findDetailById(id)),
+        (parentId) => run(() => appContainer.buildProjectTaskLoader().listSubtasksByParent(parentId)),
+        (id) => run(() => useCases.listTaskCommentsUseCase.execute({ taskId: id })),
+        { execute: (input) => run(() => useCases.updateTaskUseCase.execute(input)) } as Pick<typeof useCases.updateTaskUseCase, 'execute'>,
+        { execute: (input) => run(() => useCases.moveTaskStatusUseCase.execute(input)) } as Pick<typeof useCases.moveTaskStatusUseCase, 'execute'>,
+        { execute: (input) => run(() => useCases.addTaskCommentUseCase.execute(input)) } as Pick<typeof useCases.addTaskCommentUseCase, 'execute'>,
         async (cmd, args) => vscode.commands.executeCommand(cmd, args)
       );
       await detailPanel.render(panel, taskId);

@@ -17,9 +17,9 @@ export class TaskDetailWebviewPanel {
     private readonly findDetailById: (taskId: string) => Promise<TaskDetail | null>,
     private readonly listSubtasks: (parentTaskId: string) => Promise<SubtaskItem[]>,
     private readonly listComments: (taskId: string) => Promise<ReadonlyArray<CommentRow>>,
-    private readonly updateTaskUseCase: UpdateTaskUseCase,
-    private readonly moveTaskStatusUseCase: MoveTaskStatusUseCase,
-    private readonly addCommentUseCase: AddTaskCommentUseCase,
+    private readonly updateTaskUseCase: Pick<UpdateTaskUseCase, 'execute'>,
+    private readonly moveTaskStatusUseCase: Pick<MoveTaskStatusUseCase, 'execute'>,
+    private readonly addCommentUseCase: Pick<AddTaskCommentUseCase, 'execute'>,
     private readonly executeCommand: (cmd: string, args?: unknown) => Promise<unknown>
   ) {}
 
