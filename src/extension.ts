@@ -180,6 +180,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   );
   let currentBoardProjectId: string | undefined;
   let currentBoardProfileId: string | undefined;
+  let currentBoardProjectName: string | undefined;
   const boardPanel = new BoardWebviewPanel(
     {
       execute: (input) => withProfileClient(currentBoardProfileId, () => useCases.moveTaskStatusUseCase.execute(input))
@@ -285,22 +286,32 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   };
   const tableLoader = appContainer.buildTaskTreeLoader();
   let boardWebviewPanel: vscode.WebviewPanel | undefined;
-  const createTablePanel = (profileId?: string): TaskTableWebviewPanel => new TaskTableWebviewPanel(
-    { execute: (input) => withProfileClient(profileId, () => useCases.moveTaskStatusUseCase.execute(input)) },
-    { execute: (input) => withProfileClient(profileId, () => useCases.updateTaskUseCase.execute(input)) },
-    async () => withProfileClient(profileId, async () => {
-      const projects = await tableLoader.listProjects();
-      const roots = await Promise.all(projects.map(async (project) => {
-        const nodes = await tableLoader.listTasksWithDetail(project.projectId);
-        return nodes.map(node => ({ ...node, projectId: project.projectId }));
-      }));
-      return roots.flat();
-    }),
-    (taskId) => withProfileClient(profileId, () => taskOperator.findDetailById(taskId)),
-    async (taskId) => {
-      await vscode.commands.executeCommand('taskDock.openTaskDetail', { kind: 'task', id: taskId, label: taskId, hasChildren: false, profileId });
-    }
-  );
+  const createTablePanel = (profileId?: string, panelTitle?: string): TaskTableWebviewPanel => {
+    const loader = (profileId ? multiDbReadManager.getRepo(profileId) : undefined) ?? tableLoader;
+    return new TaskTableWebviewPanel(
+      { execute: (input) => withProfileClient(profileId, () => useCases.moveTaskStatusUseCase.execute(input)) },
+      { execute: (input) => withProfileClient(profileId, () => useCases.updateTaskUseCase.execute(input)) },
+      async () => {
+        const projects = await loader.listProjects();
+        const groups = await Promise.all(projects.map(async (project) => {
+          const nodes = await loader.listTasksWithDetail(project.projectId);
+          if (nodes.length === 0) {
+            return [{ taskId: `__empty__${project.projectId}`, title: '', projectId: project.projectId, projectName: project.projectName, status: 'todo' as const, priority: 'low' as const, assignee: null, progress: 0, version: 0, children: [] }];
+          }
+          return nodes.map(node => ({ ...node, projectId: project.projectId, projectName: project.projectName }));
+        }));
+        return groups.flat();
+      },
+      (taskId) => withProfileClient(profileId, () => taskOperator.findDetailById(taskId)),
+      async (taskId) => {
+        await vscode.commands.executeCommand('taskDock.openTaskDetail', { kind: 'task', id: taskId, label: taskId, hasChildren: false, profileId });
+      },
+      async (projectId, projectName) => {
+        await vscode.commands.executeCommand('taskDock.openBoard', { projectId, profileId, projectName });
+      },
+      panelTitle
+    );
+  };
   const commands = commandRegistry.register();
   const switchActiveDatabaseProfile = async (profileId: string) => {
     const output = await commands['taskDock.selectDatabase']({ profileId });
@@ -338,7 +349,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     allProjectsProvider.refresh();
     if (boardWebviewPanel) {
       const boardTasks = await withProfileClient(currentBoardProfileId, () => fetchBoardTasks(currentBoardProjectId));
-      boardPanel.render(boardWebviewPanel, boardTasks);
+      boardPanel.render(boardWebviewPanel, boardTasks, currentBoardProjectName);
     }
   });
 
@@ -353,7 +364,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     if (boardWebviewPanel) {
       try {
         const boardTasks = await withProfileClient(currentBoardProfileId, () => fetchBoardTasks(currentBoardProjectId));
-        boardPanel.render(boardWebviewPanel, boardTasks);
+        boardPanel.render(boardWebviewPanel, boardTasks, currentBoardProjectName);
       } catch (error) {
         void vscode.window.showErrorMessage(toUserFacingMessage(error));
       }
@@ -445,7 +456,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           treeItem.iconPath = iconByStatus[element.status] ?? (element.priority && iconByPriority[element.priority]) ?? new vscode.ThemeIcon('circle-outline');
         }
         if (element.kind === 'project') {
-          treeItem.command = { command: 'taskDock.openBoard', title: 'Open Board', arguments: [{ projectId: element.id, profileId: element.profileId }] };
+          treeItem.command = { command: 'taskDock.openBoard', title: 'Open Board', arguments: [{ projectId: element.id, profileId: element.profileId, projectName: String(element.label) }] };
           treeItem.tooltip = `カテゴリ: ${element.label}`;
           treeItem.description = element.projectId && element.projectId !== element.label ? element.projectId : treeItem.description;
           treeItem.contextValue = element.kind;
@@ -497,9 +508,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       allProjectsProvider.toggleDone();
       await vscode.commands.executeCommand('setContext', 'taskDock.showDone', allProjectsProvider.isShowingDone());
     }),
-    vscode.commands.registerCommand('taskDock.openBoard', async (input: { projectId?: string; profileId?: string } = {}) => {
+    vscode.commands.registerCommand('taskDock.openBoard', async (input: { projectId?: string; profileId?: string; projectName?: string } = {}) => {
       currentBoardProjectId = input.projectId;
       currentBoardProfileId = input.profileId;
+      currentBoardProjectName = input.projectName;
       const boardTasks = await withProfileClient(currentBoardProfileId, () => fetchBoardTasks(currentBoardProjectId));
       if (!boardWebviewPanel) {
         boardWebviewPanel = vscode.window.createWebviewPanel(
@@ -512,7 +524,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           if (webviewPanel.active && boardWebviewPanel) {
             void withProfileClient(currentBoardProfileId, () => fetchBoardTasks(currentBoardProjectId))
               .then(tasks => {
-                boardPanel.render(boardWebviewPanel!, tasks);
+                boardPanel.render(boardWebviewPanel!, tasks, currentBoardProjectName);
               })
               .catch(error => {
                 void vscode.window.showErrorMessage(toUserFacingMessage(error));
@@ -527,7 +539,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         boardWebviewPanel.reveal(vscode.ViewColumn.One);
       }
 
-      boardPanel.render(boardWebviewPanel, boardTasks);
+      boardPanel.render(boardWebviewPanel, boardTasks, currentBoardProjectName);
       return commands['taskDock.openBoard']();
     }),
     vscode.commands.registerCommand('taskDock.openTable', async () => {
@@ -549,7 +561,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           vscode.ViewColumn.One,
           { enableScripts: true }
         );
-        await createTablePanel(item.profileId).render(webviewPanel);
+        await createTablePanel(item.profileId, String(item.label)).render(webviewPanel);
       } catch (error) {
         void vscode.window.showErrorMessage(toUserFacingMessage(error));
       }
@@ -612,6 +624,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         } finally {
           mountedClient.close();
         }
+        await multiDbReadManager.refresh();
+        allProjectsProvider.refresh();
         void vscode.window.showInformationMessage(`DB "${name}" をマウントしました`);
       } catch (error) { void vscode.window.showErrorMessage(toUserFacingMessage(error)); }
     }),
