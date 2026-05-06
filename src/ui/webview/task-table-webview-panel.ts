@@ -10,8 +10,8 @@ export class TaskTableWebviewPanel {
   public static readonly VIEW_TYPE = 'taskDock.tableView';
 
   public constructor(
-    private readonly moveTaskStatusUseCase: MoveTaskStatusUseCase,
-    private readonly updateTaskUseCase: UpdateTaskUseCase,
+    private readonly moveTaskStatusUseCase: Pick<MoveTaskStatusUseCase, 'execute'>,
+    private readonly updateTaskUseCase: Pick<UpdateTaskUseCase, 'execute'>,
     private readonly loadTree: () => Promise<TableTaskNode[]>,
     private readonly findTaskDetailById: (taskId: string) => Promise<TaskDetail | null>,
     private readonly openTaskDetail: (taskId: string) => Promise<void>

@@ -26,7 +26,7 @@ export class BoardWebviewPanel {
   private messageListenerDisposable: vscode.Disposable | undefined;
 
   public constructor(
-    private readonly moveTaskStatusUseCase: MoveTaskStatusUseCase,
+    private readonly moveTaskStatusUseCase: Pick<MoveTaskStatusUseCase, 'execute'>,
     private readonly eventBus: UiEventBus,
     private readonly executeCommand: (command: string, args?: WebviewCommandArgs) => Promise<unknown> = async () => undefined
   ) {}

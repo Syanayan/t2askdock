@@ -178,14 +178,21 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     stateStore,
     eventBus
   );
-  const boardPanel = new BoardWebviewPanel(
-    useCases.moveTaskStatusUseCase,
-    eventBus,
-    async (command, args) => vscode.commands.executeCommand(command, args)
-  );
-  const projectTaskLoader = appContainer.buildProjectTaskLoader();
   let currentBoardProjectId: string | undefined;
   let currentBoardProfileId: string | undefined;
+  const boardPanel = new BoardWebviewPanel(
+    {
+      execute: (input) => withProfileClient(currentBoardProfileId, () => useCases.moveTaskStatusUseCase.execute(input))
+    },
+    eventBus,
+    async (command, args) => {
+      if ((command === 'taskDock.openTaskDetail' || command === 'taskDock.createTask') && currentBoardProfileId) {
+        return vscode.commands.executeCommand(command, { ...(args as Record<string, unknown>), profileId: currentBoardProfileId });
+      }
+      return vscode.commands.executeCommand(command, args);
+    }
+  );
+  const projectTaskLoader = appContainer.buildProjectTaskLoader();
   type BoardTask = {
     taskId: string;
     projectId: string;
@@ -278,20 +285,20 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   };
   const tableLoader = appContainer.buildTaskTreeLoader();
   let boardWebviewPanel: vscode.WebviewPanel | undefined;
-  const tablePanel = new TaskTableWebviewPanel(
-    useCases.moveTaskStatusUseCase,
-    useCases.updateTaskUseCase,
-    async () => {
+  const createTablePanel = (profileId?: string): TaskTableWebviewPanel => new TaskTableWebviewPanel(
+    { execute: (input) => withProfileClient(profileId, () => useCases.moveTaskStatusUseCase.execute(input)) },
+    { execute: (input) => withProfileClient(profileId, () => useCases.updateTaskUseCase.execute(input)) },
+    async () => withProfileClient(profileId, async () => {
       const projects = await tableLoader.listProjects();
       const roots = await Promise.all(projects.map(async (project) => {
         const nodes = await tableLoader.listTasksWithDetail(project.projectId);
         return nodes.map(node => ({ ...node, projectId: project.projectId }));
       }));
       return roots.flat();
-    },
-    (taskId) => taskOperator.findDetailById(taskId),
+    }),
+    (taskId) => withProfileClient(profileId, () => taskOperator.findDetailById(taskId)),
     async (taskId) => {
-      await vscode.commands.executeCommand('taskDock.openTaskDetail', { kind: 'task', id: taskId, label: taskId, hasChildren: false });
+      await vscode.commands.executeCommand('taskDock.openTaskDetail', { kind: 'task', id: taskId, label: taskId, hasChildren: false, profileId });
     }
   );
   const commands = commandRegistry.register();
@@ -530,17 +537,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         vscode.ViewColumn.One,
         { enableScripts: true }
       );
-      await tablePanel.render(webviewPanel);
+      await createTablePanel().render(webviewPanel);
       return { viewId: 'taskDock.tableView' as const };
     }),
     vscode.commands.registerCommand('taskDock.openDbTable', async (item?: TaskTreeItem) => {
       if (!item || item.kind !== 'database' || !item.profileId || !item.available) return;
-      const targetClient = multiDbReadManager.getClient(item.profileId);
-      if (!targetClient) return;
-      const previousClient = activeClientHolder.get();
-      if (targetClient !== previousClient) {
-        activeClientHolder.switch(targetClient);
-      }
       try {
         const webviewPanel = vscode.window.createWebviewPanel(
           TaskTableWebviewPanel.VIEW_TYPE,
@@ -548,16 +549,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           vscode.ViewColumn.One,
           { enableScripts: true }
         );
-        webviewPanel.onDidDispose(() => {
-          if (targetClient !== previousClient && activeClientHolder.get() === targetClient) {
-            activeClientHolder.switch(previousClient);
-          }
-        });
-        await tablePanel.render(webviewPanel);
+        await createTablePanel(item.profileId).render(webviewPanel);
       } catch (error) {
-        if (targetClient !== previousClient && activeClientHolder.get() === targetClient) {
-          activeClientHolder.switch(previousClient);
-        }
         void vscode.window.showErrorMessage(toUserFacingMessage(error));
       }
     }),
@@ -812,7 +805,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         { execute: (input) => run(() => useCases.updateTaskUseCase.execute(input)) } as Pick<typeof useCases.updateTaskUseCase, 'execute'>,
         { execute: (input) => run(() => useCases.moveTaskStatusUseCase.execute(input)) } as Pick<typeof useCases.moveTaskStatusUseCase, 'execute'>,
         { execute: (input) => run(() => useCases.addTaskCommentUseCase.execute(input)) } as Pick<typeof useCases.addTaskCommentUseCase, 'execute'>,
-        async (cmd, args) => vscode.commands.executeCommand(cmd, args)
+        async (cmd, args) => {
+          if ((cmd === 'taskDock.createSubtask' || cmd === 'taskDock.openTaskDetail') && profileId) {
+            return vscode.commands.executeCommand(cmd, { ...(args as Record<string, unknown>), profileId });
+          }
+          return vscode.commands.executeCommand(cmd, args);
+        }
       );
       await detailPanel.render(panel, taskId);
     }),
