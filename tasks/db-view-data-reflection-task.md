@@ -14,7 +14,7 @@
 
 ### A: ボードからのタスク詳細表示に `profileId` を渡す
 
-**状態**: [ ] 未着手
+**状態**: [x] 完了
 
 **問題**:
 `BoardWebviewPanel` がカードクリック時に `taskDock.openTaskDetail` を呼ぶが `profileId` を含まない。
@@ -44,7 +44,7 @@ async (command, args) => {
 
 ### B: ボード上のステータス変更を正しいDBに反映する
 
-**状態**: [ ] 未着手
+**状態**: [x] 完了
 
 **問題**:
 `BoardWebviewPanel` のドラッグ&ドロップ時に `this.moveTaskStatusUseCase.execute()` を直接呼ぶが、このユースケースは `activeClientHolder` の現在のクライアントを参照する。ボードが別DBを表示中でも、デフォルトDBへの書き込みが発生する。
@@ -75,7 +75,7 @@ const boardPanel = new BoardWebviewPanel(
 
 ### C: ボードからのタスク作成に `profileId` を渡す
 
-**状態**: [ ] 未着手
+**状態**: [x] 完了
 
 **問題**:
 `BoardWebviewPanel` がカード作成時に `taskDock.createTask` を呼ぶが `profileId` を含まない。
@@ -110,7 +110,7 @@ async (command, args) => {
 
 ### D: 複数のDBテーブルパネルが同時に開くと競合する
 
-**状態**: [ ] 未着手
+**状態**: [x] 完了
 
 **問題**:
 `taskDock.openDbTable` は `activeClientHolder.switch()` でグローバルなクライアントを切り替える。
@@ -147,7 +147,7 @@ await panel.render(webviewPanel);
 
 ### E: タスク詳細画面からサブタスク作成時に `profileId` を引き継ぐ
 
-**状態**: [ ] 未着手
+**状態**: [x] 完了
 
 **問題**:
 `TaskDetailWebviewPanel` が `executeCommand` を呼ぶ際、サブタスク作成コマンドに `profileId` を渡していない。
@@ -196,8 +196,8 @@ const detailPanel = new TaskDetailWebviewPanel(
 
 ## 完了条件
 
-- [ ] A: あるDBのボードを開いた状態でカードをクリックすると、同じDBのタスク詳細が表示される
-- [ ] B: ボード上でカードをドラッグ&ドロップすると、表示中のDBのタスクステータスが変わる
-- [ ] C: ボードの「タスク追加」ボタンから作成したタスクが、表示中のDBのカテゴリに作成される
-- [ ] D: 2つ以上のDBテーブルパネルを同時に開いても、それぞれ独立したDBのデータを表示する
-- [ ] E: タスク詳細画面の「サブタスク作成」から作成したサブタスクが、同じDBに保存される
+- [x] A: あるDBのボードを開いた状態でカードをクリックすると、同じDBのタスク詳細が表示される
+- [x] B: ボード上でカードをドラッグ&ドロップすると、表示中のDBのタスクステータスが変わる
+- [x] C: ボードの「タスク追加」ボタンから作成したタスクが、表示中のDBのカテゴリに作成される
+- [x] D: 2つ以上のDBテーブルパネルを同時に開いても、それぞれ独立したDBのデータを表示する
+- [x] E: タスク詳細画面の「サブタスク作成」から作成したサブタスクが、同じDBに保存される

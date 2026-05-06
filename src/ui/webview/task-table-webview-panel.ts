@@ -4,25 +4,29 @@ import type { UpdateTaskUseCase } from '../../core/usecase/update-task-usecase.j
 import type { TaskDetail, TaskTreeNode } from '../../core/ports/repositories/task-repository.js';
 import type * as vscode from 'vscode';
 
-type TableTaskNode = TaskTreeNode & { projectId: string };
+type TableTaskNode = TaskTreeNode & { projectId: string; projectName?: string };
 
 export class TaskTableWebviewPanel {
   public static readonly VIEW_TYPE = 'taskDock.tableView';
 
   public constructor(
-    private readonly moveTaskStatusUseCase: MoveTaskStatusUseCase,
-    private readonly updateTaskUseCase: UpdateTaskUseCase,
+    private readonly moveTaskStatusUseCase: Pick<MoveTaskStatusUseCase, 'execute'>,
+    private readonly updateTaskUseCase: Pick<UpdateTaskUseCase, 'execute'>,
     private readonly loadTree: () => Promise<TableTaskNode[]>,
     private readonly findTaskDetailById: (taskId: string) => Promise<TaskDetail | null>,
-    private readonly openTaskDetail: (taskId: string) => Promise<void>
+    private readonly openTaskDetail: (taskId: string) => Promise<void>,
+    private readonly openProject?: (projectId: string, projectName?: string) => Promise<void>,
+    private readonly panelTitle?: string
   ) {}
 
   public async render(panel: { title: string; webview: Pick<vscode.Webview, 'html' | 'postMessage' | 'onDidReceiveMessage'> }): Promise<void> {
-    panel.title = 'Task Dock Table';
     panel.webview.html = this.buildHtml();
     panel.webview.onDidReceiveMessage?.(async (message: unknown) => {
       if (isOpenTaskMessage(message)) {
         await this.openTaskDetail(message.taskId);
+      }
+      if (isOpenProjectMessage(message) && this.openProject) {
+        await this.openProject(message.projectId, message.projectName);
       }
       if (isMoveStatusMessage(message)) {
         await this.moveStatus(message.taskId, message.toStatus, message.expectedVersion);
@@ -38,7 +42,7 @@ export class TaskTableWebviewPanel {
 
   private async postTasks(webview: Pick<vscode.Webview, 'postMessage'>): Promise<void> {
     const tasks = this.withCalculatedProgress(await this.loadTree());
-    await webview.postMessage?.({ type: 'table:init', tasks });
+    await webview.postMessage?.({ type: 'table:init', tasks, title: this.panelTitle });
   }
 
   private withCalculatedProgress(nodes: TableTaskNode[]): TableTaskNode[] {
@@ -106,28 +110,34 @@ export class TaskTableWebviewPanel {
       .task-title{cursor:pointer}.status-badge{padding:2px 8px;border-radius:999px;color:#fff;font-size:12px}
       .status-todo{background:#666}.status-in_progress{background:#2979ff}.status-done{background:#2e7d32}.status-blocked{background:#d32f2f}
       .tree-toggle{cursor:pointer;display:inline-block;width:20px}.indent{display:inline-block}
-      select{font-size:12px}
-    </style></head><body><h2>Task Table</h2><div class="container"><table><thead><tr><th>タイトル</th><th>ステータス</th><th>担当者</th><th>優先度</th><th>進捗</th></tr></thead><tbody id="rows"></tbody></table></div>
+    </style></head><body><h2 id="panel-title"></h2><div class="container"><table><thead><tr><th>タイトル</th><th>ステータス</th><th>担当者</th><th>優先度</th><th>進捗</th></tr></thead><tbody id="rows"></tbody></table></div>
     <script>
     const vscode = acquireVsCodeApi();
-    let roots=[]; const expanded=new Set();
+    let roots=[]; const expanded=new Set(); const collapsedProjects=new Set(); const clickTimers={};
     const badge=(s)=>'<span class="status-badge status-'+s+'">'+s+'</span>';
     const render=()=>{const rows=document.getElementById('rows');rows.innerHTML='';
-      const walk=(nodes,depth)=>nodes.forEach(n=>{const hasChildren=(n.children||[]).length>0; const open=expanded.has(n.taskId);
+      const walk=(nodes,depth)=>nodes.forEach(n=>{if(n.taskId?.startsWith('__empty__'))return; const hasChildren=(n.children||[]).length>0; const open=expanded.has(n.taskId);
         const tr=document.createElement('tr');
         tr.innerHTML='<td><span class="indent" style="width:'+(depth*16)+'px"></span><span class="tree-toggle" data-id="'+n.taskId+'">'+(hasChildren?(open?'▼':'▶'):'')+'</span><span class="task-title" data-open="'+n.taskId+'">'+n.title+'</span></td>'+
-        '<td><span>'+badge(n.status)+'</span> <select data-status="'+n.taskId+'" data-version="'+n.version+'"><option value="todo">Todo</option><option value="in_progress">In Progress</option><option value="done">Done</option><option value="blocked">Blocked</option></select></td>'+
-        '<td>'+(n.assignee??'-')+'</td><td>'+n.priority+'</td><td><input type="number" min="0" max="100" data-progress="'+n.taskId+'" data-version="'+n.version+'" data-has-children="'+hasChildren+'" value="'+n.progress+'" style="width:64px" '+(hasChildren?'disabled':'')+'/>%</td>';
-        tr.querySelector('select').value=n.status;
+        '<td>'+badge(n.status)+'</td>'+
+        '<td>'+(n.assignee??'-')+'</td><td>'+n.priority+'</td><td>'+n.progress+'%</td>';
         rows.appendChild(tr);
         if(hasChildren&&open) walk(n.children, depth+1);
-      });}; walk(roots,0);
+      });
+      const byProject={};const pidOrder=[];const pnames={};
+      roots.forEach(n=>{const pid=n.projectId||'';if(!(pid in pnames)){pidOrder.push(pid);pnames[pid]=n.projectName||pid;byProject[pid]=[];}byProject[pid].push(n);});
+      pidOrder.forEach(pid=>{
+        const isOpen=!collapsedProjects.has(pid);
+        const htr=document.createElement('tr');
+        htr.innerHTML='<td colspan="5" style="padding:3px 8px;font-size:13px;color:var(--vscode-foreground);border-top:1px solid var(--vscode-panel-border);background:var(--vscode-list-inactiveSelectionBackground);cursor:pointer;user-select:none"><span style="display:inline-block;width:14px;font-size:11px;opacity:.7">'+(isOpen?'▼':'▶')+'</span> '+pnames[pid]+'</td>';
+        htr.addEventListener('click',()=>{if(clickTimers[pid]){clearTimeout(clickTimers[pid]);delete clickTimers[pid];vscode.postMessage({type:'table:openProject',projectId:pid,projectName:pnames[pid]});}else{clickTimers[pid]=setTimeout(()=>{delete clickTimers[pid];collapsedProjects.has(pid)?collapsedProjects.delete(pid):collapsedProjects.add(pid);document.getElementById('panel-title').textContent=pnames[pid];render();},250);}});
+        rows.appendChild(htr);
+        if(isOpen)walk(byProject[pid],0);
+      });
       rows.querySelectorAll('[data-id]').forEach(el=>el.onclick=()=>{const id=el.dataset.id; expanded.has(id)?expanded.delete(id):expanded.add(id); render();});
       rows.querySelectorAll('[data-open]').forEach(el=>el.onclick=()=>vscode.postMessage({type:'table:openTask',taskId:el.dataset.open}));
-      rows.querySelectorAll('select[data-status]').forEach(el=>el.onchange=()=>vscode.postMessage({type:'table:moveStatus',taskId:el.dataset.status,toStatus:el.value,expectedVersion:Number(el.dataset.version)}));
-      rows.querySelectorAll('input[data-progress]').forEach(el=>el.onchange=()=>{if(el.dataset.hasChildren==='true'){return;} const value=Math.max(0,Math.min(100,Number(el.value))); el.value=String(value); vscode.postMessage({type:'table:updateProgress',taskId:el.dataset.progress,progress:value,expectedVersion:Number(el.dataset.version)});});
     };
-    window.addEventListener('message',(event)=>{if(event.data?.type==='table:init'){roots=event.data.tasks??[]; render();}});
+    window.addEventListener('message',(event)=>{if(event.data?.type==='table:init'){roots=event.data.tasks??[]; document.getElementById('panel-title').textContent=event.data.title??'Task Table'; render();}});
     </script></body></html>`;
   }
 }
@@ -136,6 +146,12 @@ function isOpenTaskMessage(value: unknown): value is { type: 'table:openTask'; t
   if (!value || typeof value !== 'object') return false;
   const c = value as Record<string, unknown>;
   return c.type === 'table:openTask' && typeof c.taskId === 'string';
+}
+
+function isOpenProjectMessage(value: unknown): value is { type: 'table:openProject'; projectId: string; projectName?: string } {
+  if (!value || typeof value !== 'object') return false;
+  const c = value as Record<string, unknown>;
+  return c.type === 'table:openProject' && typeof c.projectId === 'string';
 }
 
 function isMoveStatusMessage(value: unknown): value is { type: 'table:moveStatus'; taskId: string; toStatus: TaskStatus; expectedVersion: number } {
