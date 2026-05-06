@@ -533,6 +533,34 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       await tablePanel.render(webviewPanel);
       return { viewId: 'taskDock.tableView' as const };
     }),
+    vscode.commands.registerCommand('taskDock.openDbTable', async (item?: TaskTreeItem) => {
+      if (!item || item.kind !== 'database' || !item.profileId || !item.available) return;
+      const targetClient = multiDbReadManager.getClient(item.profileId);
+      if (!targetClient) return;
+      const previousClient = activeClientHolder.get();
+      if (targetClient !== previousClient) {
+        activeClientHolder.switch(targetClient);
+      }
+      try {
+        const webviewPanel = vscode.window.createWebviewPanel(
+          TaskTableWebviewPanel.VIEW_TYPE,
+          `Task Dock Table - ${item.label}`,
+          vscode.ViewColumn.One,
+          { enableScripts: true }
+        );
+        webviewPanel.onDidDispose(() => {
+          if (targetClient !== previousClient && activeClientHolder.get() === targetClient) {
+            activeClientHolder.switch(previousClient);
+          }
+        });
+        await tablePanel.render(webviewPanel);
+      } catch (error) {
+        if (targetClient !== previousClient && activeClientHolder.get() === targetClient) {
+          activeClientHolder.switch(previousClient);
+        }
+        void vscode.window.showErrorMessage(toUserFacingMessage(error));
+      }
+    }),
     vscode.commands.registerCommand('taskDock.selectDatabase', async () => {
       const profiles = await databaseProfileRepository.findAll();
       type DbItem = vscode.QuickPickItem & { profileId?: string; action?: 'mount' | 'directory' | 'create' };

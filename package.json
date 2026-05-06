@@ -61,6 +61,10 @@
         "title": "Task Dock: Create Task"
       },
       {
+        "command": "taskDock.openDbTable",
+        "title": "Task Dock: このDBのリストを表示"
+      },
+      {
         "command": "taskDock.createTaskInDb",
         "title": "Task Dock: このDBにタスクを作成"
       },
