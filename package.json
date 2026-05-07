@@ -163,6 +163,16 @@
         "title": "Task Dock: 新しいDBを作成"
       }
     ],
+    "configuration": {
+      "title": "Task Dock",
+      "properties": {
+        "taskDock.userId": {
+          "type": "string",
+          "default": "system",
+          "markdownDescription": "**My Tasks** に表示するユーザー ID。\n\nこの ID と一致する `created_by` または `assignee` を持つタスクが My Tasks に表示されます。\n\n例: `alice`、`john.doe`、自分の名前など"
+        }
+      }
+    },
     "menus": {
       "view/title": [
         {

@@ -161,8 +161,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   await useCases.scanDatabaseDirectoryUseCase.execute();
 
   const stateStore = new ExtensionStateStore();
-  const userId = vscode.workspace.getConfiguration('taskDock').get<string>('userId', 'system');
-  const myRecentTasksProvider = new MyRecentTasksProvider(appContainer.buildProjectTaskLoader(), userId);
+  const getUserId = () => vscode.workspace.getConfiguration('taskDock').get<string>('userId', 'system');
+  const myRecentTasksProvider = new MyRecentTasksProvider(appContainer.buildProjectTaskLoader(), getUserId());
   const allProjectsProvider = new AllProjectsProvider(appContainer.buildProjectTaskLoader(), multiDbReadManager);
   const statusBarController = new StatusBarController(stateStore);
   const commandRegistry = new TaskDockCommandRegistry(
@@ -349,7 +349,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     allProjectsProvider.refresh();
     if (boardWebviewPanel) {
       const boardTasks = await withProfileClient(currentBoardProfileId, () => fetchBoardTasks(currentBoardProjectId));
-      boardPanel.render(boardWebviewPanel, boardTasks, currentBoardProjectName);
+      boardPanel.render(boardWebviewPanel, boardTasks, currentBoardProjectName, getUserId());
     }
   });
 
@@ -364,7 +364,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     if (boardWebviewPanel) {
       try {
         const boardTasks = await withProfileClient(currentBoardProfileId, () => fetchBoardTasks(currentBoardProjectId));
-        boardPanel.render(boardWebviewPanel, boardTasks, currentBoardProjectName);
+        boardPanel.render(boardWebviewPanel, boardTasks, currentBoardProjectName, getUserId());
       } catch (error) {
         void vscode.window.showErrorMessage(toUserFacingMessage(error));
       }
@@ -372,6 +372,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   });
   const myRecentTasksChangeEmitter = new vscode.EventEmitter<TaskTreeItem | undefined | null | void>();
   const disposeMyRecentTasksRefresh = myRecentTasksProvider.onRefresh(() => myRecentTasksChangeEmitter.fire());
+  vscode.workspace.onDidChangeConfiguration(e => {
+    if (e.affectsConfiguration('taskDock.userId')) {
+      myRecentTasksProvider.setUserId(getUserId());
+    }
+  });
   const allProjectsChangeEmitter = new vscode.EventEmitter<TaskTreeItem | undefined | null | void>();
   const disposeAllProjectsRefresh = allProjectsProvider.onRefresh(() => allProjectsChangeEmitter.fire());
   const myRecentTasksTreeView = vscode.window.createTreeView<TaskTreeItem>('taskDock.myRecentTasks', {
@@ -524,7 +529,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           if (webviewPanel.active && boardWebviewPanel) {
             void withProfileClient(currentBoardProfileId, () => fetchBoardTasks(currentBoardProjectId))
               .then(tasks => {
-                boardPanel.render(boardWebviewPanel!, tasks, currentBoardProjectName);
+                boardPanel.render(boardWebviewPanel!, tasks, currentBoardProjectName, getUserId());
               })
               .catch(error => {
                 void vscode.window.showErrorMessage(toUserFacingMessage(error));
@@ -539,7 +544,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         boardWebviewPanel.reveal(vscode.ViewColumn.One);
       }
 
-      boardPanel.render(boardWebviewPanel, boardTasks, currentBoardProjectName);
+      boardPanel.render(boardWebviewPanel, boardTasks, currentBoardProjectName, getUserId());
       return commands['taskDock.openBoard']();
     }),
     vscode.commands.registerCommand('taskDock.openTable', async () => {
@@ -723,7 +728,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           description: null,
           status: input?.status ?? 'todo',
           priority: input?.priority ?? 'medium',
-          assignee: input?.assignee ?? null,
+          assignee: input?.assignee ?? getUserId(),
           dueDate: input?.dueDate ?? null,
           tags: input?.tags ?? [],
           parentTaskId: input?.parentTaskId ?? null,

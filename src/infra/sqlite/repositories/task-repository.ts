@@ -147,12 +147,12 @@ export class TaskRepository implements TaskRepositoryPort {
               t.version AS version,
               EXISTS(SELECT 1 FROM tasks c WHERE c.parent_task_id = t.task_id) AS hasChildren
        FROM tasks t
-       WHERE ((t.created_by = ? AND t.assignee IS NULL) OR t.assignee = ?)
+       WHERE t.assignee = ?
          AND t.parent_task_id IS NULL
          AND t.status != 'done'
        ORDER BY ${orderBy}
        LIMIT ?`,
-      [input.userId, input.userId, input.limit]
+      [input.userId, input.limit]
     ).then((rows) => rows.map((row) => ({ ...row, hasChildren: row.hasChildren === 1 })));
   }
 

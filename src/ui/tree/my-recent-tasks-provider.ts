@@ -18,8 +18,13 @@ export class MyRecentTasksProvider {
 
   public constructor(
     private readonly loader: MyRecentTaskLoader,
-    private readonly userId: string
+    private userId: string
   ) {}
+
+  public setUserId(userId: string): void {
+    this.userId = userId;
+    this.refresh();
+  }
 
   public refresh(): void {
     for (const listener of this.listeners) {
