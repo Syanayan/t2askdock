@@ -21,10 +21,13 @@
   "private": false,
   "type": "module",
   "engines": {
-    "vscode": "^1.85.0"
+    "vscode": "^1.100.0"
   },
   "categories": [
     "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
   ],
   "main": "./dist/extension.js",
   "contributes": {
