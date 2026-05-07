@@ -76,6 +76,7 @@ T2askDock は、VS Code 内でタスクをローカル SQLite DB で直接管理
 ## Requirements
 
 - Visual Studio Code 1.100.0 以降
+- **Windows x64 のみ対応**（Mac / Linux は今後対応予定）
 
 ## Privacy
 
