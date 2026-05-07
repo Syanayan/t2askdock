@@ -14,10 +14,6 @@ T2askDock は、VS Code 内でタスクをローカル SQLite DB で直接管理
 - **読み取り専用モード** — DB への誤書き込みを防ぐロックモード
 - **AI タスク作成** — AI を使ったタスク生成
 
-## Screenshots
-
-![Task View](images/task-view.png)
-
 ## Installation
 
 ### VSIX からインストール
@@ -80,6 +76,12 @@ T2askDock は、VS Code 内でタスクをローカル SQLite DB で直接管理
 ## Requirements
 
 - Visual Studio Code 1.100.0 以降
+
+## Privacy
+
+AI タスク生成機能（`Create Task from AI`）を使用する場合、入力したテキストが **Anthropic の API サーバー** に送信されます。API キーはご自身で取得・管理してください。その他のタスクデータはすべてローカルの SQLite ファイルにのみ保存され、外部に送信されません。
+
+> When using the AI task generation feature, the text you enter is sent to **Anthropic's API servers**. All other task data is stored locally in SQLite files only and is never transmitted externally.
 
 ## Known Issues
 

@@ -1,0 +1,22 @@
+# Source TypeScript (compiled to dist/)
+src/
+
+# Task planning docs
+tasks/
+
+# CI / GitHub config
+.github/
+
+# Test configs
+vitest.unit.config.ts
+vitest.integration.config.ts
+**/*.test.ts
+**/*.spec.ts
+
+# TypeScript configs
+tsconfig*.json
+
+# Misc
+*.vsix
+.eslintrc*
+.prettierrc*

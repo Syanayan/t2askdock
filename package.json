@@ -1,12 +1,27 @@
 {
   "name": "t2askdock",
-  "displayName": "t2askdock",
-  "description": "VS Codeのタスク管理ツール拡張",
+  "displayName": "Task Dock",
+  "description": "Local SQLite-based task manager. Kanban board, multi-DB support, subtasks and AI task generation. / ローカル SQLite でタスクを管理する VS Code 拡張。カンバンボード・複数DB・サブタスク・AI生成対応。",
+  "publisher": "syanax",
   "version": "0.1.0",
-  "private": true,
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Syanayan/t2askdock"
+  },
+  "keywords": [
+    "task",
+    "kanban",
+    "todo",
+    "project management",
+    "sqlite",
+    "productivity"
+  ],
+  "icon": "resources/icon.png",
+  "private": false,
   "type": "module",
   "engines": {
-    "vscode": "^1.100.0"
+    "vscode": "^1.85.0"
   },
   "categories": [
     "Other"
