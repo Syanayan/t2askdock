@@ -67,7 +67,7 @@ export class TaskDetailWebviewPanel {
   private buildHtml(detail: TaskDetail, subtasks: SubtaskItem[], comments: ReadonlyArray<CommentRow>): string {
     const safe = (v: string) => v.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
     const statusLabel = (s: string) => ({ todo: 'Todo', in_progress: 'In Progress', blocked: 'Blocked', done: 'Done' }[s] ?? s);
-    const priorityLabel = (p: string) => ({ low: '低', medium: '中', high: '高', critical: '最高' }[p] ?? p);
+    const priorityLabel = (p: string) => ({ low: 'Low', medium: 'Medium', high: 'High', critical: 'Critical' }[p] ?? p);
     const commentRows: CommentRow[] = [...comments].sort((a: CommentRow, b: CommentRow) => a.createdAt.localeCompare(b.createdAt));
     return `<!doctype html><html lang="ja"><head><meta charset="UTF-8"/><style>
     body{background:var(--vscode-editor-background);color:var(--vscode-editor-foreground);font-family:var(--vscode-font-family);margin:0;padding:12px}
@@ -98,7 +98,7 @@ export class TaskDetailWebviewPanel {
       <div class="field"><label>Assignee</label><div class="view-only">${safe(detail.assignee ?? '—')}</div><input class="edit-only" id="edit-assignee" value="${safe(detail.assignee ?? '')}"/></div>
       <div class="field"><label>Due</label><div class="view-only">${safe(detail.dueDate ?? '—')}</div><input class="edit-only" type="date" id="edit-dueDate" value="${safe(detail.dueDate ?? '')}"/></div>
       <div class="field"><label>Status</label><div class="view-only"><span class="badge status-${detail.status}">${statusLabel(detail.status)}</span></div><select class="edit-only" id="edit-status"><option value="todo">Todo</option><option value="in_progress">In Progress</option><option value="blocked">Blocked</option><option value="done">Done</option></select></div>
-      <div class="field"><label>Priority</label><div class="view-only"><span class="badge priority-${detail.priority}">${priorityLabel(detail.priority)}</span></div><select class="edit-only" id="edit-priority"><option value="low">低</option><option value="medium">中</option><option value="high">高</option><option value="critical">最高</option></select></div>
+      <div class="field"><label>Priority</label><div class="view-only"><span class="badge priority-${detail.priority}">${priorityLabel(detail.priority)}</span></div><select class="edit-only" id="edit-priority"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="critical">Critical</option></select></div>
       <div class="field"><label>Progress</label><div class="view-only">${detail.progress}%</div><input class="edit-only" id="edit-progress" type="range" min="0" max="100" value="${detail.progress}"/></div>
       <div class="field"><label>Tags</label><div class="view-only">${safe(detail.tags.join(', ')||'—')}</div><input class="edit-only" id="edit-tags" value="${safe(detail.tags.join(', '))}"/></div>
     </section></aside></div>
