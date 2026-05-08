@@ -5,9 +5,8 @@ const detail = { taskId:'t1', projectId:'p1', title:'Task', status:'todo', prior
 
 describe('TaskDetailWebviewPanel', () => {
   it('renders layout and theme vars', async () => {
-    const handlerRef: { current?: (message: unknown) => Promise<void> } = {};
-    const panel = new TaskDetailWebviewPanel(async()=>detail as never, async()=>[], async()=>[], {execute:vi.fn()} as never, {execute:vi.fn()} as never, {execute:vi.fn()} as never, async()=>undefined);
-    const webview: any = { html:'', onDidReceiveMessage:(h:any)=>{handlerRef.current=h; return {dispose(){}};}, postMessage: vi.fn() };
+    const panel = new TaskDetailWebviewPanel(async()=>detail as never, async()=>[], async()=>[], {execute:vi.fn()} as never, {execute:vi.fn()} as never, {execute:vi.fn()} as never, async()=>undefined, { execute: vi.fn() } as never);
+    const webview: any = { html:'', onDidReceiveMessage:vi.fn(()=>({dispose(){}})), postMessage: vi.fn() };
     await panel.render({ title:'', webview, dispose: vi.fn() } as never, 't1');
     expect(webview.html).toContain('detail-layout');
     expect(webview.html).toContain('detail-main');
@@ -15,13 +14,13 @@ describe('TaskDetailWebviewPanel', () => {
     expect(webview.html).toContain('--vscode-editor-background');
   });
 
-  it('handles messages', async () => {
+  it('handles update messages', async () => {
     const updateTaskUseCase = { execute: vi.fn() };
     const moveTaskStatusUseCase = { execute: vi.fn() };
     const addCommentUseCase = { execute: vi.fn() };
     const handlerRef: { current?: (message: unknown) => Promise<void> } = {};
     const dispose = vi.fn();
-    const panel = new TaskDetailWebviewPanel(async(id)=>({...detail, taskId:id}) as never, async()=>[], async()=>[], updateTaskUseCase as never, moveTaskStatusUseCase as never, addCommentUseCase as never, async()=>undefined);
+    const panel = new TaskDetailWebviewPanel(async(id)=>({...detail, taskId:id}) as never, async()=>[], async()=>[], updateTaskUseCase as never, moveTaskStatusUseCase as never, addCommentUseCase as never, async()=>undefined, { execute: vi.fn() } as never);
     const webview: any = { html:'', onDidReceiveMessage:(h:any)=>{handlerRef.current=h; return {dispose(){}};}, postMessage: vi.fn() };
     await panel.render({ title:'', webview, dispose } as never, 't1');
     await handlerRef.current?.({ type:'detail:subtask:toggle', taskId:'s1', newStatus:'done' });
@@ -32,5 +31,13 @@ describe('TaskDetailWebviewPanel', () => {
     expect(updateTaskUseCase.execute).toHaveBeenCalled();
     expect(addCommentUseCase.execute).toHaveBeenCalled();
     expect(dispose).toHaveBeenCalled();
+  });
+
+  it('renders create mode', async () => {
+    const panel = new TaskDetailWebviewPanel(async()=>null as never, async()=>[], async()=>[], {execute:vi.fn()} as never, {execute:vi.fn()} as never, {execute:vi.fn()} as never, async()=>undefined, { execute: vi.fn().mockResolvedValue({ id: 'new-1' }) } as never);
+    const webview: any = { html:'', onDidReceiveMessage:vi.fn(()=>({dispose(){}})), postMessage: vi.fn() };
+    await panel.render({ title:'', webview, dispose: vi.fn() } as never);
+    expect(webview.html).toContain('Create Task');
+    expect(webview.html).toContain("type:'detail:create'");
   });
 });

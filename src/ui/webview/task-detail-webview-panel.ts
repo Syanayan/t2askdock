@@ -3,6 +3,7 @@ import type { CommentRow } from '../../core/ports/repositories/comment-repositor
 import type { Priority, TaskStatus } from '../../core/domain/entities/task.js';
 import type { TaskDetail } from '../../core/ports/repositories/task-repository.js';
 import type { AddTaskCommentUseCase } from '../../core/usecase/comments/add-task-comment-usecase.js';
+import type { CreateTaskUseCase } from '../../core/usecase/create-task-usecase.js';
 import type { MoveTaskStatusUseCase } from '../../core/usecase/move-task-status-usecase.js';
 import type { UpdateTaskUseCase } from '../../core/usecase/update-task-usecase.js';
 
@@ -20,10 +21,36 @@ export class TaskDetailWebviewPanel {
     private readonly updateTaskUseCase: Pick<UpdateTaskUseCase, 'execute'>,
     private readonly moveTaskStatusUseCase: Pick<MoveTaskStatusUseCase, 'execute'>,
     private readonly addCommentUseCase: Pick<AddTaskCommentUseCase, 'execute'>,
-    private readonly executeCommand: (cmd: string, args?: unknown) => Promise<unknown>
+    private readonly executeCommand: (cmd: string, args?: unknown) => Promise<unknown>,
+    private readonly createTaskUseCase: Pick<CreateTaskUseCase, 'execute'>
   ) {}
 
-  public async render(panel: Pick<vscode.WebviewPanel, 'webview' | 'title' | 'dispose'>, taskId: string): Promise<void> {
+  public async render(panel: Pick<vscode.WebviewPanel, 'webview' | 'title' | 'dispose'>, taskId?: string): Promise<void> {
+    if (!taskId) {
+      panel.title = 'Create Task';
+      panel.webview.html = this.buildCreateHtml();
+      this.messageListenerDisposable?.dispose();
+      this.messageListenerDisposable = panel.webview.onDidReceiveMessage(async (message: unknown) => {
+        if (!message || typeof message !== 'object') return;
+        const m = message as Record<string, unknown>;
+        if (m.type === 'detail:close') panel.dispose();
+        if (m.type !== 'detail:create') return;
+        const title = typeof m.title === 'string' ? m.title.trim() : '';
+        const projectId = typeof m.projectId === 'string' ? m.projectId.trim() : '';
+        if (!title || !projectId) return;
+        await this.createTaskUseCase.execute({
+          taskId: nextUlid(), projectId, title, description: typeof m.description === 'string' ? m.description : null,
+          status: (typeof m.status === 'string' ? m.status : 'todo') as TaskStatus,
+          priority: (typeof m.priority === 'string' ? m.priority : 'medium') as Priority,
+          assignee: typeof m.assignee === 'string' ? (m.assignee.trim() || null) : null,
+          dueDate: typeof m.dueDate === 'string' ? (m.dueDate.trim() || null) : null,
+          tags: typeof m.tags === 'string' ? m.tags.split(',').map(v => v.trim()).filter(Boolean) : [],
+          parentTaskId: null, actorId: ACTOR_ID, now: new Date().toISOString()
+        });
+        panel.dispose();
+      });
+      return;
+    }
     const detail = await this.findDetailById(taskId); if (!detail) return;
     const [subtasks, comments] = await Promise.all([this.listSubtasks(taskId), this.listComments(taskId)]);
     panel.title = `Task: ${detail.title}`;
@@ -62,6 +89,9 @@ export class TaskDetailWebviewPanel {
         await panel.webview.postMessage({ type: 'detail:error', message: messageText });
       }
     });
+  }
+  private buildCreateHtml(): string {
+    return `<!doctype html><html lang="ja"><body><h2>Create Task</h2><input id="projectId" placeholder="Project ID"/><input id="title" placeholder="Title"/><textarea id="description"></textarea><button id="btn-save">Save</button><button id="btn-close">Close</button><script>const vscode=acquireVsCodeApi();const post=()=>{const title=document.getElementById('title').value.trim();const projectId=document.getElementById('projectId').value.trim();if(!title||!projectId)return;vscode.postMessage({type:'detail:create',projectId,title,description:document.getElementById('description').value,status:'todo',priority:'medium'});};document.getElementById('btn-save').onclick=post;document.getElementById('btn-close').onclick=()=>vscode.postMessage({type:'detail:close'});document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();post();}});</script></body></html>`;
   }
 
   private buildHtml(detail: TaskDetail, subtasks: SubtaskItem[], comments: ReadonlyArray<CommentRow>): string {
