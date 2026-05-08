@@ -8,8 +8,6 @@ import type { UpdateTaskUseCase } from '../../core/usecase/update-task-usecase.j
 
 type SubtaskItem = { taskId: string; title: string; status: TaskStatus; priority: Priority; hasChildren: boolean };
 const ACTOR_ID = 'system';
-const ULID_CHARS = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
-const nextUlid = (): string => Array.from({ length: 26 }, () => ULID_CHARS[Math.floor(Math.random() * ULID_CHARS.length)]).join('');
 
 export class TaskDetailWebviewPanel {
   private messageListenerDisposable: vscode.Disposable | undefined;
@@ -53,10 +51,10 @@ export class TaskDetailWebviewPanel {
         await this.render(panel, taskId);
       }
       if (m.type === 'detail:comment:add' && typeof m.body === 'string' && m.body.trim()) {
-        await this.addCommentUseCase.execute({ commentId: nextUlid(), taskId, body: m.body, actorId: ACTOR_ID, now: new Date().toISOString() });
+        await this.addCommentUseCase.execute({ commentId: crypto.randomUUID(), taskId, body: m.body, actorId: ACTOR_ID, now: new Date().toISOString() });
         await panel.webview.postMessage({ type: 'detail:comments:refresh', comments: await this.listComments(taskId) });
       }
-      if (m.type === 'detail:file:open' && typeof m.path === 'string') await this.executeCommand('vscode.open', { fsPath: m.path });
+      if (m.type === 'detail:file:open' && typeof m.path === 'string') await this.executeCommand('vscode.open', m.path);
       } catch (error) {
         const messageText = error instanceof Error ? error.message : String(error);
         await panel.webview.postMessage({ type: 'detail:error', message: messageText });
@@ -90,7 +88,7 @@ export class TaskDetailWebviewPanel {
       <section class="panel"><div id="error-banner" style="display:none;color:var(--vscode-errorForeground);margin-bottom:8px"></div><div class="row"><h2 style="margin:0" class="view-only">${safe(detail.title)}</h2><input class="edit-only" id="edit-title" value="${safe(detail.title)}" style="flex:1"/>
       <span class="badge status-${detail.status}">${statusLabel(detail.status)}</span><span class="badge priority-${detail.priority}">${priorityLabel(detail.priority)}</span><span>Progress ${detail.progress}%</span>
       <span style="margin-left:auto"></span><button id="btn-edit" class="btn secondary view-only">Edit</button><button id="btn-save" class="btn edit-only">Save</button><button id="btn-cancel" class="btn secondary edit-only">Cancel</button><button id="btn-close" class="btn secondary">Close</button></div></section>
-      <section class="panel"><h3>Description</h3><div class="view-only desc-view" id="desc-view">${safe(detail.description ?? '—')}</div><textarea class="edit-only" id="edit-description" rows="6">${safe(detail.description ?? '')}</textarea></section>
+      <section class="panel"><h3>Description</h3><div class="view-only desc-view" id="desc-view"></div><textarea class="edit-only" id="edit-description" rows="6">${safe(detail.description ?? '')}</textarea></section>
       <section class="panel" ${subtasks.length===0?'style="display:none"':''}><h3>Subtasks</h3>${subtasks.map(s=>`<label class="row"><input type="checkbox" data-subtask-id="${s.taskId}" ${s.status==='done'?'checked':''}/> ${safe(s.title)} <span class="badge status-${s.status}">${statusLabel(s.status)}</span><span class="badge priority-${s.priority}">${priorityLabel(s.priority)}</span></label>`).join('')}</section>
       <section class="panel"><h3>Comments / Activity</h3><div id="comments">${commentRows.map((c: CommentRow)=>`<div class="comment"><div class="vote">▲<span>•</span>▼</div><div><div class="meta"><span class="comment-author">${safe(c.createdBy)}</span><span class="comment-date">${new Date(c.createdAt).toLocaleString('ja-JP')}</span></div><div class="comment-body">${safe(c.body)}</div><div class="history">updated: ${new Date(c.updatedAt).toLocaleString('ja-JP')} ${c.deletedAt?`• deleted: ${new Date(c.deletedAt).toLocaleString('ja-JP')}`:''}</div></div></div>`).join('')}</div>
       <textarea id="comment-input" rows="3" placeholder="コメントを追加..." style="width:100%"></textarea><div class="row"><button id="btn-comment-add" class="btn">送信</button></div></section>
@@ -112,6 +110,14 @@ export class TaskDetailWebviewPanel {
       document.getElementById('comment-input').addEventListener('keydown',(e)=>{if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();document.getElementById('btn-comment-add').click();}});
       document.addEventListener('keydown',(e)=>{if((e.ctrlKey||e.metaKey)&&e.key==='Enter'&&document.body.classList.contains('editing')&&document.activeElement!==document.getElementById('comment-input')){e.preventDefault();document.getElementById('btn-save').click();}});
       const esc=(s)=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      const md2html=(src)=>{if(!src)return '<em>(説明なし)</em>';return src
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+        .replace(/^### (.+)$/gm,'<h3>$1</h3>').replace(/^## (.+)$/gm,'<h2>$1</h2>').replace(/^# (.+)$/gm,'<h1>$1</h1>')
+        .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>').replace(/\`(.+?)\`/g,'<code>$1</code>')
+        .replace(/^\- (.+)$/gm,'<li>$1</li>').replace(/(<li>.*<\/li>\n?)+/g,'<ul>$&</ul>')
+        .replace(/\[(.+?)\]\((.+?)\)/g,'<a href="#" data-path="$2">$1</a>').replace(/\n\n/g,'</p><p>');};
+      document.getElementById('desc-view').innerHTML=md2html(orig.description||'');
+      document.getElementById('desc-view').addEventListener('click',(e)=>{const a=e.target.closest('[data-path]');if(!a)return;e.preventDefault();vscode.postMessage({type:'detail:file:open',path:a.dataset.path});});
       const renderComments=(cs)=>[...cs].filter(c=>!c.deletedAt).sort((a,b)=>a.createdAt.localeCompare(b.createdAt)).map(c=>'<div class="comment"><div class="vote">▲<span>•</span>▼</div><div><div class="meta"><span class="comment-author">'+esc(c.createdBy)+'</span><span class="comment-date">'+new Date(c.createdAt).toLocaleString('ja-JP')+'</span></div><div class="comment-body">'+esc(c.body)+'</div><div class="history">updated: '+new Date(c.updatedAt).toLocaleString('ja-JP')+(c.deletedAt?' • deleted: '+new Date(c.deletedAt).toLocaleString('ja-JP'):'')+' </div></div></div>').join('');
       window.addEventListener('message',(event)=>{if(event.data?.type==='detail:comments:refresh'){document.getElementById('comments').innerHTML=renderComments(event.data.comments??[]);return;} if(event.data?.type==='detail:error'){const b=document.getElementById('error-banner');b.textContent=event.data.message||'error';b.style.display='block';}});
     </script></body></html>`;

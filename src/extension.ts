@@ -286,6 +286,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   };
   const tableLoader = appContainer.buildTaskTreeLoader();
   let boardWebviewPanel: vscode.WebviewPanel | undefined;
+  const detailPanels = new Map<string, vscode.WebviewPanel>();
   const createTablePanel = (profileId?: string, panelTitle?: string): TaskTableWebviewPanel => {
     const loader = (profileId ? multiDbReadManager.getRepo(profileId) : undefined) ?? tableLoader;
     return new TaskTableWebviewPanel(
@@ -816,7 +817,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       if (!taskId) return;
       const profileId = item && 'profileId' in item ? (item as TaskTreeItem).profileId : undefined;
       const run = <T>(fn: () => Promise<T>) => withProfileClient(profileId, fn);
-      const panel = vscode.window.createWebviewPanel('taskDock.taskDetail', 'Task Detail', vscode.ViewColumn.Active, { enableScripts: true });
+      let panel = detailPanels.get(taskId);
+      if (!panel) {
+        panel = vscode.window.createWebviewPanel('taskDock.taskDetail', 'Task Detail', vscode.ViewColumn.Active, { enableScripts: true });
+        detailPanels.set(taskId, panel);
+        panel.onDidDispose(() => detailPanels.delete(taskId));
+      } else {
+        panel.reveal(vscode.ViewColumn.Active);
+      }
       const detailPanel = new TaskDetailWebviewPanel(
         (id) => run(() => appContainer.buildTaskOperator().findDetailById(id)),
         (parentId) => run(() => appContainer.buildProjectTaskLoader().listSubtasksByParent(parentId)),
@@ -827,6 +835,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         async (cmd, args) => {
           if ((cmd === 'taskDock.createSubtask' || cmd === 'taskDock.openTaskDetail') && profileId) {
             return vscode.commands.executeCommand(cmd, { ...(args as Record<string, unknown>), profileId });
+          }
+          if (cmd === 'vscode.open' && typeof args === 'string') {
+            return vscode.commands.executeCommand(cmd, vscode.Uri.file(args));
           }
           return vscode.commands.executeCommand(cmd, args);
         }
