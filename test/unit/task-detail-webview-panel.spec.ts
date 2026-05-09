@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { TaskDetailWebviewPanel } from '../../src/ui/webview/task-detail-webview-panel.js';
 
-const detail = { taskId:'t1', projectId:'p1', title:'Task', status:'todo', priority:'medium', dueDate:null, tags:[], description:null, assignee:null, parentTaskId:null, version:1, progress:0 };
+const detail = { taskId:'t1', projectId:'p1', title:'Task', status:'todo', priority:'medium', dueDate:null, tags:[], description:null, assignee:null, parentTaskId:null, version:1, progress:0, isClosed:false, isArchived:false, closeReason:null };
 
 describe('TaskDetailWebviewPanel', () => {
   it('renders layout and theme vars', async () => {
@@ -28,11 +28,14 @@ describe('TaskDetailWebviewPanel', () => {
     await handlerRef.current?.({ type:'detail:save', title:'x' });
     await handlerRef.current?.({ type:'detail:comment:add', body:'hello' });
     await handlerRef.current?.({ type:'detail:file:open', path:'file:///tmp/demo.txt' });
+    await handlerRef.current?.({ type:'detail:closeTask', reason:'duplicate' });
+    await handlerRef.current?.({ type:'detail:archiveTask' });
     await handlerRef.current?.({ type:'detail:close' });
     expect(moveTaskStatusUseCase.execute).toHaveBeenCalled();
     expect(updateTaskUseCase.execute).toHaveBeenCalled();
     expect(addCommentUseCase.execute).toHaveBeenCalled();
     expect(executeCommand).toHaveBeenCalledWith('vscode.open', expect.objectContaining({ scheme: 'file', fsPath: '/tmp/demo.txt' }));
+    expect(updateTaskUseCase.execute).toHaveBeenCalledWith(expect.objectContaining({ isClosed: true, closeReason: 'duplicate' }));
     expect(dispose).toHaveBeenCalled();
   });
 

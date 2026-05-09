@@ -108,18 +108,20 @@ export class TaskTableWebviewPanel {
       body{font-family:sans-serif;margin:16px}.container{margin-top:8px}
       table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #ddd;padding:8px;text-align:left}
       .task-title{cursor:pointer}.status-badge{padding:2px 8px;border-radius:999px;color:#fff;font-size:12px}
-      .status-todo{background:#666}.status-in_progress{background:#2979ff}.status-done{background:#2e7d32}.status-blocked{background:#d32f2f}
+      .status-todo{background:#666}.status-in_progress{background:#2979ff}.status-done{background:#2e7d32}.status-blocked{background:#d32f2f}.status-close{background:#7b1fa2}.status-archived{background:#455a64}.tabs{display:flex;gap:8px;margin:8px 0}.tab{padding:4px 10px;border:1px solid #bbb;border-radius:999px;cursor:pointer}.tab.active{background:#333;color:#fff}
       .tree-toggle{cursor:pointer;display:inline-block;width:20px}.indent{display:inline-block}
-    </style></head><body><h2 id="panel-title"></h2><div class="container"><table><thead><tr><th>タイトル</th><th>ステータス</th><th>担当者</th><th>優先度</th><th>進捗</th></tr></thead><tbody id="rows"></tbody></table></div>
+    </style></head><body><h2 id="panel-title"></h2><div class="tabs"><button class="tab active" data-tab="task">Tasks</button><button class="tab" data-tab="done">Done</button><button class="tab" data-tab="close">Close</button><button class="tab" data-tab="archived">Archive</button></div><div class="container"><table><thead><tr><th>タイトル</th><th>ステータス</th><th>担当者</th><th>優先度</th><th>進捗</th></tr></thead><tbody id="rows"></tbody></table></div>
     <script>
     const vscode = acquireVsCodeApi();
-    let roots=[]; const expanded=new Set(); const collapsedProjects=new Set(); const clickTimers={};
+    let roots=[]; let currentTab="task"; const expanded=new Set(); const collapsedProjects=new Set(); const clickTimers={};
+    const effectiveStatus=(n)=>n.isArchived?'archived':(n.isClosed?'close':n.status);
     const badge=(s)=>'<span class="status-badge status-'+s+'">'+s+'</span>';
+    const matchTab=(n)=>{const s=effectiveStatus(n);if(currentTab==='task')return s==='todo'||s==='in_progress'||s==='blocked';return s===currentTab;};
     const render=()=>{const rows=document.getElementById('rows');rows.innerHTML='';
       const walk=(nodes,depth)=>nodes.forEach(n=>{if(n.taskId?.startsWith('__empty__'))return; const hasChildren=(n.children||[]).length>0; const open=expanded.has(n.taskId);
-        const tr=document.createElement('tr');
+        if(!matchTab(n)) return; const tr=document.createElement('tr');
         tr.innerHTML='<td><span class="indent" style="width:'+(depth*16)+'px"></span><span class="tree-toggle" data-id="'+n.taskId+'">'+(hasChildren?(open?'▼':'▶'):'')+'</span><span class="task-title" data-open="'+n.taskId+'">'+n.title+'</span></td>'+
-        '<td>'+badge(n.status)+'</td>'+
+        '<td>'+badge(effectiveStatus(n))+'</td>'+
         '<td>'+(n.assignee??'-')+'</td><td>'+n.priority+'</td><td>'+n.progress+'%</td>';
         rows.appendChild(tr);
         if(hasChildren&&open) walk(n.children, depth+1);
@@ -137,7 +139,7 @@ export class TaskTableWebviewPanel {
       rows.querySelectorAll('[data-id]').forEach(el=>el.onclick=()=>{const id=el.dataset.id; expanded.has(id)?expanded.delete(id):expanded.add(id); render();});
       rows.querySelectorAll('[data-open]').forEach(el=>el.onclick=()=>vscode.postMessage({type:'table:openTask',taskId:el.dataset.open}));
     };
-    window.addEventListener('message',(event)=>{if(event.data?.type==='table:init'){roots=event.data.tasks??[]; document.getElementById('panel-title').textContent=event.data.title??'Task Table'; render();}});
+    window.addEventListener('message',(event)=>{if(event.data?.type==='table:init'){roots=event.data.tasks??[]; document.getElementById('panel-title').textContent=event.data.title??'Task Table'; render();}});document.querySelectorAll('.tab').forEach(el=>el.onclick=()=>{document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));el.classList.add('active');currentTab=el.dataset.tab;render();});
     </script></body></html>`;
   }
 }

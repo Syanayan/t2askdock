@@ -60,7 +60,10 @@ describe('phase1 entities', () => {
       createdAt: '2026-04-26T00:00:00.000Z',
       updatedAt: '2026-04-26T00:00:00.000Z',
       version: 1,
-      progress: 0
+      progress: 0,
+      isClosed: false,
+      isArchived: false,
+      closeReason: null
     });
 
     const comment = Comment.from({
@@ -100,7 +103,10 @@ describe('phase1 domain services', () => {
       createdAt: '2026-04-26T00:00:00.000Z',
       updatedAt: '2026-04-26T00:00:00.000Z',
       version: 1,
-      progress: 0
+      progress: 0,
+      isClosed: false,
+      isArchived: false,
+      closeReason: null
     };
 
     const activeUser = {

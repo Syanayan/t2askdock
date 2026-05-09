@@ -5,6 +5,7 @@ import { ExtensionStateStore } from './ui/state/extension-state-store.js';
 import { INITIAL_MIGRATION_V1_SQL } from './infra/sqlite/migrations/initial-migration-v1.js';
 import { MIGRATION_V2_SQL } from './infra/sqlite/migrations/initial-migration-v2.js';
 import { MIGRATION_V3_SQL } from './infra/sqlite/migrations/initial-migration-v3.js';
+import { MIGRATION_V4_SQL } from './infra/sqlite/migrations/initial-migration-v4.js';
 import type { MigrationDependencies } from './infra/sqlite/migrations/migrator.js';
 import { Migrator } from './infra/sqlite/migrations/migrator.js';
 import { BetterSqlite3Client } from './infra/sqlite/better-sqlite3-client.js';
@@ -85,7 +86,7 @@ export async function bootstrapMigrations(
     appendMigrationFailedAudit: async () => undefined
   });
 
-  await migrator.migrate([{ version: 1, statements: INITIAL_MIGRATION_V1_SQL }, { version: 2, statements: MIGRATION_V2_SQL }, { version: 3, statements: MIGRATION_V3_SQL }]);
+  await migrator.migrate([{ version: 1, statements: INITIAL_MIGRATION_V1_SQL }, { version: 2, statements: MIGRATION_V2_SQL }, { version: 3, statements: MIGRATION_V3_SQL }, { version: 4, statements: MIGRATION_V4_SQL }]);
   context.subscriptions.push({ dispose: () => client.close() });
 }
 
@@ -117,7 +118,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       reconnectReadOnly: async () => undefined,
       appendMigrationFailedAudit: async () => undefined
     });
-    await migrator.migrate([{ version: 1, statements: INITIAL_MIGRATION_V1_SQL }, { version: 2, statements: MIGRATION_V2_SQL }, { version: 3, statements: MIGRATION_V3_SQL }]);
+    await migrator.migrate([{ version: 1, statements: INITIAL_MIGRATION_V1_SQL }, { version: 2, statements: MIGRATION_V2_SQL }, { version: 3, statements: MIGRATION_V3_SQL }, { version: 4, statements: MIGRATION_V4_SQL }]);
     const now = new Date().toISOString();
     await client.run(
       `INSERT OR IGNORE INTO users(user_id, display_name, role, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
@@ -195,6 +196,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   );
   const projectTaskLoader = appContainer.buildProjectTaskLoader();
   type BoardTask = {
+    isClosed: boolean;
+    isArchived: boolean;
     taskId: string;
     projectId: string;
     title: string;
@@ -230,7 +233,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           tags: detail?.tags ?? [],
           parentTaskId: detail?.parentTaskId ?? parentTaskId,
           version: detail?.version ?? 1,
-          hasChildren: sub.hasChildren
+          hasChildren: sub.hasChildren,
+          isClosed: detail?.isClosed ?? false,
+          isArchived: detail?.isArchived ?? false
         });
         if (sub.hasChildren) {
           result.push(...(await collectSubtasks(sub.taskId, projectIdOfTask)));
@@ -243,7 +248,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const targetProjects = projectId ? projects.filter(project => project.projectId === projectId) : projects;
     return (
       await Promise.all(targetProjects.map(async project => {
-        const tasks = await projectTaskLoader.listTasksByProject({ projectId: project.projectId, offset: 0, limit: 100 });
+        const nodes = await tableLoader.listTasksWithDetail(project.projectId);
+        const flatten=(arr:any[], parentTaskId:string|null=null): any[] => arr.flatMap((n:any)=>[{...n,parentTaskId:n.parentTaskId??parentTaskId},...flatten(n.children??[], n.taskId)]);
+        const tasks = flatten(nodes);
         return Promise.all(tasks.map(async task => {
           const detail = await taskOperator.findDetailById(task.taskId);
           const root = {
@@ -258,7 +265,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             tags: detail?.tags ?? [],
             parentTaskId: detail?.parentTaskId ?? null,
             version: task.version,
-            hasChildren: task.hasChildren
+            hasChildren: (task.children?.length ?? 0) > 0,
+            isClosed: task.isClosed ?? false,
+            isArchived: task.isArchived ?? false
           };
           if (task.hasChildren) {
             const children = await collectSubtasks(task.taskId, project.projectId);
@@ -296,7 +305,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         const groups = await Promise.all(projects.map(async (project) => {
           const nodes = await loader.listTasksWithDetail(project.projectId);
           if (nodes.length === 0) {
-            return [{ taskId: `__empty__${project.projectId}`, title: '', projectId: project.projectId, projectName: project.projectName, status: 'todo' as const, priority: 'low' as const, assignee: null, progress: 0, version: 0, children: [] }];
+            return [{ taskId: `__empty__${project.projectId}`, title: '', projectId: project.projectId, projectName: project.projectName, status: 'todo' as const, priority: 'low' as const, assignee: null, progress: 0, version: 0, isClosed: false, isArchived: false, children: [] }];
           }
           return nodes.map(node => ({ ...node, projectId: project.projectId, projectName: project.projectName }));
         }));

@@ -13,6 +13,9 @@ export type TaskUpdate = {
   updatedBy: string;
   updatedAt: string;
   progress: number;
+  isClosed: boolean;
+  isArchived: boolean;
+  closeReason: string | null;
 };
 
 export type TaskDetail = {
@@ -28,6 +31,9 @@ export type TaskDetail = {
   parentTaskId: string | null;
   version: number;
   progress: number;
+  isClosed: boolean;
+  isArchived: boolean;
+  closeReason: string | null;
 };
 
 export type TaskTreeNode = {
@@ -38,6 +44,8 @@ export type TaskTreeNode = {
   assignee: string | null;
   progress: number;
   version: number;
+  isClosed: boolean;
+  isArchived: boolean;
   children: TaskTreeNode[];
 };
 

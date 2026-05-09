@@ -65,6 +65,25 @@ export class TaskDetailWebviewPanel {
         const subDetail = await this.findDetailById(m.taskId); if (!subDetail) return;
         await this.moveTaskStatusUseCase.execute({ ...subDetail, actorId: ACTOR_ID, toStatus: m.newStatus as TaskStatus, expectedVersion: subDetail.version, now: new Date().toISOString() });
       }
+      if (m.type === 'detail:closeTask') {
+        const reason = typeof m.reason === 'string' ? m.reason.trim() : '';
+        if (!reason) {
+          await panel.webview.postMessage({ type: 'detail:error', message: 'Close reason is required.' });
+          return;
+        }
+        const current = await this.findDetailById(taskId); if (!current) return;
+        await this.updateTaskUseCase.execute({ ...current, actorId: ACTOR_ID, expectedVersion: current.version, now: new Date().toISOString(), isClosed: true, closeReason: reason, isArchived: false, status: 'close' });
+        panel.dispose();
+      }
+      if (m.type === 'detail:archiveTask') {
+        const current = await this.findDetailById(taskId); if (!current) return;
+        if (!(current.status === 'done' || current.isClosed)) {
+          await panel.webview.postMessage({ type: 'detail:error', message: 'Only done/closed tasks can be archived.' });
+          return;
+        }
+        await this.updateTaskUseCase.execute({ ...current, actorId: ACTOR_ID, expectedVersion: current.version, now: new Date().toISOString(), isArchived: true });
+        panel.dispose();
+      }
       if (m.type === 'detail:save') {
         const current = await this.findDetailById(taskId); if (!current) return;
         await this.updateTaskUseCase.execute({ ...current, actorId: ACTOR_ID, expectedVersion: current.version, now: new Date().toISOString(),
@@ -75,7 +94,10 @@ export class TaskDetailWebviewPanel {
           assignee: typeof m.assignee === 'string' ? (m.assignee.trim() || null) : current.assignee,
           dueDate: typeof m.dueDate === 'string' ? (m.dueDate.trim() || null) : current.dueDate,
           tags: typeof m.tags === 'string' ? m.tags.split(',').map(v => v.trim()).filter(Boolean) : current.tags,
-          progress: typeof m.progress === 'number' ? m.progress : current.progress
+          progress: typeof m.progress === 'number' ? m.progress : current.progress,
+          isClosed: current.isClosed,
+          isArchived: current.isArchived,
+          closeReason: current.closeReason
         });
         await this.render(panel, taskId);
       }
@@ -97,7 +119,7 @@ export class TaskDetailWebviewPanel {
     body{background:var(--vscode-editor-background);color:var(--vscode-editor-foreground);font-family:var(--vscode-font-family);margin:0;padding:12px}
     .layout{display:flex;gap:12px;flex-wrap:wrap}.main{flex:7;min-width:0}.side{flex:3;min-width:240px}
     .panel{border:1px solid var(--vscode-panel-border);background:var(--vscode-sideBar-background);border-radius:8px;padding:12px;margin-bottom:12px}
-    .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.btn{border:1px solid var(--vscode-panel-border);background:var(--vscode-button-background);color:var(--vscode-button-foreground);padding:4px 10px;border-radius:6px;cursor:pointer}
+    .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.header-actions{margin-left:auto;display:flex;gap:8px;position:sticky;top:0}.btn{border:1px solid var(--vscode-panel-border);background:var(--vscode-button-background);color:var(--vscode-button-foreground);padding:4px 10px;border-radius:6px;cursor:pointer}
     .btn.secondary{background:transparent;color:var(--vscode-editor-foreground)} .btn:disabled{opacity:.5;cursor:not-allowed}
     input,select,textarea{background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:6px;padding:6px;box-sizing:border-box;width:100%}
     textarea{resize:vertical;min-height:84px}.field{display:grid;grid-template-columns:90px 1fr;gap:8px;align-items:center;margin-bottom:8px}
@@ -110,14 +132,14 @@ export class TaskDetailWebviewPanel {
 
   private buildHtml(detail: TaskDetail, subtasks: SubtaskItem[], comments: ReadonlyArray<CommentRow>): string {
     const safe = (v: string) => v.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
-    const statusLabel = (s: string) => ({ todo: 'Todo', in_progress: 'In Progress', blocked: 'Blocked', done: 'Done' }[s] ?? s);
+    const statusLabel = (s: string) => ({ todo: 'Todo', in_progress: 'In Progress', blocked: 'Blocked', done: 'Done', close: 'Close', archived: 'Archived' }[s] ?? s);
     const priorityLabel = (p: string) => ({ low: 'Low', medium: 'Medium', high: 'High', critical: 'Critical' }[p] ?? p);
     const commentRows: CommentRow[] = [...comments].sort((a: CommentRow, b: CommentRow) => a.createdAt.localeCompare(b.createdAt));
     return `<!doctype html><html lang="ja"><head><meta charset="UTF-8"/><style>
     body{background:var(--vscode-editor-background);color:var(--vscode-editor-foreground);font-family:var(--vscode-font-family);margin:0;padding:12px}
     .layout,.detail-layout{display:flex;gap:12px;flex-wrap:wrap}.main,.detail-main{flex:7;min-width:0}.side,.detail-side{flex:3;min-width:240px}
     .panel{border:1px solid var(--vscode-panel-border);background:var(--vscode-sideBar-background);border-radius:8px;padding:12px;margin-bottom:12px}
-    .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.btn{border:1px solid var(--vscode-panel-border);background:var(--vscode-button-background);color:var(--vscode-button-foreground);padding:4px 10px;border-radius:6px;cursor:pointer}
+    .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.header-actions{margin-left:auto;display:flex;gap:8px;position:sticky;top:0}.btn{border:1px solid var(--vscode-panel-border);background:var(--vscode-button-background);color:var(--vscode-button-foreground);padding:4px 10px;border-radius:6px;cursor:pointer}
     .btn.secondary{background:transparent;color:var(--vscode-editor-foreground)} .badge{font-size:11px;border-radius:999px;font-weight:600;padding:2px 8px}
     .status-todo{background:color-mix(in srgb,var(--vscode-charts-blue) 18%,transparent);color:var(--vscode-editor-foreground);border:1px solid color-mix(in srgb,var(--vscode-charts-blue) 45%,var(--vscode-panel-border))} .status-in_progress{background:color-mix(in srgb,var(--vscode-charts-yellow) 20%,transparent);color:var(--vscode-editor-foreground);border:1px solid color-mix(in srgb,var(--vscode-charts-yellow) 45%,var(--vscode-panel-border))} .status-done{background:color-mix(in srgb,var(--vscode-charts-green) 20%,transparent);color:var(--vscode-editor-foreground);border:1px solid color-mix(in srgb,var(--vscode-charts-green) 45%,var(--vscode-panel-border))} .status-blocked{background:color-mix(in srgb,var(--vscode-charts-red) 20%,transparent);color:var(--vscode-editor-foreground);border:1px solid color-mix(in srgb,var(--vscode-charts-red) 45%,var(--vscode-panel-border))}
     .priority-low{background:#f0f0f0;color:#666} .priority-medium{background:color-mix(in srgb,var(--vscode-charts-yellow) 15%,transparent);color:var(--vscode-editor-foreground);border:1px solid color-mix(in srgb,var(--vscode-charts-yellow) 35%,var(--vscode-panel-border))} .priority-high{background:#ffedd5;color:#9a3412} .priority-critical{background:#fee2e2;color:#991b1b}
@@ -133,7 +155,8 @@ export class TaskDetailWebviewPanel {
     <div class="layout detail-layout"><div class="main detail-main">
       <section class="panel"><div id="error-banner" style="display:none;color:var(--vscode-errorForeground);margin-bottom:8px"></div><div class="row"><h2 style="margin:0" class="view-only">${safe(detail.title)}</h2><input class="edit-only" id="edit-title" value="${safe(detail.title)}" style="flex:1"/>
       <span class="badge status-${detail.status}">${statusLabel(detail.status)}</span><span class="badge priority-${detail.priority}">${priorityLabel(detail.priority)}</span><span>Progress ${detail.progress}%</span>
-      <span style="margin-left:auto"></span><button id="btn-edit" class="btn secondary view-only">Edit</button><button id="btn-save" class="btn edit-only">Save</button><button id="btn-cancel" class="btn secondary edit-only">Cancel</button><button id="btn-close" class="btn secondary">Close</button></div></section>
+      <div class="header-actions"><button id="btn-edit" class="btn secondary view-only">Edit</button><button id="btn-save" class="btn edit-only">Save</button><button id="btn-close-task" class="btn secondary view-only">Close Task</button><button id="btn-archive" class="btn secondary view-only">Archive</button><button id="btn-close" class="btn secondary">Dismiss</button></div></div></section>
+      <section class="panel view-only" id="close-reason-panel" style="display:none"><h3>Close Task</h3><div class="field"><label>Reason</label><input id="close-reason-input" placeholder="Reason (required)"/></div><div class="row"><button id="btn-close-confirm" class="btn">Confirm Close</button><button id="btn-close-reason-dismiss" class="btn secondary">Dismiss</button></div></section>
       <section class="panel"><h3>Description</h3><div class="view-only desc-view" id="desc-view">${safe(detail.description ?? '—')}</div><textarea class="edit-only" id="edit-description" rows="6">${safe(detail.description ?? '')}</textarea></section>
       <section class="panel" ${subtasks.length===0?'style="display:none"':''}><h3>Subtasks</h3>${subtasks.map(s=>`<label class="row"><input type="checkbox" data-subtask-id="${s.taskId}" ${s.status==='done'?'checked':''}/> ${safe(s.title)} <span class="badge status-${s.status}">${statusLabel(s.status)}</span><span class="badge priority-${s.priority}">${priorityLabel(s.priority)}</span></label>`).join('')}</section>
       <section class="panel"><h3>Comments / Activity</h3><div id="comments">${commentRows.map((c: CommentRow)=>`<div class="comment"><div class="vote">▲<span>•</span>▼</div><div><div class="meta"><span class="comment-author">${safe(c.createdBy)}</span><span class="comment-date">${new Date(c.createdAt).toLocaleString('ja-JP')}</span></div><div class="comment-body">${safe(c.body)}</div><div class="history">updated: ${new Date(c.updatedAt).toLocaleString('ja-JP')} ${c.deletedAt?`• deleted: ${new Date(c.deletedAt).toLocaleString('ja-JP')}`:''}</div></div></div>`).join('')}</div>
@@ -147,9 +170,12 @@ export class TaskDetailWebviewPanel {
       <div class="field"><label>Tags</label><div class="view-only">${safe(detail.tags.join(', ')||'—')}</div><input class="edit-only" id="edit-tags" value="${safe(detail.tags.join(', '))}"/></div>
     </section></aside></div>
     <script>const vscode=acquireVsCodeApi();const orig=${JSON.stringify(detail)};
-      document.getElementById('btn-close').onclick=()=>vscode.postMessage({type:'detail:close'});
+      document.getElementById('btn-close').onclick=()=>{if(document.body.classList.contains('editing')){document.body.classList.remove('editing');return;}vscode.postMessage({type:'detail:close'});};
+      document.getElementById('btn-close-task').onclick=()=>{document.getElementById('close-reason-panel').style.display='block';document.getElementById('close-reason-input').focus();};
+      document.getElementById('btn-close-confirm').onclick=()=>{const reason=document.getElementById('close-reason-input').value.trim();if(!reason){const b=document.getElementById('error-banner');b.textContent='Close reason is required.';b.style.display='block';return;}vscode.postMessage({type:'detail:closeTask',reason});};
+      document.getElementById('btn-close-reason-dismiss').onclick=()=>{document.getElementById('close-reason-panel').style.display='none';};
+      document.getElementById('btn-archive').onclick=()=>{vscode.postMessage({type:'detail:archiveTask'});};
       document.getElementById('btn-edit').onclick=()=>{document.body.classList.add('editing');document.getElementById('edit-status').value=orig.status;document.getElementById('edit-priority').value=orig.priority;};
-      document.getElementById('btn-cancel').onclick=()=>{document.body.classList.remove('editing');};
       document.getElementById('btn-save').onclick=()=>{vscode.postMessage({type:'detail:save',title:document.getElementById('edit-title').value,description:document.getElementById('edit-description').value,status:document.getElementById('edit-status').value,priority:document.getElementById('edit-priority').value,assignee:document.getElementById('edit-assignee').value,dueDate:document.getElementById('edit-dueDate').value,tags:document.getElementById('edit-tags').value,progress:Number(document.getElementById('edit-progress').value)});};
       document.querySelectorAll('[data-subtask-id]').forEach(el=>el.onchange=(e)=>{const t=e.target;vscode.postMessage({type:'detail:subtask:toggle',taskId:t.dataset.subtaskId,newStatus:t.checked?'done':'todo'});});
       document.getElementById('btn-comment-add').onclick=()=>{const el=document.getElementById('comment-input');const body=el.value.trim();if(!body)return;vscode.postMessage({type:'detail:comment:add',body});el.value='';};
