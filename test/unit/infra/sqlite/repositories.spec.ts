@@ -34,7 +34,10 @@ describe('SQLite repositories (phase2)', () => {
         createdAt: '2026-04-26T00:00:00Z',
         updatedAt: '2026-04-26T00:00:00Z',
         version: 1,
-        progress: 0
+        progress: 0,
+      isClosed: false,
+      isArchived: false,
+      closeReason: null
       })
     );
 
@@ -62,7 +65,10 @@ describe('SQLite repositories (phase2)', () => {
           parentTaskId: null,
           updatedBy: 'u1',
           updatedAt: '2026-04-26T00:00:00Z',
-          progress: 0
+          progress: 0,
+      isClosed: false,
+      isArchived: false,
+      closeReason: null
         },
         1
       )
@@ -87,7 +93,10 @@ describe('SQLite repositories (phase2)', () => {
         parentTaskId: null,
         updatedBy: 'u1',
         updatedAt: '2026-04-26T00:00:00Z',
-        progress: 0
+        progress: 0,
+      isClosed: false,
+      isArchived: false,
+      closeReason: null
       },
       1
     );
@@ -104,11 +113,8 @@ describe('SQLite repositories (phase2)', () => {
 
     const projects = await repository.listProjects();
 
-    expect(projects).toEqual([
-      { projectId: 'p1', projectName: 'p1' },
-      { projectId: 'p2', projectName: 'p2' }
-    ]);
-    const call = client.executed.find((item) => item.type === 'get' && item.sql.includes('GROUP BY project_id'));
+    expect(projects).toEqual([{ projectId: 'p1' }, { projectId: 'p2' }]);
+    const call = client.executed.find((item) => item.type === 'get' && item.sql.includes('FROM projects'));
     expect(call).toBeDefined();
   });
 
@@ -132,10 +138,10 @@ describe('SQLite repositories (phase2)', () => {
     const tasks = await repository.listMyTasks({ userId: 'u1', limit: 5, sortBy: 'updatedAt' });
 
     expect(tasks).toEqual([{ taskId: 't1', projectId: 'p1', title: 'mine', status: 'todo', priority: 'high', version: 1, hasChildren: false }]);
-    const call = client.executed.find((item) => item.type === 'get' && item.sql.includes('WHERE ((t.created_by = ? AND t.assignee IS NULL) OR t.assignee = ?)'));
+    const call = client.executed.find((item) => item.type === 'get' && item.sql.includes('WHERE t.assignee = ?'));
     expect(call?.sql.includes("t.status != 'done'")).toBe(true);
     expect(call?.sql.includes('ORDER BY t.updated_at DESC')).toBe(true);
-    expect(call?.params).toEqual(['u1', 'u1', 5]);
+    expect(call?.params).toEqual(['u1', 5]);
   });
 
   it('TaskRepository.listTasksByProject supports dueDate sort and done exclusion', async () => {

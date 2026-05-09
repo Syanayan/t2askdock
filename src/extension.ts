@@ -5,6 +5,7 @@ import { ExtensionStateStore } from './ui/state/extension-state-store.js';
 import { INITIAL_MIGRATION_V1_SQL } from './infra/sqlite/migrations/initial-migration-v1.js';
 import { MIGRATION_V2_SQL } from './infra/sqlite/migrations/initial-migration-v2.js';
 import { MIGRATION_V3_SQL } from './infra/sqlite/migrations/initial-migration-v3.js';
+import { MIGRATION_V4_SQL } from './infra/sqlite/migrations/initial-migration-v4.js';
 import type { MigrationDependencies } from './infra/sqlite/migrations/migrator.js';
 import { Migrator } from './infra/sqlite/migrations/migrator.js';
 import { BetterSqlite3Client } from './infra/sqlite/better-sqlite3-client.js';
@@ -85,7 +86,7 @@ export async function bootstrapMigrations(
     appendMigrationFailedAudit: async () => undefined
   });
 
-  await migrator.migrate([{ version: 1, statements: INITIAL_MIGRATION_V1_SQL }, { version: 2, statements: MIGRATION_V2_SQL }, { version: 3, statements: MIGRATION_V3_SQL }]);
+  await migrator.migrate([{ version: 1, statements: INITIAL_MIGRATION_V1_SQL }, { version: 2, statements: MIGRATION_V2_SQL }, { version: 3, statements: MIGRATION_V3_SQL }, { version: 4, statements: MIGRATION_V4_SQL }]);
   context.subscriptions.push({ dispose: () => client.close() });
 }
 
@@ -117,7 +118,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       reconnectReadOnly: async () => undefined,
       appendMigrationFailedAudit: async () => undefined
     });
-    await migrator.migrate([{ version: 1, statements: INITIAL_MIGRATION_V1_SQL }, { version: 2, statements: MIGRATION_V2_SQL }, { version: 3, statements: MIGRATION_V3_SQL }]);
+    await migrator.migrate([{ version: 1, statements: INITIAL_MIGRATION_V1_SQL }, { version: 2, statements: MIGRATION_V2_SQL }, { version: 3, statements: MIGRATION_V3_SQL }, { version: 4, statements: MIGRATION_V4_SQL }]);
     const now = new Date().toISOString();
     await client.run(
       `INSERT OR IGNORE INTO users(user_id, display_name, role, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,

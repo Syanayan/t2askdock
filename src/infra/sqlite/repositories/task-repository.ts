@@ -13,8 +13,8 @@ export class TaskRepository implements TaskRepositoryPort {
 
   public async create(task: Task): Promise<void> {
     await this.holder.get().run(
-      `INSERT INTO tasks(task_id, project_id, title, description, status, priority, assignee, due_date, parent_task_id, created_by, updated_by, created_at, updated_at, version, progress)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO tasks(task_id, project_id, title, description, status, priority, assignee, due_date, parent_task_id, created_by, updated_by, created_at, updated_at, version, progress, is_closed, is_archived, close_reason)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         task.value.taskId,
         task.value.projectId,
@@ -30,7 +30,10 @@ export class TaskRepository implements TaskRepositoryPort {
         task.value.createdAt,
         task.value.updatedAt,
         task.value.version,
-        task.value.progress
+        task.value.progress,
+        task.value.isClosed ? 1 : 0,
+        task.value.isArchived ? 1 : 0,
+        task.value.closeReason
       ]
     );
 
@@ -46,7 +49,7 @@ export class TaskRepository implements TaskRepositoryPort {
   public async updateWithVersion(task: TaskUpdate, expectedVersion: number): Promise<void> {
     const result = await this.holder.get().run(
       `UPDATE tasks
-       SET title = ?, description = ?, status = ?, priority = ?, assignee = ?, due_date = ?, parent_task_id = ?, updated_by = ?, updated_at = ?, progress = ?, version = version + 1
+       SET title = ?, description = ?, status = ?, priority = ?, assignee = ?, due_date = ?, parent_task_id = ?, updated_by = ?, updated_at = ?, progress = ?, is_closed = ?, is_archived = ?, close_reason = ?, version = version + 1
        WHERE task_id = ? AND version = ?`,
       [
         task.title,
@@ -59,6 +62,9 @@ export class TaskRepository implements TaskRepositoryPort {
         task.updatedBy,
         task.updatedAt,
         task.progress,
+        task.isClosed ? 1 : 0,
+        task.isArchived ? 1 : 0,
+        task.closeReason,
         task.taskId,
         expectedVersion
       ]
@@ -106,7 +112,9 @@ export class TaskRepository implements TaskRepositoryPort {
       't.project_id = ?',
       't.parent_task_id IS NULL',
       ...(input.excludeDone ? [`t.status != 'done'`] : []),
-      ...(sortBy === 'priority' ? [`t.priority != 'low'`] : [])
+      ...(sortBy === 'priority' ? [`t.priority != 'low'`] : []),
+      `t.is_closed = 0`,
+      `t.is_archived = 0`
     ];
     return this.holder.get().all<{ taskId: string; title: string; status: Task['value']['status']; priority: Task['value']['priority']; version: number; hasChildren: number }>(
       `SELECT t.task_id AS taskId,
@@ -150,6 +158,8 @@ export class TaskRepository implements TaskRepositoryPort {
        WHERE t.assignee = ?
          AND t.parent_task_id IS NULL
          AND t.status != 'done'
+         AND t.is_closed = 0
+         AND t.is_archived = 0
        ORDER BY ${orderBy}
        LIMIT ?`,
       [input.userId, input.limit]
@@ -159,12 +169,12 @@ export class TaskRepository implements TaskRepositoryPort {
   public async findDetailById(taskId: string): Promise<TaskDetail | null> {
     const row = await this.holder.get().get<{
       taskId: string; projectId: string; title: string; status: Task['value']['status']; priority: Task['value']['priority'];
-      dueDate: string | null; description: string | null; assignee: string | null; parentTaskId: string | null; version: number; progress: number;
-    }>(`SELECT task_id AS taskId, project_id AS projectId, title, status, priority, due_date AS dueDate, description, assignee, parent_task_id AS parentTaskId, version, progress
+      dueDate: string | null; description: string | null; assignee: string | null; parentTaskId: string | null; version: number; progress: number; isClosed: number; isArchived: number; closeReason: string | null;
+    }>(`SELECT task_id AS taskId, project_id AS projectId, title, status, priority, due_date AS dueDate, description, assignee, parent_task_id AS parentTaskId, version, progress, is_closed AS isClosed, is_archived AS isArchived, close_reason AS closeReason
        FROM tasks WHERE task_id = ?`, [taskId]);
     if (!row) return null;
     const tags = await this.holder.get().all<{ tag: string }>(`SELECT tag FROM task_tags WHERE task_id = ? ORDER BY created_at ASC`, [taskId]);
-    return { ...row, tags: tags.map((t) => t.tag) };
+    return { ...row, isClosed: row.isClosed === 1, isArchived: row.isArchived === 1, closeReason: row.closeReason, tags: tags.map((t) => t.tag) };
   }
 
 
