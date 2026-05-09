@@ -83,7 +83,9 @@ export class TaskDetailWebviewPanel {
         await this.addCommentUseCase.execute({ commentId: nextUlid(), taskId, body: m.body, actorId: ACTOR_ID, now: new Date().toISOString() });
         await panel.webview.postMessage({ type: 'detail:comments:refresh', comments: await this.listComments(taskId) });
       }
-      if (m.type === 'detail:file:open' && typeof m.path === 'string') await this.executeCommand('vscode.open', { fsPath: m.path });
+      if (m.type === 'detail:file:open' && typeof m.path === 'string') {
+        await this.executeCommand('vscode.open', toVscodeOpenTarget(m.path));
+      }
       } catch (error) {
         const messageText = error instanceof Error ? error.message : String(error);
         await panel.webview.postMessage({ type: 'detail:error', message: messageText });
@@ -146,4 +148,17 @@ export class TaskDetailWebviewPanel {
       window.addEventListener('message',(event)=>{if(event.data?.type==='detail:comments:refresh'){document.getElementById('comments').innerHTML=renderComments(event.data.comments??[]);return;} if(event.data?.type==='detail:error'){const b=document.getElementById('error-banner');b.textContent=event.data.message||'error';b.style.display='block';}});
     </script></body></html>`;
   }
+}
+
+function toVscodeOpenTarget(pathOrUri: string): { fsPath: string } | { scheme: string; path: string; fsPath: string; toString: () => string } {
+  if (pathOrUri.startsWith('file://')) {
+    const uri = new URL(pathOrUri);
+    return {
+      scheme: 'file',
+      path: decodeURIComponent(uri.pathname),
+      fsPath: decodeURIComponent(uri.pathname),
+      toString: () => pathOrUri
+    };
+  }
+  return { fsPath: pathOrUri };
 }

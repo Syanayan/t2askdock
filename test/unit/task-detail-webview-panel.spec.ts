@@ -20,16 +20,19 @@ describe('TaskDetailWebviewPanel', () => {
     const addCommentUseCase = { execute: vi.fn() };
     const handlerRef: { current?: (message: unknown) => Promise<void> } = {};
     const dispose = vi.fn();
-    const panel = new TaskDetailWebviewPanel(async(id)=>({...detail, taskId:id}) as never, async()=>[], async()=>[], updateTaskUseCase as never, moveTaskStatusUseCase as never, addCommentUseCase as never, async()=>undefined, { execute: vi.fn() } as never);
+    const executeCommand = vi.fn().mockResolvedValue(undefined);
+    const panel = new TaskDetailWebviewPanel(async(id)=>({...detail, taskId:id}) as never, async()=>[], async()=>[], updateTaskUseCase as never, moveTaskStatusUseCase as never, addCommentUseCase as never, executeCommand, { execute: vi.fn() } as never);
     const webview: any = { html:'', onDidReceiveMessage:(h:any)=>{handlerRef.current=h; return {dispose(){}};}, postMessage: vi.fn() };
     await panel.render({ title:'', webview, dispose } as never, 't1');
     await handlerRef.current?.({ type:'detail:subtask:toggle', taskId:'s1', newStatus:'done' });
     await handlerRef.current?.({ type:'detail:save', title:'x' });
     await handlerRef.current?.({ type:'detail:comment:add', body:'hello' });
+    await handlerRef.current?.({ type:'detail:file:open', path:'file:///tmp/demo.txt' });
     await handlerRef.current?.({ type:'detail:close' });
     expect(moveTaskStatusUseCase.execute).toHaveBeenCalled();
     expect(updateTaskUseCase.execute).toHaveBeenCalled();
     expect(addCommentUseCase.execute).toHaveBeenCalled();
+    expect(executeCommand).toHaveBeenCalledWith('vscode.open', expect.objectContaining({ scheme: 'file', fsPath: '/tmp/demo.txt' }));
     expect(dispose).toHaveBeenCalled();
   });
 
