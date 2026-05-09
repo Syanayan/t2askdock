@@ -4,7 +4,7 @@ import { Title } from '../value-objects/title.js';
 import { Ulid } from '../value-objects/ulid.js';
 import { Version } from '../value-objects/version.js';
 
-export type TaskStatus = 'todo' | 'in_progress' | 'done' | 'blocked';
+export type TaskStatus = 'todo' | 'in_progress' | 'done' | 'blocked' | 'close';
 export type Priority = 'low' | 'medium' | 'high' | 'critical';
 
 export type TaskProps = {
@@ -24,6 +24,9 @@ export type TaskProps = {
   updatedAt: string;
   version: number;
   progress: number;
+  isClosed: boolean;
+  isArchived: boolean;
+  closeReason: string | null;
 };
 
 export class Task {
@@ -52,6 +55,10 @@ export class Task {
 
     if (props.tags.length > 20) {
       throw new Error('tags must be <= 20');
+    }
+
+    if (props.isClosed && (!props.closeReason || props.closeReason.trim().length === 0)) {
+      throw new Error('closeReason is required when task is closed');
     }
 
     const tags = props.tags.map((tag) => Tag.from(tag));

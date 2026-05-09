@@ -50,7 +50,10 @@ export class CreateTaskUseCase {
       createdAt: input.now,
       updatedAt: input.now,
       version: 1,
-      progress: input.progress ?? 0
+      progress: input.progress ?? 0,
+      isClosed: false,
+      isArchived: false,
+      closeReason: null
     });
 
     await this.transactionManager.runInTx(async () => {

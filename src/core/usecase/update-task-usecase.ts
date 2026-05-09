@@ -19,6 +19,9 @@ export type UpdateTaskInput = {
   now: string;
   expectedVersion: number;
   progress?: number;
+  isClosed?: boolean;
+  isArchived?: boolean;
+  closeReason?: string | null;
 };
 
 export type UpdateTaskOutput = {
@@ -53,7 +56,10 @@ export class UpdateTaskUseCase {
       createdAt: input.now,
       updatedAt: input.now,
       version: input.expectedVersion,
-      progress: input.progress ?? 0
+      progress: input.progress ?? 0,
+      isClosed: input.isClosed ?? false,
+      isArchived: input.isArchived ?? false,
+      closeReason: input.closeReason ?? null
     });
 
     await this.transactionManager.runInTx(async () => {
@@ -70,7 +76,10 @@ export class UpdateTaskUseCase {
           parentTaskId: task.value.parentTaskId,
           updatedBy: input.actorId,
           updatedAt: input.now,
-          progress: task.value.progress
+          progress: task.value.progress,
+          isClosed: task.value.isClosed,
+          isArchived: task.value.isArchived,
+          closeReason: task.value.closeReason
         },
         input.expectedVersion
       );
