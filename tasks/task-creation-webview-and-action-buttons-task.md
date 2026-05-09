@@ -37,16 +37,16 @@
 
 ## グループA: Webview 再利用設計
 
-- [ ] **A-1 `TaskDetailWebviewPanel` の作成/改善**
+- [x] **A-1 `TaskDetailWebviewPanel` の作成/改善**
   - `render(panel, taskId?)` のように `taskId` が無い場合は新規作成モードに切り替える
   - HTML 内で `isCreateMode` / `isEditMode` フラグを使い分ける
   - `Save` ボタンは新規時に `createTask`, 編集時に `updateTask` メッセージを送信する
 
-- [ ] **A-2 コマンドの共通化**
+- [x] **A-2 コマンドの共通化**
   - `src/extension.ts` の `taskDock.openTaskDetail` 相当の呼び出しを、新規作成用 `taskDock.openTaskCreate` でも同じ `TaskDetailWebviewPanel` を使う
   - `createTask` / `updateTask` の差分は `taskId` の有無で判定
 
-- [ ] **A-3 HTML 内の表示制御**
+- [x] **A-3 HTML 内の表示制御**
   - `Create Task` / `Edit Task` の見出しを切り替える
   - 作成時は空の入力フィールドを表示し、編集時は既存値を埋める
   - `Save` 送信前に必須項目チェックを行う
@@ -55,17 +55,17 @@
 
 ## グループB: 追加ボタンと UI 位置
 
-- [ ] **B-1 カテゴリー追加ボタン**
+- [x] **B-1 カテゴリー追加ボタン**
   - カテゴリー一覧表示時の右上に `Add Category` ボタンを配置
   - ボタン押下で `CategoryCreate` Webview または入力モーダルを開く
   - 入力フィールドは `name` だけで、`Ctrl + Enter` による送信をサポートする
 
-- [ ] **B-2 タスク追加ボタン**
+- [x] **B-2 タスク追加ボタン**
   - タスク一覧表示時に `Add Task` ボタンを右上に配置
   - 押下で `TaskCreate` Webview を開く
   - カンバンの中に直接追加する UI は実装しない
 
-- [ ] **B-3 `Ctrl + Enter` 処理**
+- [x] **B-3 `Ctrl + Enter` 処理**
   - 作成/編集フォームに `keydown` ハンドラを追加
   - `Ctrl + Enter` でフォーム送信をトリガー
   - 既存 Enter / Escape 動作と競合しないように整理する

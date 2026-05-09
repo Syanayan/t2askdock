@@ -3,6 +3,7 @@ import type { CommentRow } from '../../core/ports/repositories/comment-repositor
 import type { Priority, TaskStatus } from '../../core/domain/entities/task.js';
 import type { TaskDetail } from '../../core/ports/repositories/task-repository.js';
 import type { AddTaskCommentUseCase } from '../../core/usecase/comments/add-task-comment-usecase.js';
+import type { CreateTaskUseCase } from '../../core/usecase/create-task-usecase.js';
 import type { MoveTaskStatusUseCase } from '../../core/usecase/move-task-status-usecase.js';
 import type { UpdateTaskUseCase } from '../../core/usecase/update-task-usecase.js';
 
@@ -20,10 +21,36 @@ export class TaskDetailWebviewPanel {
     private readonly updateTaskUseCase: Pick<UpdateTaskUseCase, 'execute'>,
     private readonly moveTaskStatusUseCase: Pick<MoveTaskStatusUseCase, 'execute'>,
     private readonly addCommentUseCase: Pick<AddTaskCommentUseCase, 'execute'>,
-    private readonly executeCommand: (cmd: string, args?: unknown) => Promise<unknown>
+    private readonly executeCommand: (cmd: string, args?: unknown) => Promise<unknown>,
+    private readonly createTaskUseCase: Pick<CreateTaskUseCase, 'execute'>
   ) {}
 
-  public async render(panel: Pick<vscode.WebviewPanel, 'webview' | 'title' | 'dispose'>, taskId: string): Promise<void> {
+  public async render(panel: Pick<vscode.WebviewPanel, 'webview' | 'title' | 'dispose'>, taskId?: string): Promise<void> {
+    if (!taskId) {
+      panel.title = 'Create Task';
+      panel.webview.html = this.buildCreateHtml();
+      this.messageListenerDisposable?.dispose();
+      this.messageListenerDisposable = panel.webview.onDidReceiveMessage(async (message: unknown) => {
+        if (!message || typeof message !== 'object') return;
+        const m = message as Record<string, unknown>;
+        if (m.type === 'detail:close') panel.dispose();
+        if (m.type !== 'detail:create') return;
+        const title = typeof m.title === 'string' ? m.title.trim() : '';
+        const projectId = typeof m.projectId === 'string' ? m.projectId.trim() : '';
+        if (!title || !projectId) return;
+        await this.createTaskUseCase.execute({
+          taskId: nextUlid(), projectId, title, description: typeof m.description === 'string' ? m.description : null,
+          status: (typeof m.status === 'string' ? m.status : 'todo') as TaskStatus,
+          priority: (typeof m.priority === 'string' ? m.priority : 'medium') as Priority,
+          assignee: typeof m.assignee === 'string' ? (m.assignee.trim() || null) : null,
+          dueDate: typeof m.dueDate === 'string' ? (m.dueDate.trim() || null) : null,
+          tags: typeof m.tags === 'string' ? m.tags.split(',').map(v => v.trim()).filter(Boolean) : [],
+          parentTaskId: null, actorId: ACTOR_ID, now: new Date().toISOString()
+        });
+        panel.dispose();
+      });
+      return;
+    }
     const detail = await this.findDetailById(taskId); if (!detail) return;
     const [subtasks, comments] = await Promise.all([this.listSubtasks(taskId), this.listComments(taskId)]);
     panel.title = `Task: ${detail.title}`;
@@ -56,12 +83,29 @@ export class TaskDetailWebviewPanel {
         await this.addCommentUseCase.execute({ commentId: nextUlid(), taskId, body: m.body, actorId: ACTOR_ID, now: new Date().toISOString() });
         await panel.webview.postMessage({ type: 'detail:comments:refresh', comments: await this.listComments(taskId) });
       }
-      if (m.type === 'detail:file:open' && typeof m.path === 'string') await this.executeCommand('vscode.open', { fsPath: m.path });
+      if (m.type === 'detail:file:open' && typeof m.path === 'string') {
+        await this.executeCommand('vscode.open', toVscodeOpenTarget(m.path));
+      }
       } catch (error) {
         const messageText = error instanceof Error ? error.message : String(error);
         await panel.webview.postMessage({ type: 'detail:error', message: messageText });
       }
     });
+  }
+  private buildCreateHtml(): string {
+    return `<!doctype html><html lang="ja"><head><meta charset="UTF-8"/><style>
+    body{background:var(--vscode-editor-background);color:var(--vscode-editor-foreground);font-family:var(--vscode-font-family);margin:0;padding:12px}
+    .layout{display:flex;gap:12px;flex-wrap:wrap}.main{flex:7;min-width:0}.side{flex:3;min-width:240px}
+    .panel{border:1px solid var(--vscode-panel-border);background:var(--vscode-sideBar-background);border-radius:8px;padding:12px;margin-bottom:12px}
+    .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.btn{border:1px solid var(--vscode-panel-border);background:var(--vscode-button-background);color:var(--vscode-button-foreground);padding:4px 10px;border-radius:6px;cursor:pointer}
+    .btn.secondary{background:transparent;color:var(--vscode-editor-foreground)} .btn:disabled{opacity:.5;cursor:not-allowed}
+    input,select,textarea{background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:6px;padding:6px;box-sizing:border-box;width:100%}
+    textarea{resize:vertical;min-height:84px}.field{display:grid;grid-template-columns:90px 1fr;gap:8px;align-items:center;margin-bottom:8px}
+    </style></head><body class="editing"><div class="layout"><div class="main">
+    <section class="panel"><div class="row"><h2 style="margin:0">Create Task</h2><span style="margin-left:auto"></span><button id="btn-save" class="btn" disabled>Save</button><button id="btn-close" class="btn secondary">Close</button></div></section>
+    <section class="panel"><div class="field"><label>Title</label><input id="edit-title" placeholder="Task title (required)"/></div><div class="field"><label>Description</label><textarea id="edit-description" rows="6"></textarea></div></section>
+    </div><aside class="side"><section class="panel"><h3>Properties</h3><div class="field"><label>Status</label><select id="edit-status"><option value="todo">Todo</option><option value="in_progress">In Progress</option><option value="blocked">Blocked</option><option value="done">Done</option></select></div><div class="field"><label>Priority</label><select id="edit-priority"><option value="low">Low</option><option value="medium" selected>Medium</option><option value="high">High</option><option value="critical">Critical</option></select></div><div class="field"><label>Assignee</label><input id="edit-assignee"/></div><div class="field"><label>Due</label><input type="date" id="edit-dueDate"/></div><div class="field"><label>Tags</label><input id="edit-tags" placeholder="a,b,c"/></div></section></aside></div>
+    <script>const vscode=acquireVsCodeApi();const projectId='default';const titleEl=document.getElementById('edit-title');const saveBtn=document.getElementById('btn-save');const canSave=()=>titleEl.value.trim().length>0;const sync=()=>{saveBtn.disabled=!canSave();};const post=()=>{if(!canSave())return;vscode.postMessage({type:'detail:create',projectId,title:titleEl.value.trim(),description:document.getElementById('edit-description').value,status:document.getElementById('edit-status').value,priority:document.getElementById('edit-priority').value,assignee:document.getElementById('edit-assignee').value,dueDate:document.getElementById('edit-dueDate').value,tags:document.getElementById('edit-tags').value});};titleEl.addEventListener('input',sync);sync();saveBtn.onclick=post;document.getElementById('btn-close').onclick=()=>vscode.postMessage({type:'detail:close'});document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();post();}});</script></body></html>`;
   }
 
   private buildHtml(detail: TaskDetail, subtasks: SubtaskItem[], comments: ReadonlyArray<CommentRow>): string {
@@ -116,4 +160,17 @@ export class TaskDetailWebviewPanel {
       window.addEventListener('message',(event)=>{if(event.data?.type==='detail:comments:refresh'){document.getElementById('comments').innerHTML=renderComments(event.data.comments??[]);return;} if(event.data?.type==='detail:error'){const b=document.getElementById('error-banner');b.textContent=event.data.message||'error';b.style.display='block';}});
     </script></body></html>`;
   }
+}
+
+function toVscodeOpenTarget(pathOrUri: string): { fsPath: string } | { scheme: string; path: string; fsPath: string; toString: () => string } {
+  if (pathOrUri.startsWith('file://')) {
+    const uri = new URL(pathOrUri);
+    return {
+      scheme: 'file',
+      path: decodeURIComponent(uri.pathname),
+      fsPath: decodeURIComponent(uri.pathname),
+      toString: () => pathOrUri
+    };
+  }
+  return { fsPath: pathOrUri };
 }

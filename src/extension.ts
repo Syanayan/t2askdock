@@ -187,7 +187,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     },
     eventBus,
     async (command, args) => {
-      if ((command === 'taskDock.openTaskDetail' || command === 'taskDock.createTask') && currentBoardProfileId) {
+      if ((command === 'taskDock.openTaskDetail' || command === 'taskDock.createTask' || command === 'taskDock.openTaskCreate') && currentBoardProfileId) {
         return vscode.commands.executeCommand(command, { ...(args as Record<string, unknown>), profileId: currentBoardProfileId });
       }
       return vscode.commands.executeCommand(command, args);
@@ -829,9 +829,26 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             return vscode.commands.executeCommand(cmd, { ...(args as Record<string, unknown>), profileId });
           }
           return vscode.commands.executeCommand(cmd, args);
-        }
+        },
+        { execute: (input) => run(() => useCases.createTaskUseCase.execute(input)) } as Pick<typeof useCases.createTaskUseCase, 'execute'>
       );
       await detailPanel.render(panel, taskId);
+    }),
+    vscode.commands.registerCommand('taskDock.openTaskCreate', async (input?: { profileId?: string; projectId?: string }) => {
+      const profileId = input?.profileId;
+      const panel = vscode.window.createWebviewPanel('taskDock.taskDetail', 'Create Task', vscode.ViewColumn.Active, { enableScripts: true });
+      const run = <T>(fn: () => Promise<T>) => withProfileClient(profileId, fn);
+      const detailPanel = new TaskDetailWebviewPanel(
+        (id) => run(() => appContainer.buildTaskOperator().findDetailById(id)),
+        (parentId) => run(() => appContainer.buildProjectTaskLoader().listSubtasksByParent(parentId)),
+        (id) => run(() => useCases.listTaskCommentsUseCase.execute({ taskId: id })),
+        { execute: (inpt) => run(() => useCases.updateTaskUseCase.execute(inpt)) } as Pick<typeof useCases.updateTaskUseCase, 'execute'>,
+        { execute: (inpt) => run(() => useCases.moveTaskStatusUseCase.execute(inpt)) } as Pick<typeof useCases.moveTaskStatusUseCase, 'execute'>,
+        { execute: (inpt) => run(() => useCases.addTaskCommentUseCase.execute(inpt)) } as Pick<typeof useCases.addTaskCommentUseCase, 'execute'>,
+        async (cmd, args) => vscode.commands.executeCommand(cmd, args),
+        { execute: (inpt) => run(() => useCases.createTaskUseCase.execute({ ...inpt, projectId: input?.projectId ?? inpt.projectId })) } as Pick<typeof useCases.createTaskUseCase, 'execute'>
+      );
+      await detailPanel.render(panel);
     }),
     vscode.commands.registerCommand('taskDock.updateTask', async (item?: TaskTreeItem) => {
       item = resolveSelectedItem(item);

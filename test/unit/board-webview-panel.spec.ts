@@ -18,7 +18,7 @@ describe('BoardWebviewPanel', () => {
 
     await handlerRef.current?.({ type: 'card:create', status: 'todo', title: 'x', projectId: 'p1', priority: 'high', assignee: 'me', dueDate: '2026-01-01', tags: ['a'] });
 
-    expect(executeCommand).toHaveBeenCalledWith('taskDock.createTask', expect.objectContaining({ projectId: 'p1', priority: 'high', tags: ['a'] }));
+    expect(executeCommand).toHaveBeenCalledWith('taskDock.openTaskCreate', expect.objectContaining({ projectId: 'p1', status: 'todo' }));
   });
 
   it('opens task detail when card:open message arrives', async () => {
@@ -73,14 +73,13 @@ describe('BoardWebviewPanel', () => {
     expect(webview.html).not.toContain('transform:translateY(-1px)');
   });
 
-  it('includes keyboard add shortcuts and blank cancel behavior in inline create UI', () => {
+  it('includes Add Task action button in top toolbar', () => {
     const panel = new BoardWebviewPanel({ execute: vi.fn() } as never, { publish: vi.fn() } as never, vi.fn());
     const webview = { html: '', postMessage: vi.fn(), onDidReceiveMessage: vi.fn(() => ({ dispose: vi.fn() })) };
     panel.render({ title: '', webview }, []);
 
-    expect(webview.html).toContain("if((event.ctrlKey||event.metaKey)&&event.key==='Enter')");
-    expect(webview.html).toContain("if(!title){resetInline(inline);return;}");
-    expect(webview.html).toContain("if(event.key==='Escape'){event.preventDefault();resetInline(inline);}");
+    expect(webview.html).toContain('id="add-task"');
+    expect(webview.html).not.toContain('inline-create');
   });
 
   it('uses themed styles for card menu popup and menu trigger', () => {
