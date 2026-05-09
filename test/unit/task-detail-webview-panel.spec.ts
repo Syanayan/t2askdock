@@ -42,5 +42,9 @@ describe('TaskDetailWebviewPanel', () => {
     await panel.render({ title:'', webview, dispose: vi.fn() } as never);
     expect(webview.html).toContain('Create Task');
     expect(webview.html).toContain("type:'detail:create'");
+    expect(webview.html).toContain('btn-save');
+    expect(webview.html).toContain('disabled');
+    expect(webview.html).toContain('titleEl.value.trim().length>0');
+    expect(webview.html).toContain("if((e.ctrlKey||e.metaKey)&&e.key==='Enter')");
   });
 });
