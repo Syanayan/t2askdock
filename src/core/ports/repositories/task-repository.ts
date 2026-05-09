@@ -44,6 +44,8 @@ export type TaskTreeNode = {
   assignee: string | null;
   progress: number;
   version: number;
+  isClosed: boolean;
+  isArchived: boolean;
   children: TaskTreeNode[];
 };
 

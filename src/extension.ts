@@ -297,7 +297,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         const groups = await Promise.all(projects.map(async (project) => {
           const nodes = await loader.listTasksWithDetail(project.projectId);
           if (nodes.length === 0) {
-            return [{ taskId: `__empty__${project.projectId}`, title: '', projectId: project.projectId, projectName: project.projectName, status: 'todo' as const, priority: 'low' as const, assignee: null, progress: 0, version: 0, children: [] }];
+            return [{ taskId: `__empty__${project.projectId}`, title: '', projectId: project.projectId, projectName: project.projectName, status: 'todo' as const, priority: 'low' as const, assignee: null, progress: 0, version: 0, isClosed: false, isArchived: false, children: [] }];
           }
           return nodes.map(node => ({ ...node, projectId: project.projectId, projectName: project.projectName }));
         }));

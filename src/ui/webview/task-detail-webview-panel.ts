@@ -72,7 +72,7 @@ export class TaskDetailWebviewPanel {
           return;
         }
         const current = await this.findDetailById(taskId); if (!current) return;
-        await this.updateTaskUseCase.execute({ ...current, actorId: ACTOR_ID, expectedVersion: current.version, now: new Date().toISOString(), isClosed: true, closeReason: reason, isArchived: false });
+        await this.updateTaskUseCase.execute({ ...current, actorId: ACTOR_ID, expectedVersion: current.version, now: new Date().toISOString(), isClosed: true, closeReason: reason, isArchived: false, status: 'close' });
         panel.dispose();
       }
       if (m.type === 'detail:archiveTask') {
@@ -132,7 +132,7 @@ export class TaskDetailWebviewPanel {
 
   private buildHtml(detail: TaskDetail, subtasks: SubtaskItem[], comments: ReadonlyArray<CommentRow>): string {
     const safe = (v: string) => v.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
-    const statusLabel = (s: string) => ({ todo: 'Todo', in_progress: 'In Progress', blocked: 'Blocked', done: 'Done' }[s] ?? s);
+    const statusLabel = (s: string) => ({ todo: 'Todo', in_progress: 'In Progress', blocked: 'Blocked', done: 'Done', close: 'Close', archived: 'Archived' }[s] ?? s);
     const priorityLabel = (p: string) => ({ low: 'Low', medium: 'Medium', high: 'High', critical: 'Critical' }[p] ?? p);
     const commentRows: CommentRow[] = [...comments].sort((a: CommentRow, b: CommentRow) => a.createdAt.localeCompare(b.createdAt));
     return `<!doctype html><html lang="ja"><head><meta charset="UTF-8"/><style>
