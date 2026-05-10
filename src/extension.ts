@@ -297,7 +297,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   let boardWebviewPanel: vscode.WebviewPanel | undefined;
   const tableWebviewPanels = new Set<vscode.WebviewPanel>();
   const taskDetailPanels = new Set<vscode.WebviewPanel>();
-  const createTablePanel = (profileId?: string, panelTitle?: string): TaskTableWebviewPanel => {
+  const createTablePanel = (profileId?: string, panelTitle?: string, onUnmounted?: () => void): TaskTableWebviewPanel => {
     const loader = (profileId ? multiDbReadManager.getRepo(profileId) : undefined) ?? tableLoader;
     return new TaskTableWebviewPanel(
       { execute: (input) => withProfileClient(profileId, () => useCases.moveTaskStatusUseCase.execute(input)) },
@@ -328,6 +328,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             return;
           }
           await useCases.unmountDatabaseUseCase.execute({ profileId, actorRole: 'admin' });
+          myRecentTasksProvider.refresh();
+          allProjectsProvider.refresh();
+          if (currentBoardProfileId === profileId && boardWebviewPanel) {
+            boardWebviewPanel.dispose();
+            boardWebviewPanel = undefined;
+            currentBoardProfileId = undefined;
+            currentBoardProjectId = undefined;
+            currentBoardProjectName = undefined;
+          }
+          onUnmounted?.();
           void vscode.window.showInformationMessage('DBをアンマウントしました');
         }
         : undefined,
@@ -596,7 +606,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       );
       tableWebviewPanels.add(webviewPanel);
       webviewPanel.onDidDispose(() => { tableWebviewPanels.delete(webviewPanel); });
-      await createTablePanel().render(webviewPanel);
+      await createTablePanel(undefined, undefined, () => webviewPanel.dispose()).render(webviewPanel);
       return { viewId: 'taskDock.tableView' as const };
     }),
     vscode.commands.registerCommand('taskDock.openDbTable', async (item?: TaskTreeItem) => {
@@ -610,7 +620,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         );
         tableWebviewPanels.add(webviewPanel);
         webviewPanel.onDidDispose(() => { tableWebviewPanels.delete(webviewPanel); });
-        await createTablePanel(item.profileId, String(item.label)).render(webviewPanel);
+        await createTablePanel(item.profileId, String(item.label), () => webviewPanel.dispose()).render(webviewPanel);
       } catch (error) {
         void vscode.window.showErrorMessage(toUserFacingMessage(error));
       }
