@@ -16,6 +16,7 @@ export class TaskTableWebviewPanel {
     private readonly findTaskDetailById: (taskId: string) => Promise<TaskDetail | null>,
     private readonly openTaskDetail: (taskId: string) => Promise<void>,
     private readonly openProject?: (projectId: string, projectName?: string) => Promise<void>,
+    private readonly unmountDatabase?: () => Promise<void>,
     private readonly panelTitle?: string
   ) {}
 
@@ -27,6 +28,9 @@ export class TaskTableWebviewPanel {
       }
       if (isOpenProjectMessage(message) && this.openProject) {
         await this.openProject(message.projectId, message.projectName);
+      }
+      if (isUnmountDatabaseMessage(message) && this.unmountDatabase) {
+        await this.unmountDatabase();
       }
       if (isMoveStatusMessage(message)) {
         await this.moveStatus(message.taskId, message.toStatus, message.expectedVersion);
@@ -110,11 +114,15 @@ export class TaskTableWebviewPanel {
   private buildHtml(): string {
     return `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"/><style>
       body{font-family:sans-serif;margin:16px}.container{margin-top:8px}
+      .header{display:flex;align-items:center;justify-content:space-between;gap:8px}
+      .header-actions{display:flex;align-items:center;gap:8px}
+      .btn{border:1px solid var(--vscode-panel-border);background:var(--vscode-button-background);color:var(--vscode-button-foreground);padding:4px 10px;border-radius:6px;cursor:pointer}
+      .btn.secondary{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground)}
       table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #ddd;padding:8px;text-align:left}
       .task-title{cursor:pointer}.status-badge{padding:2px 8px;border-radius:999px;color:#fff;font-size:12px}
       .status-todo{background:#666}.status-in_progress{background:#2979ff}.status-done{background:#2e7d32}.status-blocked{background:#d32f2f}.status-close{background:#7b1fa2}.status-archived{background:#455a64}.tabs{display:flex;gap:8px;margin:8px 0}.tab{padding:4px 10px;border:1px solid #bbb;border-radius:999px;cursor:pointer}.tab.active{background:#333;color:#fff}
       .tree-toggle{cursor:pointer;display:inline-block;width:20px}.indent{display:inline-block}
-    </style></head><body><h2 id="panel-title"></h2><div class="tabs"><button class="tab active" data-tab="task">Tasks</button><button class="tab" data-tab="done">Done</button><button class="tab" data-tab="close">Close</button><button class="tab" data-tab="archived">Archive</button></div><div class="container"><table><thead><tr><th>タイトル</th><th>ステータス</th><th>担当者</th><th>優先度</th><th>進捗</th></tr></thead><tbody id="rows"></tbody></table></div>
+    </style></head><body><div class="header"><h2 id="panel-title"></h2><div class="header-actions"><button id="btn-unmount-db" class="btn secondary" type="button" style="display:none">DBをアンマウント</button></div></div><div class="tabs"><button class="tab active" data-tab="task">Tasks</button><button class="tab" data-tab="done">Done</button><button class="tab" data-tab="close">Close</button><button class="tab" data-tab="archived">Archive</button></div><div class="container"><table><thead><tr><th>タイトル</th><th>ステータス</th><th>担当者</th><th>優先度</th><th>進捗</th></tr></thead><tbody id="rows"></tbody></table></div>
     <script>
     const vscode = acquireVsCodeApi();
     let roots=[]; let currentTab="task"; const expanded=new Set(); const collapsedProjects=new Set(); const clickTimers={};
@@ -143,6 +151,8 @@ export class TaskTableWebviewPanel {
       rows.querySelectorAll('[data-id]').forEach(el=>el.onclick=()=>{const id=el.dataset.id; expanded.has(id)?expanded.delete(id):expanded.add(id); render();});
       rows.querySelectorAll('[data-open]').forEach(el=>el.onclick=()=>vscode.postMessage({type:'table:openTask',taskId:el.dataset.open}));
     };
+    const unmountBtn=document.getElementById('btn-unmount-db');
+    if(unmountBtn){const canUnmount=${this.unmountDatabase ? 'true' : 'false'};if(canUnmount){unmountBtn.style.display='inline-block';unmountBtn.addEventListener('click',()=>vscode.postMessage({type:'table:unmountDatabase'}));}}
     window.addEventListener('message',(event)=>{if(event.data?.type==='table:init'){roots=event.data.tasks??[]; document.getElementById('panel-title').textContent=event.data.title??'Task Table'; render();}});document.querySelectorAll('.tab').forEach(el=>el.onclick=()=>{document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));el.classList.add('active');currentTab=el.dataset.tab;render();});
     </script></body></html>`;
   }
@@ -170,4 +180,10 @@ function isUpdateProgressMessage(value: unknown): value is { type: 'table:update
   if (!value || typeof value !== 'object') return false;
   const c = value as Record<string, unknown>;
   return c.type === 'table:updateProgress' && typeof c.taskId === 'string' && typeof c.progress === 'number' && typeof c.expectedVersion === 'number';
+}
+
+function isUnmountDatabaseMessage(value: unknown): value is { type: 'table:unmountDatabase' } {
+  if (!value || typeof value !== 'object') return false;
+  const c = value as Record<string, unknown>;
+  return c.type === 'table:unmountDatabase';
 }

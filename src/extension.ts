@@ -296,8 +296,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const tableLoader = appContainer.buildTaskTreeLoader();
   let boardWebviewPanel: vscode.WebviewPanel | undefined;
   const tableWebviewPanels = new Set<vscode.WebviewPanel>();
+  const tableWebviewProfileIds = new Map<vscode.WebviewPanel, string | undefined>();
   const taskDetailPanels = new Set<vscode.WebviewPanel>();
-  const createTablePanel = (profileId?: string, panelTitle?: string): TaskTableWebviewPanel => {
+  const createTablePanel = (profileId?: string, panelTitle?: string, onUnmounted?: () => void): TaskTableWebviewPanel => {
     const loader = (profileId ? multiDbReadManager.getRepo(profileId) : undefined) ?? tableLoader;
     return new TaskTableWebviewPanel(
       { execute: (input) => withProfileClient(profileId, () => useCases.moveTaskStatusUseCase.execute(input)) },
@@ -320,6 +321,33 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       async (projectId, projectName) => {
         await vscode.commands.executeCommand('taskDock.openBoard', { projectId, profileId, projectName });
       },
+      profileId
+        ? async () => {
+          const activeProfile = stateStore.getState().activeProfile;
+          if (activeProfile === profileId) {
+            void vscode.window.showErrorMessage('使用中のDBはアンマウントできません');
+            return;
+          }
+          await useCases.unmountDatabaseUseCase.execute({ profileId, actorRole: 'admin' });
+          await multiDbReadManager.refresh();
+          myRecentTasksProvider.refresh();
+          allProjectsProvider.refresh();
+          for (const panel of tableWebviewPanels) {
+            if (tableWebviewProfileIds.get(panel) === profileId) {
+              panel.dispose();
+            }
+          }
+          if (currentBoardProfileId === profileId && boardWebviewPanel) {
+            boardWebviewPanel.dispose();
+            boardWebviewPanel = undefined;
+            currentBoardProfileId = undefined;
+            currentBoardProjectId = undefined;
+            currentBoardProjectName = undefined;
+          }
+          onUnmounted?.();
+          void vscode.window.showInformationMessage('DBをアンマウントしました');
+        }
+        : undefined,
       panelTitle
     );
   };
@@ -584,8 +612,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         { enableScripts: true }
       );
       tableWebviewPanels.add(webviewPanel);
-      webviewPanel.onDidDispose(() => { tableWebviewPanels.delete(webviewPanel); });
-      await createTablePanel().render(webviewPanel);
+      tableWebviewProfileIds.set(webviewPanel, undefined);
+      webviewPanel.onDidDispose(() => { tableWebviewPanels.delete(webviewPanel); tableWebviewProfileIds.delete(webviewPanel); });
+      await createTablePanel(undefined, undefined, () => webviewPanel.dispose()).render(webviewPanel);
       return { viewId: 'taskDock.tableView' as const };
     }),
     vscode.commands.registerCommand('taskDock.openDbTable', async (item?: TaskTreeItem) => {
@@ -598,8 +627,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           { enableScripts: true }
         );
         tableWebviewPanels.add(webviewPanel);
-        webviewPanel.onDidDispose(() => { tableWebviewPanels.delete(webviewPanel); });
-        await createTablePanel(item.profileId, String(item.label)).render(webviewPanel);
+        tableWebviewProfileIds.set(webviewPanel, item.profileId);
+        webviewPanel.onDidDispose(() => { tableWebviewPanels.delete(webviewPanel); tableWebviewProfileIds.delete(webviewPanel); });
+        await createTablePanel(item.profileId, String(item.label), () => webviewPanel.dispose()).render(webviewPanel);
       } catch (error) {
         void vscode.window.showErrorMessage(toUserFacingMessage(error));
       }
