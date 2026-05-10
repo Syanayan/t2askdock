@@ -44,6 +44,9 @@ export class TaskTableWebviewPanel {
         await this.archiveTasks(message.taskIds);
         await this.postTasks(panel.webview);
       }
+      if (isAddTaskMessage(message)) {
+        await this.openTaskDetail('');
+      }
     });
     await this.postTasks(panel.webview);
   }
@@ -153,8 +156,8 @@ export class TaskTableWebviewPanel {
       table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #ddd;padding:8px;text-align:left}
       .task-title{cursor:pointer}.status-badge{padding:2px 8px;border-radius:999px;color:#fff;font-size:12px}
       .status-todo{background:#666}.status-in_progress{background:#2979ff}.status-done{background:#2e7d32}.status-blocked{background:#d32f2f}.status-close{background:#7b1fa2}.status-archived{background:#455a64}.tabs{display:flex;gap:8px;margin:8px 0}.tab{padding:4px 10px;border:1px solid #bbb;border-radius:999px;cursor:pointer}.tab.active{background:#333;color:#fff}
-      .tree-toggle{cursor:pointer;display:inline-block;width:20px}.indent{display:inline-block}.row-select{margin-right:6px}
-    </style></head><body><div class="header"><h2 id="panel-title"></h2><div class="header-actions"><button id="btn-archive-selected" class="btn secondary" type="button">選択Archive</button><button id="btn-unmount-db" class="btn secondary" type="button" style="display:none">DBをアンマウント</button></div></div><div class="tabs"><button class="tab active" data-tab="task">Tasks</button><button class="tab" data-tab="done">Done</button><button class="tab" data-tab="close">Close</button><button class="tab" data-tab="archived">Archive</button></div><div class="container"><table><thead><tr><th><input id="select-all" type="checkbox"/></th><th>タイトル</th><th>ステータス</th><th>担当者</th><th>優先度</th><th>進捗</th></tr></thead><tbody id="rows"></tbody></table></div>
+      .tree-toggle{cursor:pointer;display:inline-block;width:20px}.indent{display:inline-block} tr.selected{background:color-mix(in srgb,var(--vscode-list-activeSelectionBackground) 65%, transparent)}
+    </style></head><body><div class="header"><h2 id="panel-title"></h2><div class="header-actions"><button id="btn-archive-selected" class="btn secondary" type="button" style="display:none">Archive</button><button id="btn-add-task" class="btn" type="button">AddTask</button><button id="btn-unmount-db" class="btn secondary" type="button" style="display:none">DBをアンマウント</button></div></div><div class="tabs"><button class="tab active" data-tab="task">Tasks</button><button class="tab" data-tab="done">Done</button><button class="tab" data-tab="close">Close</button><button class="tab" data-tab="archived">Archive</button></div><div class="container"><table><thead><tr><th>タイトル</th><th>ステータス</th><th>担当者</th><th>優先度</th><th>進捗</th></tr></thead><tbody id="rows"></tbody></table></div>
     <script>
     const vscode = acquireVsCodeApi();
     let roots=[]; let currentTab="task"; const expanded=new Set(); const collapsedProjects=new Set(); const clickTimers={};
@@ -163,11 +166,11 @@ export class TaskTableWebviewPanel {
     const matchTab=(n)=>{const s=effectiveStatus(n);if(currentTab==='task')return s==='todo'||s==='in_progress'||s==='blocked';return s===currentTab;};
     const render=()=>{const rows=document.getElementById('rows');rows.innerHTML='';
       const walk=(nodes,depth)=>nodes.forEach(n=>{if(n.taskId?.startsWith('__empty__'))return; const hasChildren=(n.children||[]).length>0; const open=expanded.has(n.taskId);
-        if(!matchTab(n)) return; const tr=document.createElement('tr'); const canArchive=(effectiveStatus(n)==='done'||effectiveStatus(n)==='close')&&!n.isArchived;
-        tr.innerHTML='<td><input class="row-select" type="checkbox" data-select="'+n.taskId+'" '+(canArchive?'':'disabled')+'/></td>'+
-        '<td><span class="indent" style="width:'+(depth*16)+'px"></span><span class="tree-toggle" data-id="'+n.taskId+'">'+(hasChildren?(open?'▼':'▶'):'')+'</span><span class="task-title" data-open="'+n.taskId+'">'+n.title+'</span></td>'+
+        if(!matchTab(n)) return; const tr=document.createElement('tr');
+        tr.dataset.taskId=n.taskId; tr.dataset.projectId=n.projectId||'';
+        tr.innerHTML='<td><span class="indent" style="width:'+(depth*16)+'px"></span><span class="tree-toggle" data-id="'+n.taskId+'">'+(hasChildren?(open?'▼':'▶'):'')+'</span><span class="task-title" data-open="'+n.taskId+'">'+n.title+'</span></td'+
         '<td>'+badge(effectiveStatus(n))+'</td>'+
-        '<td>'+(n.assignee??'-')+'</td><td>'+n.priority+'</td><td>'+n.progress+'%</td';
+        '<td>'+(n.assignee??'-')+'</td><td>'+n.priority+'</td><td>'+n.progress+'%</td>'; 
         rows.appendChild(tr);
         if(hasChildren&&open) walk(n.children, depth+1);
       });
@@ -176,19 +179,24 @@ export class TaskTableWebviewPanel {
       pidOrder.forEach(pid=>{
         const isOpen=!collapsedProjects.has(pid);
         const htr=document.createElement('tr');
-        htr.innerHTML='<td></td><td colspan="5" style="padding:3px 8px;font-size:13px;color:var(--vscode-foreground);border-top:1px solid var(--vscode-panel-border);background:var(--vscode-list-inactiveSelectionBackground);cursor:pointer;user-select:none"><span style="display:inline-block;width:14px;font-size:11px;opacity:.7">'+(isOpen?'▼':'▶')+'</span> '+pnames[pid]+'</td>';
+        htr.innerHTML='<td colspan="5" style="padding:3px 8px;font-size:13px;color:var(--vscode-foreground);border-top:1px solid var(--vscode-panel-border);background:var(--vscode-list-inactiveSelectionBackground);cursor:pointer;user-select:none"><span style="display:inline-block;width:14px;font-size:11px;opacity:.7">'+(isOpen?'▼':'▶')+'</span> '+pnames[pid]+'</td>';
         htr.addEventListener('click',()=>{if(clickTimers[pid]){clearTimeout(clickTimers[pid]);delete clickTimers[pid];vscode.postMessage({type:'table:openProject',projectId:pid,projectName:pnames[pid]});}else{clickTimers[pid]=setTimeout(()=>{delete clickTimers[pid];collapsedProjects.has(pid)?collapsedProjects.delete(pid):collapsedProjects.add(pid);document.getElementById('panel-title').textContent=pnames[pid];render();},250);}});
         rows.appendChild(htr);
         if(isOpen)walk(byProject[pid],0);
       });
       rows.querySelectorAll('[data-id]').forEach(el=>el.onclick=()=>{const id=el.dataset.id; expanded.has(id)?expanded.delete(id):expanded.add(id); render();});
       rows.querySelectorAll('[data-open]').forEach(el=>el.onclick=()=>vscode.postMessage({type:'table:openTask',taskId:el.dataset.open}));
+      rows.querySelectorAll('tr[data-task-id]').forEach((row)=>row.addEventListener('click',(e)=>{const id=row.dataset.taskId;const ids=Array.from(rows.querySelectorAll('tr[data-task-id]')).map(r=>r.dataset.taskId);if(e.shiftKey&&anchorTaskId&&ids.includes(anchorTaskId)){const a=ids.indexOf(anchorTaskId),b=ids.indexOf(id);const [s,e2]=a<b?[a,b]:[b,a];selectedTaskIds=[...new Set([...selectedTaskIds,...ids.slice(s,e2+1)])];}else if(e.ctrlKey||e.metaKey){selectedTaskIds=selectedTaskIds.includes(id)?selectedTaskIds.filter(v=>v!==id):[...selectedTaskIds,id];anchorTaskId=id;}else{selectedTaskIds=[id];anchorTaskId=id;}applySelection();}));
+      applySelection();
     };
     const archiveBtn=document.getElementById('btn-archive-selected');
-    const selectAll=document.getElementById('select-all');
-    const selectedTaskIds=()=>Array.from(document.querySelectorAll('[data-select]:checked')).map(el=>el.dataset.select).filter(Boolean);
-    if(selectAll){selectAll.addEventListener('change',()=>{document.querySelectorAll('[data-select]').forEach(el=>{if(!el.disabled)el.checked=selectAll.checked;});});}
-    if(archiveBtn){archiveBtn.addEventListener('click',()=>{const taskIds=selectedTaskIds();if(taskIds.length===0)return; if(!confirm('選択したタスクをArchiveしますか？'))return; vscode.postMessage({type:'table:archiveTasks',taskIds});});}
+    const addTaskBtn=document.getElementById('btn-add-task');
+    let selectedTaskIds=[]; let anchorTaskId=null;
+    const rowMap=()=>Object.fromEntries(Array.from(document.querySelectorAll('#rows tr[data-task-id]')).map(r=>[r.dataset.taskId,r]));
+    const applySelection=()=>{const map=rowMap();Object.values(map).forEach(r=>r.classList.remove('selected'));selectedTaskIds.forEach(id=>map[id]?.classList.add('selected'));const visibleStatus=['done','close'].includes(currentTab);if(archiveBtn)archiveBtn.style.display=visibleStatus?'inline-block':'none';};
+    const collectArchivable=()=>selectedTaskIds.filter(id=>{const row=rowMap()[id];if(!row)return false;const st=(row.children[1]?.innerText||'').trim();return st==='done'||st==='close';});
+    if(addTaskBtn){addTaskBtn.addEventListener('click',()=>{const row=selectedTaskIds.length?rowMap()[selectedTaskIds[0]]:null;vscode.postMessage({type:'table:addTask',projectId:row?.dataset.projectId});});}
+    if(archiveBtn){archiveBtn.addEventListener('click',()=>{const taskIds=collectArchivable();if(taskIds.length===0)return; if(!confirm('選択したタスクをArchiveしますか？'))return; vscode.postMessage({type:'table:archiveTasks',taskIds});});}
     const unmountBtn=document.getElementById('btn-unmount-db');
     if(unmountBtn){const canUnmount=${this.unmountDatabase ? 'true' : 'false'};if(canUnmount){unmountBtn.style.display='inline-block';unmountBtn.addEventListener('click',()=>vscode.postMessage({type:'table:unmountDatabase'}));}}
     window.addEventListener('message',(event)=>{if(event.data?.type==='table:init'){roots=event.data.tasks??[]; document.getElementById('panel-title').textContent=event.data.title??'Task Table'; render();}});document.querySelectorAll('.tab').forEach(el=>el.onclick=()=>{document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));el.classList.add('active');currentTab=el.dataset.tab;render();});
@@ -230,4 +238,10 @@ function isArchiveTasksMessage(value: unknown): value is { type: 'table:archiveT
   if (!value || typeof value !== 'object') return false;
   const c = value as Record<string, unknown>;
   return c.type === 'table:archiveTasks' && Array.isArray(c.taskIds) && c.taskIds.every((id) => typeof id === 'string');
+}
+
+function isAddTaskMessage(value: unknown): value is { type: 'table:addTask'; projectId?: string } {
+  if (!value || typeof value !== 'object') return false;
+  const c = value as Record<string, unknown>;
+  return c.type === 'table:addTask';
 }
