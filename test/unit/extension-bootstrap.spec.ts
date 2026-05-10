@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { INITIAL_MIGRATION_V1_SQL } from '../../src/infra/sqlite/migrations/initial-migration-v1.js';
 import { MIGRATION_V2_SQL } from '../../src/infra/sqlite/migrations/initial-migration-v2.js';
 import { MIGRATION_V3_SQL } from '../../src/infra/sqlite/migrations/initial-migration-v3.js';
+import { MIGRATION_V4_SQL } from '../../src/infra/sqlite/migrations/initial-migration-v4.js';
 
 vi.mock('vscode', () => ({
   commands: { registerCommand: vi.fn(), executeCommand: vi.fn() },
@@ -33,7 +34,11 @@ vi.mock('vscode', () => ({
     createStatusBarItem: vi.fn(() => ({ show: vi.fn(), dispose: vi.fn() })),
     createWebviewPanel: vi.fn(() => ({ webview: { html: '' }, title: '' }))
   },
-  workspace: { fs: { createDirectory: vi.fn(), writeFile: vi.fn() }, getConfiguration: vi.fn(() => ({ get: vi.fn(() => 'system') })) },
+  workspace: {
+    fs: { createDirectory: vi.fn(), writeFile: vi.fn() },
+    getConfiguration: vi.fn(() => ({ get: vi.fn(() => 'system') })),
+    onDidChangeConfiguration: vi.fn(() => ({ dispose: vi.fn() }))
+  },
   StatusBarAlignment: { Left: 1, Right: 2 },
   ViewColumn: { One: 1 },
   TreeItemCollapsibleState: { None: 0, Collapsed: 1 },
@@ -91,7 +96,7 @@ describe('extension bootstrapMigrations', () => {
     expect(ensureDirectory).toHaveBeenCalledWith('/tmp/taskdock');
     expect(resolveDatabasePath).toHaveBeenCalledWith('/tmp/taskdock');
     expect(createClient).toHaveBeenCalledWith('/tmp/taskdock.sqlite3');
-    expect(migrate).toHaveBeenCalledWith([{ version: 1, statements: INITIAL_MIGRATION_V1_SQL }, { version: 2, statements: MIGRATION_V2_SQL }, { version: 3, statements: MIGRATION_V3_SQL }]);
+    expect(migrate).toHaveBeenCalledWith([{ version: 1, statements: INITIAL_MIGRATION_V1_SQL }, { version: 2, statements: MIGRATION_V2_SQL }, { version: 3, statements: MIGRATION_V3_SQL }, { version: 4, statements: MIGRATION_V4_SQL }]);
     expect(subscriptions).toHaveLength(1);
 
     subscriptions[0].dispose();
@@ -131,6 +136,7 @@ describe('extension bootstrapMigrations', () => {
     expect(registerCommand).toHaveBeenCalledWith('taskDock.openTree', expect.any(Function));
     expect(registerCommand).toHaveBeenCalledWith('taskDock.openBoard', expect.any(Function));
     expect(registerCommand).toHaveBeenCalledWith('taskDock.selectDatabase', expect.any(Function));
+    expect(registerCommand).toHaveBeenCalledWith('taskDock.unmountDatabase', expect.any(Function));
     expect(registerCommand).toHaveBeenCalledWith('taskDock.toggleReadOnly', expect.any(Function));
     expect(registerCommand).toHaveBeenCalledWith('taskDock.mountDatabase', expect.any(Function));
     expect(registerCommand).toHaveBeenCalledWith('taskDock.registerDatabaseDirectory', expect.any(Function));

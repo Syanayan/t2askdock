@@ -40,6 +40,10 @@ export class TaskTableWebviewPanel {
     await this.postTasks(panel.webview);
   }
 
+  public renderDisconnected(panel: { title: string; webview: Pick<vscode.Webview, 'html'> }): void {
+    panel.webview.html = `<!DOCTYPE html><html lang="ja"><body style="font-family:sans-serif;padding:16px;">DB未接続です。DBを選択して再度開いてください。</body></html>`;
+  }
+
   private async postTasks(webview: Pick<vscode.Webview, 'postMessage'>): Promise<void> {
     const tasks = this.withCalculatedProgress(await this.loadTree());
     await webview.postMessage?.({ type: 'table:init', tasks, title: this.panelTitle });

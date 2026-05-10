@@ -295,6 +295,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   };
   const tableLoader = appContainer.buildTaskTreeLoader();
   let boardWebviewPanel: vscode.WebviewPanel | undefined;
+  const tableWebviewPanels = new Set<vscode.WebviewPanel>();
+  const taskDetailPanels = new Set<vscode.WebviewPanel>();
   const createTablePanel = (profileId?: string, panelTitle?: string): TaskTableWebviewPanel => {
     const loader = (profileId ? multiDbReadManager.getRepo(profileId) : undefined) ?? tableLoader;
     return new TaskTableWebviewPanel(
@@ -326,6 +328,24 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const output = await commands['taskDock.selectDatabase']({ profileId });
     stateStore.patch({ activeProfileName: output.profileSummary.name });
     return output;
+  };
+  const clearUiOnDatabaseUnmount = (): void => {
+    stateStore.patch({ activeProfile: null, activeProfileName: null });
+    myRecentTasksProvider.refresh();
+    allProjectsProvider.refresh();
+    currentBoardProfileId = undefined;
+    currentBoardProjectId = undefined;
+    currentBoardProjectName = undefined;
+    if (boardWebviewPanel) {
+      boardPanel.renderDisconnected(boardWebviewPanel);
+    }
+    for (const panel of tableWebviewPanels) {
+      createTablePanel().renderDisconnected(panel);
+    }
+    for (const panel of taskDetailPanels) {
+      panel.dispose();
+    }
+    void vscode.window.showInformationMessage('DB未接続状態になりました');
   };
   const dbStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
   const modeStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 99);
@@ -563,6 +583,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         vscode.ViewColumn.One,
         { enableScripts: true }
       );
+      tableWebviewPanels.add(webviewPanel);
+      webviewPanel.onDidDispose(() => { tableWebviewPanels.delete(webviewPanel); });
       await createTablePanel().render(webviewPanel);
       return { viewId: 'taskDock.tableView' as const };
     }),
@@ -575,6 +597,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           vscode.ViewColumn.One,
           { enableScripts: true }
         );
+        tableWebviewPanels.add(webviewPanel);
+        webviewPanel.onDidDispose(() => { tableWebviewPanels.delete(webviewPanel); });
         await createTablePanel(item.profileId, String(item.label)).render(webviewPanel);
       } catch (error) {
         void vscode.window.showErrorMessage(toUserFacingMessage(error));
@@ -611,6 +635,19 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       if (picked.action === 'directory') return vscode.commands.executeCommand('taskDock.registerDatabaseDirectory');
       if (!picked.profileId) return undefined;
       return switchActiveDatabaseProfile(picked.profileId);
+    }),
+    vscode.commands.registerCommand('taskDock.unmountDatabase', async () => {
+      const activeProfile = stateStore.getState().activeProfile;
+      if (!activeProfile) {
+        void vscode.window.showInformationMessage('すでにDB未接続です');
+        return;
+      }
+      try {
+        await useCases.unmountDatabaseUseCase.execute({ profileId: activeProfile, actorRole: 'admin' });
+        clearUiOnDatabaseUnmount();
+      } catch (error) {
+        void vscode.window.showErrorMessage(toUserFacingMessage(error));
+      }
     }),
     vscode.commands.registerCommand('taskDock.createDatabase', async () => {
       const uri = await vscode.window.showSaveDialog({ filters: { 'SQLite Database': ['sqlite3'] }, title: '新しいDBファイルの保存先を選択' });
@@ -826,6 +863,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       const profileId = item && 'profileId' in item ? (item as TaskTreeItem).profileId : undefined;
       const run = <T>(fn: () => Promise<T>) => withProfileClient(profileId, fn);
       const panel = vscode.window.createWebviewPanel('taskDock.taskDetail', 'Task Detail', vscode.ViewColumn.Active, { enableScripts: true });
+      taskDetailPanels.add(panel);
+      panel.onDidDispose(() => { taskDetailPanels.delete(panel); });
       const detailPanel = new TaskDetailWebviewPanel(
         (id) => run(() => appContainer.buildTaskOperator().findDetailById(id)),
         (parentId) => run(() => appContainer.buildProjectTaskLoader().listSubtasksByParent(parentId)),
@@ -846,6 +885,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.commands.registerCommand('taskDock.openTaskCreate', async (input?: { profileId?: string; projectId?: string }) => {
       const profileId = input?.profileId;
       const panel = vscode.window.createWebviewPanel('taskDock.taskDetail', 'Create Task', vscode.ViewColumn.Active, { enableScripts: true });
+      taskDetailPanels.add(panel);
+      panel.onDidDispose(() => { taskDetailPanels.delete(panel); });
       const run = <T>(fn: () => Promise<T>) => withProfileClient(profileId, fn);
       const detailPanel = new TaskDetailWebviewPanel(
         (id) => run(() => appContainer.buildTaskOperator().findDetailById(id)),

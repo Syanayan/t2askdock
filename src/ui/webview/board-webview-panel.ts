@@ -59,6 +59,11 @@ export class BoardWebviewPanel {
     void panel.webview.postMessage?.({ type: 'board:init', tasks: tasks.map((task, index) => ({ ...task, sequenceNumber: task.sequenceNumber ?? index + 1 })) });
   }
 
+  public renderDisconnected(panel: Pick<vscode.WebviewPanel, 'webview' | 'title'>): void {
+    panel.title = 'Task Dock Board';
+    panel.webview.html = `<!DOCTYPE html><html lang="ja"><body style="font-family:sans-serif;padding:16px;">DB未接続です。右上のDB選択から接続してください。</body></html>`;
+  }
+
   private buildHtml(projectId: string | null, projectName?: string, userId?: string): string {
     return `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/><title>Task Dock Board</title><style>
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;margin:16px;background:var(--vscode-editor-background);color:var(--vscode-editor-foreground)}.hint{color:var(--vscode-descriptionForeground);font-size:12px}.toolbar{display:flex;justify-content:space-between;gap:8px;margin:8px 0}.toolbar-left{display:flex;gap:8px;align-items:center}.toolbar-right{display:flex;gap:8px;align-items:center}.toolbar button{border:1px solid var(--vscode-panel-border);background:var(--vscode-button-background);color:var(--vscode-button-foreground);border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer}.toolbar button[disabled]{opacity:.5;cursor:not-allowed}#my-tasks-toggle{border-radius:999px;padding:6px 12px;font-weight:600;letter-spacing:.2px;background:color-mix(in srgb,var(--vscode-button-secondaryBackground) 70%,transparent);color:var(--vscode-button-secondaryForeground);border:1px solid color-mix(in srgb,var(--vscode-focusBorder) 35%,var(--vscode-panel-border));transition:all .16s ease;box-shadow:0 1px 2px rgba(0,0,0,.12)}#my-tasks-toggle:hover{box-shadow:0 4px 10px rgba(0,0,0,.16)}#my-tasks-toggle.toggle-active{background:linear-gradient(135deg,color-mix(in srgb,var(--vscode-charts-blue) 85%,#2b7fff),color-mix(in srgb,var(--vscode-charts-purple) 65%,#6d5cff));border-color:color-mix(in srgb,var(--vscode-charts-blue) 70%,#2b7fff);color:#fff;box-shadow:0 6px 16px color-mix(in srgb,var(--vscode-charts-blue) 35%,transparent)}
