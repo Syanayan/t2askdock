@@ -520,7 +520,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           treeItem.iconPath = iconByStatus[element.status] ?? (element.priority && iconByPriority[element.priority]) ?? new vscode.ThemeIcon('circle-outline');
         }
         if (element.kind === 'project') {
-          treeItem.command = { command: 'taskDock.openProjectTable', title: 'Open Project Table', arguments: [{ projectId: element.id, profileId: element.profileId, projectName: String(element.label) }] };
+          treeItem.command = { command: 'taskDock.openBoard', title: 'Open Board', arguments: [{ projectId: element.id, profileId: element.profileId, projectName: String(element.label) }] };
           treeItem.tooltip = `カテゴリ: ${element.label}`;
           treeItem.description = element.projectId && element.projectId !== element.label ? element.projectId : treeItem.description;
           treeItem.contextValue = element.kind;
