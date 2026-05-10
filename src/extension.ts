@@ -188,7 +188,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     },
     eventBus,
     async (command, args) => {
-      if ((command === 'taskDock.openTaskDetail' || command === 'taskDock.createTask' || command === 'taskDock.openTaskCreate') && currentBoardProfileId) {
+      if ((command === 'taskDock.openTaskDetail' || command === 'taskDock.createTask' || command === 'taskDock.openTaskCreate' || command === 'taskDock.archiveTasksByIds') && currentBoardProfileId) {
         return vscode.commands.executeCommand(command, { ...(args as Record<string, unknown>), profileId: currentBoardProfileId });
       }
       return vscode.commands.executeCommand(command, args);
