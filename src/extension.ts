@@ -349,7 +349,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         }
         : undefined,
       panelTitle,
-      enableArchiveControls
+      enableArchiveControls,
+      async (count) => {
+        const answer = await vscode.window.showWarningMessage(`${count}件のタスクをArchiveしますか？`, { modal: true }, 'Archive');
+        return answer === 'Archive';
+      }
     );
   };
   const commands = commandRegistry.register();
@@ -982,6 +986,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }),
     vscode.commands.registerCommand('taskDock.archiveTasksByIds', async (input?: { taskIds?: string[]; profileId?: string }) => {
       const taskIds = input?.taskIds ?? [];
+      if (taskIds.length === 0) return;
+      const answer = await vscode.window.showWarningMessage(`${taskIds.length}件のタスクをArchiveしますか？`, { modal: true }, 'Archive');
+      if (answer !== 'Archive') return;
       for (const taskId of taskIds) {
         const detail = await withProfileClient(input?.profileId, () => taskOperator.findDetailById(taskId));
         if (!detail) continue;
@@ -993,7 +1000,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           expectedVersion: detail.version, progress: detail.progress, isClosed: detail.isClosed, closeReason: detail.closeReason, isArchived: true
         }));
       }
-      allProjectsProvider.refresh();
+      eventBus.publish({ type: 'TASK_UPDATED', payload: { taskId: taskIds[0] ?? '' } });
     }),
     vscode.commands.registerCommand('taskDock.updateTask', async (item?: TaskTreeItem) => {
       item = resolveSelectedItem(item);

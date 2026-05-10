@@ -18,7 +18,8 @@ export class TaskTableWebviewPanel {
     private readonly openProject?: (projectId: string, projectName?: string) => Promise<void>,
     private readonly unmountDatabase?: () => Promise<void>,
     private readonly panelTitle?: string,
-    private readonly enableArchiveControls: boolean = true
+    private readonly enableArchiveControls: boolean = true,
+    private readonly confirmArchive?: (count: number) => Promise<boolean>
   ) {}
 
   public async render(panel: { title: string; webview: Pick<vscode.Webview, 'html' | 'postMessage' | 'onDidReceiveMessage'> }): Promise<void> {
@@ -42,6 +43,8 @@ export class TaskTableWebviewPanel {
         await this.postTasks(panel.webview);
       }
       if (isArchiveTasksMessage(message)) {
+        const ok = this.confirmArchive ? await this.confirmArchive(message.taskIds.length) : true;
+        if (!ok) return;
         await this.archiveTasks(message.taskIds);
         await this.postTasks(panel.webview);
       }
@@ -157,7 +160,7 @@ export class TaskTableWebviewPanel {
       table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #ddd;padding:8px;text-align:left}
       .task-title{cursor:pointer}.status-badge{padding:2px 8px;border-radius:999px;color:#fff;font-size:12px}
       .status-todo{background:#666}.status-in_progress{background:#2979ff}.status-done{background:#2e7d32}.status-blocked{background:#d32f2f}.status-close{background:#7b1fa2}.status-archived{background:#455a64}.tabs{display:flex;gap:8px;margin:8px 0}.tab{padding:4px 10px;border:1px solid #bbb;border-radius:999px;cursor:pointer}.tab.active{background:#333;color:#fff}
-      .tree-toggle{cursor:pointer;display:inline-block;width:20px}.indent{display:inline-block} tr.selected{background:color-mix(in srgb,var(--vscode-list-activeSelectionBackground) 65%, transparent)}
+      .tree-toggle{cursor:pointer;display:inline-block;width:20px}.indent{display:inline-block} tr.selected{background:color-mix(in srgb,var(--vscode-list-activeSelectionBackground) 65%, transparent)} .btn:disabled{opacity:.4;cursor:not-allowed}
     </style></head><body><div class="header"><h2 id="panel-title"></h2><div class="header-actions"><button id="btn-archive-selected" class="btn secondary" type="button" style="display:none">Archive</button><button id="btn-add-task" class="btn" type="button" style="display:none">AddTask</button><button id="btn-unmount-db" class="btn secondary" type="button" style="display:none">DBをアンマウント</button></div></div><div class="tabs"><button class="tab active" data-tab="task">Tasks</button><button class="tab" data-tab="done">Done</button><button class="tab" data-tab="close">Close</button><button class="tab" data-tab="archived">Archive</button></div><div class="container"><table><thead><tr><th>タイトル</th><th>ステータス</th><th>担当者</th><th>優先度</th><th>進捗</th></tr></thead><tbody id="rows"></tbody></table></div>
     <script>
     const vscode = acquireVsCodeApi();
@@ -194,10 +197,10 @@ export class TaskTableWebviewPanel {
     const addTaskBtn=document.getElementById('btn-add-task');
     let selectedTaskIds=[]; let anchorTaskId=null;
     const rowMap=()=>Object.fromEntries(Array.from(document.querySelectorAll('#rows tr[data-task-id]')).map(r=>[r.dataset.taskId,r]));
-    const applySelection=()=>{const map=rowMap();Object.values(map).forEach(r=>r.classList.remove('selected'));selectedTaskIds.forEach(id=>map[id]?.classList.add('selected'));const controlsEnabled=${this.enableArchiveControls ? 'true' : 'false'};const visibleStatus=controlsEnabled&&['done','close'].includes(currentTab);if(archiveBtn)archiveBtn.style.display=visibleStatus?'inline-block':'none';if(addTaskBtn)addTaskBtn.style.display=controlsEnabled?'inline-block':'none';};
+    const applySelection=()=>{const map=rowMap();Object.values(map).forEach(r=>r.classList.remove('selected'));selectedTaskIds.forEach(id=>map[id]?.classList.add('selected'));const controlsEnabled=${this.enableArchiveControls ? 'true' : 'false'};const visibleStatus=controlsEnabled&&['done','close'].includes(currentTab);if(archiveBtn){archiveBtn.style.display=visibleStatus?'inline-block':'none';archiveBtn.disabled=selectedTaskIds.length===0;}if(addTaskBtn)addTaskBtn.style.display=controlsEnabled?'inline-block':'none';};
     const collectArchivable=()=>selectedTaskIds.filter(id=>{const row=rowMap()[id];if(!row)return false;const st=(row.children[1]?.innerText||'').trim();return st==='done'||st==='close';});
     if(addTaskBtn){addTaskBtn.addEventListener('click',()=>{const row=selectedTaskIds.length?rowMap()[selectedTaskIds[0]]:null;vscode.postMessage({type:'table:addTask',projectId:row?.dataset.projectId});});}
-    if(archiveBtn){archiveBtn.addEventListener('click',()=>{const taskIds=collectArchivable();if(taskIds.length===0)return; if(!confirm('選択したタスクをArchiveしますか？'))return; vscode.postMessage({type:'table:archiveTasks',taskIds});});}
+    if(archiveBtn){archiveBtn.addEventListener('click',()=>{const taskIds=collectArchivable();if(taskIds.length===0)return; vscode.postMessage({type:'table:archiveTasks',taskIds});});}
     const unmountBtn=document.getElementById('btn-unmount-db');
     if(unmountBtn){const canUnmount=${this.unmountDatabase ? 'true' : 'false'};if(canUnmount){unmountBtn.style.display='inline-block';unmountBtn.addEventListener('click',()=>vscode.postMessage({type:'table:unmountDatabase'}));}}
     window.addEventListener('message',(event)=>{if(event.data?.type==='table:init'){roots=event.data.tasks??[]; document.getElementById('panel-title').textContent=event.data.title??'Task Table'; render();}});document.querySelectorAll('.tab').forEach(el=>el.onclick=()=>{document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));el.classList.add('active');currentTab=el.dataset.tab;render();});
