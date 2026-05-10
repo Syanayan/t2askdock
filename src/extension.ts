@@ -674,6 +674,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
       try {
         await useCases.unmountDatabaseUseCase.execute({ profileId: activeProfile, actorRole: 'admin' });
+        await multiDbReadManager.refresh();
         clearUiOnDatabaseUnmount();
       } catch (error) {
         void vscode.window.showErrorMessage(toUserFacingMessage(error));

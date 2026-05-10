@@ -52,16 +52,16 @@
 
 ## グループB: DB アンマウント
 
-- [ ] **B-1 `Unmount Database` コマンド**
+- [x] **B-1 `Unmount Database` コマンド**
   - `src/extension.ts` に `taskDock.unmountDatabase` コマンドを追加
   - コマンド実行で現在の DB 接続を閉じる処理を呼ぶ
 
-- [ ] **B-2 UI 状態クリア**
+- [x] **B-2 UI 状態クリア**
   - ツリー・カンバン・詳細パネルの現在表示を消去する
   - `selectedDatabaseProfile` を `null` に戻す
   - 画面上に「DB 未接続」状態を明示する
 
-- [ ] **B-3 DB マネージャーの安全終了**
+- [x] **B-3 DB マネージャーの安全終了**
   - `database-manager` のアンマウント処理でトランザクションを終結し、リソースを解放する
   - マウント解除後に同じ DB を再接続できる状態に戻す
 

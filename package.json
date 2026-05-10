@@ -71,6 +71,10 @@
         "title": "Task Dock: Select Database"
       },
       {
+        "command": "taskDock.unmountDatabase",
+        "title": "Task Dock: Unmount Active Database"
+      },
+      {
         "command": "taskDock.toggleReadOnly",
         "title": "Task Dock: Toggle ReadOnly"
       },
