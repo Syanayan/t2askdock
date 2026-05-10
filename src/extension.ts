@@ -298,13 +298,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const tableWebviewPanels = new Set<vscode.WebviewPanel>();
   const tableWebviewProfileIds = new Map<vscode.WebviewPanel, string | undefined>();
   const taskDetailPanels = new Set<vscode.WebviewPanel>();
-  const createTablePanel = (profileId?: string, panelTitle?: string, onUnmounted?: () => void): TaskTableWebviewPanel => {
+  const createTablePanel = (profileId?: string, panelTitle?: string, onUnmounted?: () => void, projectId?: string, projectName?: string, enableArchiveControls: boolean = true): TaskTableWebviewPanel => {
     const loader = (profileId ? multiDbReadManager.getRepo(profileId) : undefined) ?? tableLoader;
     return new TaskTableWebviewPanel(
       { execute: (input) => withProfileClient(profileId, () => useCases.moveTaskStatusUseCase.execute(input)) },
       { execute: (input) => withProfileClient(profileId, () => useCases.updateTaskUseCase.execute(input)) },
       async () => {
-        const projects = await loader.listProjects();
+        const projects = projectId ? [{ projectId, projectName: projectName ?? projectId }] : await loader.listProjects();
         const groups = await Promise.all(projects.map(async (project) => {
           const nodes = await loader.listTasksWithDetail(project.projectId);
           if (nodes.length === 0) {
@@ -348,7 +348,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           void vscode.window.showInformationMessage('DBをアンマウントしました');
         }
         : undefined,
-      panelTitle
+      panelTitle,
+      enableArchiveControls
     );
   };
   const commands = commandRegistry.register();
@@ -519,7 +520,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           treeItem.iconPath = iconByStatus[element.status] ?? (element.priority && iconByPriority[element.priority]) ?? new vscode.ThemeIcon('circle-outline');
         }
         if (element.kind === 'project') {
-          treeItem.command = { command: 'taskDock.openBoard', title: 'Open Board', arguments: [{ projectId: element.id, profileId: element.profileId, projectName: String(element.label) }] };
+          treeItem.command = { command: 'taskDock.openProjectTable', title: 'Open Project Table', arguments: [{ projectId: element.id, profileId: element.profileId, projectName: String(element.label) }] };
           treeItem.tooltip = `カテゴリ: ${element.label}`;
           treeItem.description = element.projectId && element.projectId !== element.label ? element.projectId : treeItem.description;
           treeItem.contextValue = element.kind;
@@ -618,6 +619,19 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       await createTablePanel(undefined, undefined, () => webviewPanel.dispose()).render(webviewPanel);
       return { viewId: 'taskDock.tableView' as const };
     }),
+    vscode.commands.registerCommand('taskDock.openProjectTable', async (input?: { projectId?: string; profileId?: string; projectName?: string }) => {
+      if (!input?.projectId) return;
+      const webviewPanel = vscode.window.createWebviewPanel(
+        TaskTableWebviewPanel.VIEW_TYPE,
+        `Task - ${input.projectName ?? input.projectId}`,
+        vscode.ViewColumn.One,
+        { enableScripts: true }
+      );
+      tableWebviewPanels.add(webviewPanel);
+      tableWebviewProfileIds.set(webviewPanel, input.profileId);
+      webviewPanel.onDidDispose(() => { tableWebviewPanels.delete(webviewPanel); tableWebviewProfileIds.delete(webviewPanel); });
+      await createTablePanel(input.profileId, String(input.projectName ?? input.projectId), () => webviewPanel.dispose(), input.projectId, input.projectName, true).render(webviewPanel);
+    }),
     vscode.commands.registerCommand('taskDock.openDbTable', async (item?: TaskTreeItem) => {
       if (!item || item.kind !== 'database' || !item.profileId || !item.available) return;
       try {
@@ -630,7 +644,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         tableWebviewPanels.add(webviewPanel);
         tableWebviewProfileIds.set(webviewPanel, item.profileId);
         webviewPanel.onDidDispose(() => { tableWebviewPanels.delete(webviewPanel); tableWebviewProfileIds.delete(webviewPanel); });
-        await createTablePanel(item.profileId, String(item.label), () => webviewPanel.dispose()).render(webviewPanel);
+        await createTablePanel(item.profileId, String(item.label), () => webviewPanel.dispose(), undefined, undefined, false).render(webviewPanel);
       } catch (error) {
         void vscode.window.showErrorMessage(toUserFacingMessage(error));
       }
