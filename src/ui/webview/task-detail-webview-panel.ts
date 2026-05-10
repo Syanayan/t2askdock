@@ -25,10 +25,10 @@ export class TaskDetailWebviewPanel {
     private readonly createTaskUseCase: Pick<CreateTaskUseCase, 'execute'>
   ) {}
 
-  public async render(panel: Pick<vscode.WebviewPanel, 'webview' | 'title' | 'dispose'>, taskId?: string): Promise<void> {
+  public async render(panel: Pick<vscode.WebviewPanel, 'webview' | 'title' | 'dispose'>, taskId?: string, createProjectId?: string): Promise<void> {
     if (!taskId) {
       panel.title = 'Create Task';
-      panel.webview.html = this.buildCreateHtml();
+      panel.webview.html = this.buildCreateHtml(createProjectId);
       this.messageListenerDisposable?.dispose();
       this.messageListenerDisposable = panel.webview.onDidReceiveMessage(async (message: unknown) => {
         if (!message || typeof message !== 'object') return;
@@ -114,7 +114,7 @@ export class TaskDetailWebviewPanel {
       }
     });
   }
-  private buildCreateHtml(): string {
+  private buildCreateHtml(projectId: string = 'default'): string {
     return `<!doctype html><html lang="ja"><head><meta charset="UTF-8"/><style>
     body{background:var(--vscode-editor-background);color:var(--vscode-editor-foreground);font-family:var(--vscode-font-family);margin:0;padding:12px}
     .layout{display:flex;gap:12px;flex-wrap:wrap}.main{flex:7;min-width:0}.side{flex:3;min-width:240px}
@@ -127,7 +127,7 @@ export class TaskDetailWebviewPanel {
     <section class="panel"><div class="row"><h2 style="margin:0">Create Task</h2><span style="margin-left:auto"></span><button id="btn-save" class="btn" disabled>Save</button><button id="btn-close" class="btn secondary">Close</button></div></section>
     <section class="panel"><div class="field"><label>Title</label><input id="edit-title" placeholder="Task title (required)"/></div><div class="field"><label>Description</label><textarea id="edit-description" rows="6"></textarea></div></section>
     </div><aside class="side"><section class="panel"><h3>Properties</h3><div class="field"><label>Status</label><select id="edit-status"><option value="todo">Todo</option><option value="in_progress">In Progress</option><option value="blocked">Blocked</option><option value="done">Done</option></select></div><div class="field"><label>Priority</label><select id="edit-priority"><option value="low">Low</option><option value="medium" selected>Medium</option><option value="high">High</option><option value="critical">Critical</option></select></div><div class="field"><label>Assignee</label><input id="edit-assignee"/></div><div class="field"><label>Due</label><input type="date" id="edit-dueDate"/></div><div class="field"><label>Tags</label><input id="edit-tags" placeholder="a,b,c"/></div></section></aside></div>
-    <script>const vscode=acquireVsCodeApi();const projectId='default';const titleEl=document.getElementById('edit-title');const saveBtn=document.getElementById('btn-save');const canSave=()=>titleEl.value.trim().length>0;const sync=()=>{saveBtn.disabled=!canSave();};const post=()=>{if(!canSave())return;vscode.postMessage({type:'detail:create',projectId,title:titleEl.value.trim(),description:document.getElementById('edit-description').value,status:document.getElementById('edit-status').value,priority:document.getElementById('edit-priority').value,assignee:document.getElementById('edit-assignee').value,dueDate:document.getElementById('edit-dueDate').value,tags:document.getElementById('edit-tags').value});};titleEl.addEventListener('input',sync);sync();saveBtn.onclick=post;document.getElementById('btn-close').onclick=()=>vscode.postMessage({type:'detail:close'});document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();post();}});</script></body></html>`;
+    <script>const vscode=acquireVsCodeApi();const projectId=${JSON.stringify(projectId)};const titleEl=document.getElementById('edit-title');const saveBtn=document.getElementById('btn-save');const canSave=()=>titleEl.value.trim().length>0;const sync=()=>{saveBtn.disabled=!canSave();};const post=()=>{if(!canSave())return;vscode.postMessage({type:'detail:create',projectId,title:titleEl.value.trim(),description:document.getElementById('edit-description').value,status:document.getElementById('edit-status').value,priority:document.getElementById('edit-priority').value,assignee:document.getElementById('edit-assignee').value,dueDate:document.getElementById('edit-dueDate').value,tags:document.getElementById('edit-tags').value});};titleEl.addEventListener('input',sync);sync();saveBtn.onclick=post;document.getElementById('btn-close').onclick=()=>vscode.postMessage({type:'detail:close'});document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();post();}});</script></body></html>`;
   }
 
   private buildHtml(detail: TaskDetail, subtasks: SubtaskItem[], comments: ReadonlyArray<CommentRow>): string {
