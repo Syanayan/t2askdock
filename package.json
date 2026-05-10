@@ -165,6 +165,10 @@
       {
         "command": "taskDock.createDatabase",
         "title": "Task Dock: 新しいDBを作成"
+      },
+      {
+        "command": "taskDock.archiveSelectedTasks",
+        "title": "Task Dock: Archive Selected Tasks"
       }
     ],
     "configuration": {
@@ -249,6 +253,11 @@
         {
           "command": "taskDock.createTaskInProject",
           "when": "view == taskDock.allProjects && viewItem == project",
+          "group": "navigation"
+        },
+        {
+          "command": "taskDock.archiveSelectedTasks",
+          "when": "view == taskDock.allProjects && (viewItem == task || viewItem == subtask)",
           "group": "navigation"
         }
       ]

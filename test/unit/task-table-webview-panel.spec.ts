@@ -95,4 +95,41 @@ describe('TaskTableWebviewPanel', () => {
       expect.objectContaining({ taskId: 't1', progress: 70, expectedVersion: 1 })
     );
   });
+
+  it('archives selected done/closed tasks from table message', async () => {
+    const updateTaskUseCase = { execute: vi.fn().mockResolvedValue({ id: 't1', title: 'task', status: 'done', version: 2 }) };
+    const handlerRef: { current?: (message: unknown) => Promise<void> } = {};
+
+    const detailById: Record<string, any> = {
+      t1: { taskId: 't1', projectId: 'p1', title: 'done', status: 'done', priority: 'medium', assignee: null, dueDate: null, tags: [], description: null, parentTaskId: null, version: 1, progress: 100, isClosed: false, isArchived: false, closeReason: null },
+      t2: { taskId: 't2', projectId: 'p1', title: 'closed', status: 'todo', priority: 'medium', assignee: null, dueDate: null, tags: [], description: null, parentTaskId: null, version: 2, progress: 50, isClosed: true, isArchived: false, closeReason: 'dup' },
+      t3: { taskId: 't3', projectId: 'p1', title: 'todo', status: 'todo', priority: 'medium', assignee: null, dueDate: null, tags: [], description: null, parentTaskId: null, version: 3, progress: 10, isClosed: false, isArchived: false, closeReason: null }
+    };
+
+    const panel = new TaskTableWebviewPanel(
+      { execute: vi.fn() } as never,
+      updateTaskUseCase as never,
+      async () => [],
+      async (taskId) => detailById[taskId] ?? null,
+      async () => undefined
+    );
+
+    await panel.render({
+      title: '',
+      webview: {
+        html: '',
+        postMessage: vi.fn(),
+        onDidReceiveMessage: (handler: (message: unknown) => Promise<void>) => {
+          handlerRef.current = handler;
+          return { dispose: () => undefined };
+        }
+      }
+    });
+
+    await handlerRef.current?.({ type: 'table:archiveTasks', taskIds: ['t1', 't2', 't3'] });
+
+    expect(updateTaskUseCase.execute).toHaveBeenCalledTimes(2);
+    expect(updateTaskUseCase.execute).toHaveBeenCalledWith(expect.objectContaining({ taskId: 't1', isArchived: true }));
+    expect(updateTaskUseCase.execute).toHaveBeenCalledWith(expect.objectContaining({ taskId: 't2', isArchived: true }));
+  });
 });

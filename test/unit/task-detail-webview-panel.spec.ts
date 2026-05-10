@@ -42,12 +42,13 @@ describe('TaskDetailWebviewPanel', () => {
   it('renders create mode', async () => {
     const panel = new TaskDetailWebviewPanel(async()=>null as never, async()=>[], async()=>[], {execute:vi.fn()} as never, {execute:vi.fn()} as never, {execute:vi.fn()} as never, async()=>undefined, { execute: vi.fn().mockResolvedValue({ id: 'new-1' }) } as never);
     const webview: any = { html:'', onDidReceiveMessage:vi.fn(()=>({dispose(){}})), postMessage: vi.fn() };
-    await panel.render({ title:'', webview, dispose: vi.fn() } as never);
+    await panel.render({ title:'', webview, dispose: vi.fn() } as never, undefined, 'project-xyz');
     expect(webview.html).toContain('Create Task');
     expect(webview.html).toContain("type:'detail:create'");
     expect(webview.html).toContain('btn-save');
     expect(webview.html).toContain('disabled');
     expect(webview.html).toContain('titleEl.value.trim().length>0');
+    expect(webview.html).toContain("const projectId=\"project-xyz\";");
     expect(webview.html).toContain("if((e.ctrlKey||e.metaKey)&&e.key==='Enter')");
   });
 });
