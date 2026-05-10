@@ -72,7 +72,7 @@ export class TaskDetailWebviewPanel {
           return;
         }
         const current = await this.findDetailById(taskId); if (!current) return;
-        await this.updateTaskUseCase.execute({ ...current, actorId: ACTOR_ID, expectedVersion: current.version, now: new Date().toISOString(), isClosed: true, closeReason: reason, isArchived: false, status: 'close' });
+        await this.updateTaskUseCase.execute({ ...current, actorId: ACTOR_ID, expectedVersion: current.version, now: new Date().toISOString(), isClosed: true, closeReason: reason, isArchived: false, status: 'done' });
         panel.dispose();
       }
       if (m.type === 'detail:archiveTask') {
