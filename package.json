@@ -161,11 +161,6 @@
       {
         "command": "taskDock.createDatabase",
         "title": "Task Dock: 新しいDBを作成"
-      },
-      {
-        "command": "taskDock.unmountDatabase",
-        "title": "Task Dock: DBをアンマウント",
-        "icon": "$(trash)"
       }
     ],
     "configuration": {
@@ -219,11 +214,6 @@
           "command": "taskDock.allProjects.sortDeadline",
           "when": "view == taskDock.allProjects",
           "group": "navigation"
-        },
-        {
-          "command": "taskDock.unmountDatabase",
-          "when": "view == taskDock.allProjects",
-          "group": "navigation@99"
         }
       ],
       "view/item/context": [
