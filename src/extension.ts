@@ -980,6 +980,21 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
       eventBus.publish({ type: 'TASK_UPDATED', payload: { taskId: targets[0]?.id ?? '' } });
     }),
+    vscode.commands.registerCommand('taskDock.archiveTasksByIds', async (input?: { taskIds?: string[]; profileId?: string }) => {
+      const taskIds = input?.taskIds ?? [];
+      for (const taskId of taskIds) {
+        const detail = await withProfileClient(input?.profileId, () => taskOperator.findDetailById(taskId));
+        if (!detail) continue;
+        if (!(detail.status === 'done' || detail.isClosed)) continue;
+        await withProfileClient(input?.profileId, () => useCases.updateTaskUseCase.execute({
+          taskId: detail.taskId, projectId: detail.projectId, title: detail.title, description: detail.description,
+          status: detail.status, priority: detail.priority, assignee: detail.assignee, dueDate: detail.dueDate,
+          tags: detail.tags, parentTaskId: detail.parentTaskId, actorId: 'system', now: new Date().toISOString(),
+          expectedVersion: detail.version, progress: detail.progress, isClosed: detail.isClosed, closeReason: detail.closeReason, isArchived: true
+        }));
+      }
+      allProjectsProvider.refresh();
+    }),
     vscode.commands.registerCommand('taskDock.updateTask', async (item?: TaskTreeItem) => {
       item = resolveSelectedItem(item);
       if (!item || (item.kind !== 'task' && item.kind !== 'subtask')) return;
