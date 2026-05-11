@@ -19,6 +19,49 @@ describe('TaskTableWebviewPanel', () => {
     expect(webview.html).toContain('.status-done{background:#2e7d32}');
   });
 
+  
+  it('handles add/rename/archive category messages', async () => {
+    const handlerRef: { current?: (message: unknown) => Promise<void> } = {};
+    const addCategory = vi.fn();
+    const renameCategory = vi.fn();
+    const archiveCategory = vi.fn();
+    const panel = new TaskTableWebviewPanel(
+      { execute: vi.fn() } as never,
+      { execute: vi.fn() } as never,
+      async () => [],
+      async () => null,
+      async () => undefined,
+      undefined,
+      undefined,
+      undefined,
+      true,
+      undefined,
+      addCategory,
+      renameCategory,
+      archiveCategory
+    );
+
+    await panel.render({
+      title: '',
+      webview: {
+        html: '',
+        postMessage: vi.fn(),
+        onDidReceiveMessage: (handler: (message: unknown) => Promise<void>) => {
+          handlerRef.current = handler;
+          return { dispose: () => undefined };
+        }
+      }
+    });
+
+    await handlerRef.current?.({ type: 'table:addCategory', name: 'New Cat' });
+    await handlerRef.current?.({ type: 'table:renameCategory', projectId: 'p1', name: 'Renamed' });
+    await handlerRef.current?.({ type: 'table:archiveCategory', projectId: 'p1' });
+
+    expect(addCategory).toHaveBeenCalledWith('New Cat');
+    expect(renameCategory).toHaveBeenCalledWith('p1', 'Renamed');
+    expect(archiveCategory).toHaveBeenCalledWith('p1');
+  });
+
   it('auto-calculates parent progress from children done ratio', async () => {
     const moveTaskStatusUseCase = { execute: vi.fn() };
     const updateTaskUseCase = { execute: vi.fn() };
