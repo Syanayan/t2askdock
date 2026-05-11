@@ -319,7 +319,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         await vscode.commands.executeCommand('taskDock.openTaskDetail', { kind: 'task', id: taskId, label: taskId, hasChildren: false, profileId });
       },
       async (projectId) => {
-        await vscode.commands.executeCommand('taskDock.createTask', { projectId, profileId });
+        await vscode.commands.executeCommand('taskDock.openTaskCreate', { projectId, profileId });
       },
       async (projectId, projectName) => {
         await vscode.commands.executeCommand('taskDock.openBoard', { projectId, profileId, projectName });

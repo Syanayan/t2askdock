@@ -217,7 +217,7 @@ export class TaskTableWebviewPanel {
     const rowMap=()=>Object.fromEntries(Array.from(document.querySelectorAll('#rows tr[data-task-id]')).map(r=>[r.dataset.taskId,r]));
     const applySelection=()=>{const map=rowMap();Object.values(map).forEach(r=>r.classList.remove('selected'));selectedTaskIds.forEach(id=>map[id]?.classList.add('selected'));const controlsEnabled=${this.enableArchiveControls ? 'true' : 'false'};const visibleStatus=controlsEnabled&&['done','close'].includes(currentTab);if(archiveBtn){archiveBtn.style.display=visibleStatus?'inline-block':'none';archiveBtn.disabled=selectedTaskIds.length===0;}if(addTaskBtn)addTaskBtn.style.display=controlsEnabled?'inline-block':'none';};
     const collectArchivable=()=>selectedTaskIds.filter(id=>{const row=rowMap()[id];if(!row)return false;const st=(row.children[1]?.innerText||'').trim();return st==='done'||st==='close';});
-    if(addTaskBtn){addTaskBtn.addEventListener('click',()=>{const row=selectedTaskIds.length?rowMap()[selectedTaskIds[0]]:null;vscode.postMessage({type:'table:addTask',projectId:row?.dataset.projectId});});}
+    if(addTaskBtn){addTaskBtn.addEventListener('click',()=>{const row=selectedTaskIds.length?rowMap()[selectedTaskIds[0]]:null;const fallbackProjectId=(roots[0]?.projectId)||undefined;vscode.postMessage({type:'table:addTask',projectId:row?.dataset.projectId||fallbackProjectId});});}
     if(addCategoryBtn){addCategoryBtn.addEventListener('click',()=>{vscode.postMessage({type:'table:addCategoryRequest'});});}
     if(archiveBtn){archiveBtn.addEventListener('click',()=>{const taskIds=collectArchivable();if(taskIds.length===0)return; vscode.postMessage({type:'table:archiveTasks',taskIds});});}
     const unmountBtn=document.getElementById('btn-unmount-db');

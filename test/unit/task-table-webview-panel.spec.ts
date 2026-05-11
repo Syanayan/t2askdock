@@ -59,6 +59,38 @@ describe('TaskTableWebviewPanel', () => {
     expect(renameCategory).toHaveBeenCalledWith('p1');
   });
 
+
+
+  it('routes addTask message to createTask callback with projectId', async () => {
+    const handlerRef: { current?: (message: unknown) => Promise<void> } = {};
+    const createTask = vi.fn();
+    const panel = new TaskTableWebviewPanel(
+      { execute: vi.fn() } as never,
+      { execute: vi.fn() } as never,
+      async () => [],
+      async () => null,
+      async () => undefined,
+      createTask
+    );
+
+    await panel.render({
+      title: '',
+      webview: {
+        html: '',
+        postMessage: vi.fn(),
+        onDidReceiveMessage: (handler: (message: unknown) => Promise<void>) => {
+          handlerRef.current = handler;
+          return { dispose: () => undefined };
+        }
+      }
+    });
+
+    await handlerRef.current?.({ type: 'table:addTask', projectId: 'p1' });
+    await handlerRef.current?.({ type: 'table:addTask' });
+
+    expect(createTask).toHaveBeenNthCalledWith(1, 'p1');
+    expect(createTask).toHaveBeenNthCalledWith(2, undefined);
+  });
   it('auto-calculates parent progress from children done ratio', async () => {
     const moveTaskStatusUseCase = { execute: vi.fn() };
     const updateTaskUseCase = { execute: vi.fn() };
