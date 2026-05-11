@@ -53,12 +53,12 @@ describe('TaskTableWebviewPanel', () => {
       }
     });
 
-    await handlerRef.current?.({ type: 'table:addCategory', name: 'New Cat' });
-    await handlerRef.current?.({ type: 'table:renameCategory', projectId: 'p1', name: 'Renamed' });
+    await handlerRef.current?.({ type: 'table:addCategoryRequest' });
+    await handlerRef.current?.({ type: 'table:renameCategoryRequest', projectId: 'p1' });
     await handlerRef.current?.({ type: 'table:archiveCategory', projectId: 'p1' });
 
-    expect(addCategory).toHaveBeenCalledWith('New Cat');
-    expect(renameCategory).toHaveBeenCalledWith('p1', 'Renamed');
+    expect(addCategory).toHaveBeenCalledWith();
+    expect(renameCategory).toHaveBeenCalledWith('p1');
     expect(archiveCategory).toHaveBeenCalledWith('p1');
   });
 

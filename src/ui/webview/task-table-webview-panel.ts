@@ -20,8 +20,8 @@ export class TaskTableWebviewPanel {
     private readonly panelTitle?: string,
     private readonly enableArchiveControls: boolean = true,
     private readonly confirmArchive?: (count: number) => Promise<boolean>,
-    private readonly addCategory?: (name: string) => Promise<void>,
-    private readonly renameCategory?: (projectId: string, name: string) => Promise<void>,
+    private readonly addCategory?: () => Promise<void>,
+    private readonly renameCategory?: (projectId: string) => Promise<void>,
     private readonly archiveCategory?: (projectId: string) => Promise<void>
   ) {}
 
@@ -54,12 +54,12 @@ export class TaskTableWebviewPanel {
       if (isAddTaskMessage(message)) {
         await this.openTaskDetail('');
       }
-      if (isAddCategoryMessage(message) && this.addCategory) {
-        await this.addCategory(message.name);
+      if (isAddCategoryRequestMessage(message) && this.addCategory) {
+        await this.addCategory();
         await this.postTasks(panel.webview);
       }
-      if (isRenameCategoryMessage(message) && this.renameCategory) {
-        await this.renameCategory(message.projectId, message.name);
+      if (isRenameCategoryRequestMessage(message) && this.renameCategory) {
+        await this.renameCategory(message.projectId);
         await this.postTasks(panel.webview);
       }
       if (isArchiveCategoryMessage(message) && this.archiveCategory) {
@@ -205,7 +205,7 @@ export class TaskTableWebviewPanel {
       });
       rows.querySelectorAll('[data-id]').forEach(el=>el.onclick=()=>{const id=el.dataset.id; expanded.has(id)?expanded.delete(id):expanded.add(id); render();});
       rows.querySelectorAll('[data-open]').forEach(el=>el.onclick=()=>vscode.postMessage({type:'table:openTask',taskId:el.dataset.open}));
-      rows.querySelectorAll('[data-rename-project]').forEach(el=>el.addEventListener('click',(ev)=>{ev.stopPropagation(); const pid=el.dataset.renameProject; const next=window.prompt('新しいカテゴリ名を入力してください', ''); if(!next) return; const name=next.trim(); if(!name) return; vscode.postMessage({type:'table:renameCategory',projectId:pid,name});}));
+      rows.querySelectorAll('[data-rename-project]').forEach(el=>el.addEventListener('click',(ev)=>{ev.stopPropagation(); const pid=el.dataset.renameProject; vscode.postMessage({type:'table:renameCategoryRequest',projectId:pid});}));
       rows.querySelectorAll('tr[data-task-id]').forEach((row)=>row.addEventListener('click',(e)=>{const id=row.dataset.taskId;const ids=Array.from(rows.querySelectorAll('tr[data-task-id]')).map(r=>r.dataset.taskId);if(e.shiftKey&&anchorTaskId&&ids.includes(anchorTaskId)){const a=ids.indexOf(anchorTaskId),b=ids.indexOf(id);const [s,e2]=a<b?[a,b]:[b,a];selectedTaskIds=[...new Set([...selectedTaskIds,...ids.slice(s,e2+1)])];}else if(e.ctrlKey||e.metaKey){selectedTaskIds=selectedTaskIds.includes(id)?selectedTaskIds.filter(v=>v!==id):[...selectedTaskIds,id];anchorTaskId=id;}else{selectedTaskIds=[id];anchorTaskId=id;}applySelection();}));
       applySelection();
     };
@@ -218,7 +218,7 @@ export class TaskTableWebviewPanel {
     const applySelection=()=>{const map=rowMap();Object.values(map).forEach(r=>r.classList.remove('selected'));selectedTaskIds.forEach(id=>map[id]?.classList.add('selected'));const controlsEnabled=${this.enableArchiveControls ? 'true' : 'false'};const visibleStatus=controlsEnabled&&['done','close'].includes(currentTab);if(archiveBtn){archiveBtn.style.display=visibleStatus?'inline-block':'none';archiveBtn.disabled=selectedTaskIds.length===0;}if(addTaskBtn)addTaskBtn.style.display=controlsEnabled?'inline-block':'none';};
     const collectArchivable=()=>selectedTaskIds.filter(id=>{const row=rowMap()[id];if(!row)return false;const st=(row.children[1]?.innerText||'').trim();return st==='done'||st==='close';});
     if(addTaskBtn){addTaskBtn.addEventListener('click',()=>{const row=selectedTaskIds.length?rowMap()[selectedTaskIds[0]]:null;vscode.postMessage({type:'table:addTask',projectId:row?.dataset.projectId});});}
-    if(addCategoryBtn){addCategoryBtn.addEventListener('click',()=>{const next=window.prompt('カテゴリ名を入力してください',''); if(!next) return; const name=next.trim(); if(!name) return; vscode.postMessage({type:'table:addCategory',name});});}
+    if(addCategoryBtn){addCategoryBtn.addEventListener('click',()=>{vscode.postMessage({type:'table:addCategoryRequest'});});}
     if(archiveCategoryBtn){archiveCategoryBtn.addEventListener('click',()=>{const row=selectedTaskIds.length?rowMap()[selectedTaskIds[0]]:null; const projectId=row?.dataset.projectId; if(!projectId) return; vscode.postMessage({type:'table:archiveCategory',projectId});});}
     if(archiveBtn){archiveBtn.addEventListener('click',()=>{const taskIds=collectArchivable();if(taskIds.length===0)return; vscode.postMessage({type:'table:archiveTasks',taskIds});});}
     const unmountBtn=document.getElementById('btn-unmount-db');
@@ -270,16 +270,16 @@ function isAddTaskMessage(value: unknown): value is { type: 'table:addTask'; pro
   return c.type === 'table:addTask';
 }
 
-function isAddCategoryMessage(value: unknown): value is { type: 'table:addCategory'; name: string } {
+function isAddCategoryRequestMessage(value: unknown): value is { type: 'table:addCategoryRequest' } {
   if (!value || typeof value !== 'object') return false;
   const c = value as Record<string, unknown>;
-  return c.type === 'table:addCategory' && typeof c.name === 'string' && c.name.trim().length > 0;
+  return c.type === 'table:addCategoryRequest';
 }
 
-function isRenameCategoryMessage(value: unknown): value is { type: 'table:renameCategory'; projectId: string; name: string } {
+function isRenameCategoryRequestMessage(value: unknown): value is { type: 'table:renameCategoryRequest'; projectId: string } {
   if (!value || typeof value !== 'object') return false;
   const c = value as Record<string, unknown>;
-  return c.type === 'table:renameCategory' && typeof c.projectId === 'string' && typeof c.name === 'string' && c.name.trim().length > 0;
+  return c.type === 'table:renameCategoryRequest' && typeof c.projectId === 'string';
 }
 
 function isArchiveCategoryMessage(value: unknown): value is { type: 'table:archiveCategory'; projectId: string } {
