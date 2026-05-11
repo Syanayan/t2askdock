@@ -353,6 +353,31 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       async (count) => {
         const answer = await vscode.window.showWarningMessage(`${count}件のタスクをArchiveしますか？`, { modal: true }, 'Archive');
         return answer === 'Archive';
+      },
+      async () => {
+        const name = await vscode.window.showInputBox({ prompt: 'カテゴリ名を入力してください', placeHolder: '例: 開発, レビュー' });
+        if (!name?.trim()) return;
+        const now = new Date().toISOString();
+        await withProfileClient(profileId, async () => {
+          const client = activeClientHolder.get();
+          await client.run('INSERT INTO projects(project_id, name, archived, created_at, updated_at) VALUES (?, ?, 0, ?, ?)', [idGenerator.nextUlid(), name.trim(), now, now]);
+        });
+      },
+      async (projectId) => {
+        const name = await vscode.window.showInputBox({ prompt: '新しいカテゴリ名を入力してください' });
+        if (!name?.trim()) return;
+        const now = new Date().toISOString();
+        await withProfileClient(profileId, async () => {
+          const client = activeClientHolder.get();
+          await client.run('UPDATE projects SET name = ?, updated_at = ? WHERE project_id = ?', [name.trim(), now, projectId]);
+        });
+      },
+      async (projectId) => {
+        const now = new Date().toISOString();
+        await withProfileClient(profileId, async () => {
+          const client = activeClientHolder.get();
+          await client.run('UPDATE projects SET archived = 1, updated_at = ? WHERE project_id = ?', [now, projectId]);
+        });
       }
     );
   };

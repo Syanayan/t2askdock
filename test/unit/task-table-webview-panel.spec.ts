@@ -2,6 +2,66 @@ import { describe, expect, it, vi } from 'vitest';
 import { TaskTableWebviewPanel } from '../../src/ui/webview/task-table-webview-panel.js';
 
 describe('TaskTableWebviewPanel', () => {
+  it('uses green highlight for selected rows and keeps status colors separate', async () => {
+    const panel = new TaskTableWebviewPanel(
+      { execute: vi.fn() } as never,
+      { execute: vi.fn() } as never,
+      async () => [],
+      async () => null,
+      async () => undefined
+    );
+
+    const webview = { html: '', postMessage: vi.fn(), onDidReceiveMessage: vi.fn() };
+    await panel.render({ title: '', webview });
+
+    expect(webview.html).toContain('tr.selected{outline:2px solid #2e7d32');
+    expect(webview.html).toContain('tr.selected td{background:rgba(46,125,50,.18)}');
+    expect(webview.html).toContain('.status-done{background:#2e7d32}');
+  });
+
+  
+  it('handles add/rename/archive category messages', async () => {
+    const handlerRef: { current?: (message: unknown) => Promise<void> } = {};
+    const addCategory = vi.fn();
+    const renameCategory = vi.fn();
+    const archiveCategory = vi.fn();
+    const panel = new TaskTableWebviewPanel(
+      { execute: vi.fn() } as never,
+      { execute: vi.fn() } as never,
+      async () => [],
+      async () => null,
+      async () => undefined,
+      undefined,
+      undefined,
+      undefined,
+      true,
+      undefined,
+      addCategory,
+      renameCategory,
+      archiveCategory
+    );
+
+    await panel.render({
+      title: '',
+      webview: {
+        html: '',
+        postMessage: vi.fn(),
+        onDidReceiveMessage: (handler: (message: unknown) => Promise<void>) => {
+          handlerRef.current = handler;
+          return { dispose: () => undefined };
+        }
+      }
+    });
+
+    await handlerRef.current?.({ type: 'table:addCategoryRequest' });
+    await handlerRef.current?.({ type: 'table:renameCategoryRequest', projectId: 'p1' });
+    await handlerRef.current?.({ type: 'table:archiveCategory', projectId: 'p1' });
+
+    expect(addCategory).toHaveBeenCalledWith();
+    expect(renameCategory).toHaveBeenCalledWith('p1');
+    expect(archiveCategory).toHaveBeenCalledWith('p1');
+  });
+
   it('auto-calculates parent progress from children done ratio', async () => {
     const moveTaskStatusUseCase = { execute: vi.fn() };
     const updateTaskUseCase = { execute: vi.fn() };
