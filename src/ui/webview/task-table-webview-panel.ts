@@ -54,6 +54,7 @@ export class TaskTableWebviewPanel {
       }
       if (isAddTaskMessage(message)) {
         await this.createTask?.(message.projectId);
+        await this.postTasks(panel.webview);
       }
       if (isAddCategoryRequestMessage(message) && this.addCategory) {
         await this.addCategory();

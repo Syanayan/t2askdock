@@ -33,10 +33,10 @@ export class BoardWebviewPanel {
     private readonly executeCommand: (command: string, args?: WebviewCommandArgs) => Promise<unknown> = async () => undefined
   ) {}
 
-  public render(panel: Pick<vscode.WebviewPanel, 'webview' | 'title'>, tasks: BoardTask[], projectName?: string, userId?: string): void {
+  public render(panel: Pick<vscode.WebviewPanel, 'webview' | 'title'>, tasks: BoardTask[], projectName?: string, userId?: string, projectId?: string): void {
     panel.title = 'Task Dock Board';
-    const projectId = tasks[0]?.projectId ?? null;
-    panel.webview.html = this.buildHtml(projectId, projectName, userId);
+    const resolvedProjectId = projectId ?? tasks[0]?.projectId ?? null;
+    panel.webview.html = this.buildHtml(resolvedProjectId, projectName, userId);
     this.messageListenerDisposable?.dispose();
     this.messageListenerDisposable = panel.webview.onDidReceiveMessage?.(async (message: unknown) => {
       if (isDropMessage(message)) {
