@@ -20,11 +20,10 @@ describe('TaskTableWebviewPanel', () => {
   });
 
   
-  it('handles add/rename/archive category messages', async () => {
+  it('handles add/rename category messages', async () => {
     const handlerRef: { current?: (message: unknown) => Promise<void> } = {};
     const addCategory = vi.fn();
     const renameCategory = vi.fn();
-    const archiveCategory = vi.fn();
     const panel = new TaskTableWebviewPanel(
       { execute: vi.fn() } as never,
       { execute: vi.fn() } as never,
@@ -36,9 +35,9 @@ describe('TaskTableWebviewPanel', () => {
       undefined,
       true,
       undefined,
+      undefined,
       addCategory,
-      renameCategory,
-      archiveCategory
+      renameCategory
     );
 
     await panel.render({
@@ -55,11 +54,9 @@ describe('TaskTableWebviewPanel', () => {
 
     await handlerRef.current?.({ type: 'table:addCategoryRequest' });
     await handlerRef.current?.({ type: 'table:renameCategoryRequest', projectId: 'p1' });
-    await handlerRef.current?.({ type: 'table:archiveCategory', projectId: 'p1' });
 
     expect(addCategory).toHaveBeenCalledWith();
     expect(renameCategory).toHaveBeenCalledWith('p1');
-    expect(archiveCategory).toHaveBeenCalledWith('p1');
   });
 
   it('auto-calculates parent progress from children done ratio', async () => {
@@ -102,6 +99,8 @@ describe('TaskTableWebviewPanel', () => {
         }
       }
     });
+
+    await handlerRef.current?.({ type: 'table:ready' });
 
     expect(postMessage).toHaveBeenCalledWith(
       expect.objectContaining({

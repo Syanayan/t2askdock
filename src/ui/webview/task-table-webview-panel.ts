@@ -15,6 +15,7 @@ export class TaskTableWebviewPanel {
     private readonly loadTree: () => Promise<TableTaskNode[]>,
     private readonly findTaskDetailById: (taskId: string) => Promise<TaskDetail | null>,
     private readonly openTaskDetail: (taskId: string) => Promise<void>,
+    private readonly createTask?: (projectId?: string) => Promise<void>,
     private readonly openProject?: (projectId: string, projectName?: string) => Promise<void>,
     private readonly unmountDatabase?: () => Promise<void>,
     private readonly panelTitle?: string,
@@ -22,7 +23,7 @@ export class TaskTableWebviewPanel {
     private readonly confirmArchive?: (count: number) => Promise<boolean>,
     private readonly addCategory?: () => Promise<void>,
     private readonly renameCategory?: (projectId: string) => Promise<void>,
-    private readonly archiveCategory?: (projectId: string) => Promise<void>
+    private readonly onCategoryChanged?: () => void
   ) {}
 
   public async render(panel: { title: string; webview: Pick<vscode.Webview, 'html' | 'postMessage' | 'onDidReceiveMessage'> }): Promise<void> {
@@ -52,22 +53,22 @@ export class TaskTableWebviewPanel {
         await this.postTasks(panel.webview);
       }
       if (isAddTaskMessage(message)) {
-        await this.openTaskDetail('');
+        await this.createTask?.(message.projectId);
       }
       if (isAddCategoryRequestMessage(message) && this.addCategory) {
         await this.addCategory();
+        this.onCategoryChanged?.();
         await this.postTasks(panel.webview);
       }
       if (isRenameCategoryRequestMessage(message) && this.renameCategory) {
         await this.renameCategory(message.projectId);
+        this.onCategoryChanged?.();
         await this.postTasks(panel.webview);
       }
-      if (isArchiveCategoryMessage(message) && this.archiveCategory) {
-        await this.archiveCategory(message.projectId);
+      if (isReadyMessage(message)) {
         await this.postTasks(panel.webview);
       }
     });
-    await this.postTasks(panel.webview);
   }
 
   public renderDisconnected(panel: { title: string; webview: Pick<vscode.Webview, 'html'> }): void {
@@ -176,7 +177,7 @@ export class TaskTableWebviewPanel {
       .task-title{cursor:pointer}.status-badge{padding:2px 8px;border-radius:999px;color:#fff;font-size:12px}
       .status-todo{background:#666}.status-in_progress{background:#2979ff}.status-done{background:#2e7d32}.status-blocked{background:#d32f2f}.status-close{background:#7b1fa2}.status-archived{background:#455a64}.tabs{display:flex;gap:8px;margin:8px 0}.tab{padding:4px 10px;border:1px solid #bbb;border-radius:999px;cursor:pointer}.tab.active{background:#333;color:#fff}
       .tree-toggle{cursor:pointer;display:inline-block;width:20px}.indent{display:inline-block} tr.selected{outline:2px solid #2e7d32;outline-offset:-2px} tr.selected td{background:rgba(46,125,50,.18)} .btn:disabled{opacity:.4;cursor:not-allowed}
-    </style></head><body><div class="header"><h2 id="panel-title"></h2><div class="header-actions"><button id="btn-archive-category" class="btn secondary" type="button">Archive Category</button><button id="btn-add-category" class="btn" type="button">Add Category</button><button id="btn-archive-selected" class="btn secondary" type="button" style="display:none">Archive</button><button id="btn-add-task" class="btn" type="button" style="display:none">AddTask</button><button id="btn-unmount-db" class="btn secondary" type="button" style="display:none">DBをアンマウント</button></div></div><div class="tabs"><button class="tab active" data-tab="task">Tasks</button><button class="tab" data-tab="done">Done</button><button class="tab" data-tab="close">Close</button><button class="tab" data-tab="archived">Archive</button></div><div class="container"><table><thead><tr><th>タイトル</th><th>ステータス</th><th>担当者</th><th>優先度</th><th>進捗</th></tr></thead><tbody id="rows"></tbody></table></div>
+    </style></head><body><div class="header"><h2 id="panel-title"></h2><div class="header-actions"><button id="btn-add-category" class="btn" type="button">Add Category</button><button id="btn-archive-selected" class="btn secondary" type="button" style="display:none">Archive</button><button id="btn-add-task" class="btn" type="button" style="display:none">AddTask</button><button id="btn-unmount-db" class="btn secondary" type="button" style="display:none">DBをアンマウント</button></div></div><div class="tabs"><button class="tab active" data-tab="task">Tasks</button><button class="tab" data-tab="done">Done</button><button class="tab" data-tab="close">Close</button><button class="tab" data-tab="archived">Archive</button></div><div class="container"><table><thead><tr><th>タイトル</th><th>ステータス</th><th>担当者</th><th>優先度</th><th>進捗</th></tr></thead><tbody id="rows"></tbody></table></div>
     <script>
     const vscode = acquireVsCodeApi();
     let roots=[]; let currentTab="task"; const expanded=new Set(); const collapsedProjects=new Set(); const clickTimers={};
@@ -212,18 +213,17 @@ export class TaskTableWebviewPanel {
     const archiveBtn=document.getElementById('btn-archive-selected');
     const addTaskBtn=document.getElementById('btn-add-task');
     const addCategoryBtn=document.getElementById('btn-add-category');
-    const archiveCategoryBtn=document.getElementById('btn-archive-category');
     let selectedTaskIds=[]; let anchorTaskId=null;
     const rowMap=()=>Object.fromEntries(Array.from(document.querySelectorAll('#rows tr[data-task-id]')).map(r=>[r.dataset.taskId,r]));
     const applySelection=()=>{const map=rowMap();Object.values(map).forEach(r=>r.classList.remove('selected'));selectedTaskIds.forEach(id=>map[id]?.classList.add('selected'));const controlsEnabled=${this.enableArchiveControls ? 'true' : 'false'};const visibleStatus=controlsEnabled&&['done','close'].includes(currentTab);if(archiveBtn){archiveBtn.style.display=visibleStatus?'inline-block':'none';archiveBtn.disabled=selectedTaskIds.length===0;}if(addTaskBtn)addTaskBtn.style.display=controlsEnabled?'inline-block':'none';};
     const collectArchivable=()=>selectedTaskIds.filter(id=>{const row=rowMap()[id];if(!row)return false;const st=(row.children[1]?.innerText||'').trim();return st==='done'||st==='close';});
     if(addTaskBtn){addTaskBtn.addEventListener('click',()=>{const row=selectedTaskIds.length?rowMap()[selectedTaskIds[0]]:null;vscode.postMessage({type:'table:addTask',projectId:row?.dataset.projectId});});}
     if(addCategoryBtn){addCategoryBtn.addEventListener('click',()=>{vscode.postMessage({type:'table:addCategoryRequest'});});}
-    if(archiveCategoryBtn){archiveCategoryBtn.addEventListener('click',()=>{const row=selectedTaskIds.length?rowMap()[selectedTaskIds[0]]:null; const projectId=row?.dataset.projectId; if(!projectId) return; vscode.postMessage({type:'table:archiveCategory',projectId});});}
     if(archiveBtn){archiveBtn.addEventListener('click',()=>{const taskIds=collectArchivable();if(taskIds.length===0)return; vscode.postMessage({type:'table:archiveTasks',taskIds});});}
     const unmountBtn=document.getElementById('btn-unmount-db');
     if(unmountBtn){const canUnmount=${this.unmountDatabase ? 'true' : 'false'};if(canUnmount){unmountBtn.style.display='inline-block';unmountBtn.addEventListener('click',()=>vscode.postMessage({type:'table:unmountDatabase'}));}}
     window.addEventListener('message',(event)=>{if(event.data?.type==='table:init'){roots=event.data.tasks??[]; document.getElementById('panel-title').textContent=event.data.title??'Task Table'; render();}});document.querySelectorAll('.tab').forEach(el=>el.onclick=()=>{document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));el.classList.add('active');currentTab=el.dataset.tab;render();});
+    vscode.postMessage({type:'table:ready'});
     </script></body></html>`;
   }
 }
@@ -282,8 +282,9 @@ function isRenameCategoryRequestMessage(value: unknown): value is { type: 'table
   return c.type === 'table:renameCategoryRequest' && typeof c.projectId === 'string';
 }
 
-function isArchiveCategoryMessage(value: unknown): value is { type: 'table:archiveCategory'; projectId: string } {
+
+function isReadyMessage(value: unknown): value is { type: 'table:ready' } {
   if (!value || typeof value !== 'object') return false;
   const c = value as Record<string, unknown>;
-  return c.type === 'table:archiveCategory' && typeof c.projectId === 'string';
+  return c.type === 'table:ready';
 }
