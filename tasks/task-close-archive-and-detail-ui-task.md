@@ -37,17 +37,17 @@
 
 ## グループA: ドメイン / 永続化
 
-- [ ] **A-1 `Task` 状態拡張**
+- [x] **A-1 `Task` 状態拡張**
   - `status` とは別に `isClosed: boolean` / `isArchived: boolean` または `taskState: 'active' | 'closed' | 'archived'` を追加
   - `closeReason: string | null` を追加
   - `closedAt`, `archivedAt` を追加する場合はコメントで理由を添える
 
-- [ ] **A-2 リポジトリ契約の更新**
+- [x] **A-2 リポジトリ契約の更新**
   - 取得系クエリに `isClosed` / `isArchived` フィルタを追加できるようにする
   - `updateTask` 系に `closeReason` / `isClosed` / `isArchived` を受け取るオプションを追加
   - `listTasks` / `findTaskById` の返却型に新しいフラグを含める
 
-- [ ] **A-3 `Close`/`Archive` 用ユースケース準備**
+- [x] **A-3 `Close`/`Archive` 用ユースケース準備**
   - 既存の `UpdateTaskUseCase` を活用しつつ `CloseTaskUseCase` / `ArchiveTaskUseCase` を追加するか、拡張性を持たせる
   - `CloseTaskUseCase.execute({ taskId, reason })` と `ArchiveTaskUseCase.execute({ taskIds })` を定義
 
@@ -72,15 +72,15 @@
 
 ## グループC: Archive 操作
 
-- [ ] **C-1 個別 Archive**
+- [x] **C-1 個別 Archive**
   - `Done` / `Close` タスク詳細画面に `Archive` 操作を追加するか、一覧画面から実行できるようにする
   - 実行前に確認ダイアログを表示
 
-- [ ] **C-2 一括 Archive**
+- [x] **C-2 一括 Archive**
   - 複数選択されたタスクを `Archive` できる UI を準備
   - 選択対象は色付けなどで判別できるようにする
 
-- [ ] **C-3 表示制御**
+- [x] **C-3 表示制御**
   - 通常画面の `listTasks` / `boardTasks` は `isArchived = false` のものだけを表示
   - `isClosed = true` のものも同様に通常表示から除外
   - 履歴画面や切替画面で `isArchived = true` / `isClosed = true` を表示できる設計にする
