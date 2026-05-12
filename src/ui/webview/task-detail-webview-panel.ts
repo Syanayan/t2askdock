@@ -75,13 +75,16 @@ export class TaskDetailWebviewPanel {
         await this.updateTaskUseCase.execute({ ...current, actorId: ACTOR_ID, expectedVersion: current.version, now: new Date().toISOString(), isClosed: true, closeReason: reason, isArchived: false, status: 'done' });
         panel.dispose();
       }
-      if (m.type === 'detail:archiveTask') {
-        const current = await this.findDetailById(taskId); if (!current) return;
-        if (!(current.status === 'done' || current.isClosed)) {
-          await panel.webview.postMessage({ type: 'detail:error', message: 'Only done/closed tasks can be archived.' });
+      if (m.type === 'detail:closeWithComment') {
+        const reason = typeof m.reason === 'string' ? m.reason.trim() : '';
+        if (!reason) {
+          await panel.webview.postMessage({ type: 'detail:error', message: 'Close reason is required.' });
           return;
         }
-        await this.updateTaskUseCase.execute({ ...current, actorId: ACTOR_ID, expectedVersion: current.version, now: new Date().toISOString(), isArchived: true });
+        const current = await this.findDetailById(taskId); if (!current) return;
+        const now = new Date().toISOString();
+        await this.updateTaskUseCase.execute({ ...current, actorId: ACTOR_ID, expectedVersion: current.version, now, isClosed: true, closeReason: reason, isArchived: false, status: 'done' });
+        await this.addCommentUseCase.execute({ commentId: nextUlid(), taskId, body: `🔒 Closed: ${reason}`, actorId: ACTOR_ID, now });
         panel.dispose();
       }
       if (m.type === 'detail:save') {
@@ -135,55 +138,146 @@ export class TaskDetailWebviewPanel {
     const statusLabel = (s: string) => ({ todo: 'Todo', in_progress: 'In Progress', blocked: 'Blocked', done: 'Done', close: 'Close', archived: '📦 Archived' }[s] ?? s);
     const priorityLabel = (p: string) => ({ low: 'Low', medium: 'Medium', high: 'High', critical: 'Critical' }[p] ?? p);
     const displayStatus = detail.isArchived ? 'archived' : (detail.isClosed ? 'close' : detail.status);
-    const propertiesStatus = detail.isClosed ? 'close' : detail.status;
-    const commentRows: CommentRow[] = [...comments].sort((a: CommentRow, b: CommentRow) => a.createdAt.localeCompare(b.createdAt));
+    const commentRows: CommentRow[] = [...comments].filter((c: CommentRow) => !c.deletedAt).sort((a: CommentRow, b: CommentRow) => a.createdAt.localeCompare(b.createdAt));
+    const tagChips = detail.tags.length > 0 ? detail.tags.map(t => `<span class="tag-chip">${safe(t)}</span>`).join('') : '<span style="opacity:.5">—</span>';
+    const avatarHtml = (author: string) => {
+      const isSystem = author === 'system';
+      const initials = isSystem ? '⚙' : author.trim().split(/\s+/).map((w: string) => w[0] ?? '').join('').slice(0, 2).toUpperCase() || '?';
+      const hue = [...author].reduce((h, ch) => h + ch.charCodeAt(0), 0) % 360;
+      const bg = isSystem ? '#888' : `hsl(${hue},60%,55%)`;
+      return `<div class="avatar" style="background:${bg}">${initials}</div>`;
+    };
+    const commentHtml = (c: CommentRow) => {
+      const isSystem = c.createdBy === 'system';
+      const bodyStyle = isSystem ? ' style="font-style:italic;opacity:.65"' : '';
+      return `<div class="comment">${avatarHtml(c.createdBy)}<div><div class="comment-meta"><span class="comment-author">${safe(c.createdBy)}</span><span class="comment-date" data-ts="${safe(c.createdAt)}"></span></div><div class="comment-body"${bodyStyle}>${safe(c.body)}</div></div></div>`;
+    };
     return `<!doctype html><html lang="ja"><head><meta charset="UTF-8"/><style>
-    body{background:var(--vscode-editor-background);color:var(--vscode-editor-foreground);font-family:var(--vscode-font-family);margin:0;padding:12px}
-    .layout,.detail-layout{display:flex;gap:12px;flex-wrap:wrap}.main,.detail-main{flex:7;min-width:0}.side,.detail-side{flex:3;min-width:240px}
-    .panel{border:1px solid var(--vscode-panel-border);background:var(--vscode-sideBar-background);border-radius:8px;padding:12px;margin-bottom:12px}
-    .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.header-actions{margin-left:auto;display:flex;gap:8px;position:sticky;top:0}.btn{border:1px solid var(--vscode-panel-border);background:var(--vscode-button-background);color:var(--vscode-button-foreground);padding:4px 10px;border-radius:6px;cursor:pointer}
-    .btn.secondary{background:transparent;color:var(--vscode-editor-foreground)} .badge{font-size:11px;border-radius:999px;font-weight:600;padding:2px 8px}
-    .status-todo{background:color-mix(in srgb,var(--vscode-charts-blue) 18%,transparent);color:var(--vscode-editor-foreground);border:1px solid color-mix(in srgb,var(--vscode-charts-blue) 45%,var(--vscode-panel-border))} .status-in_progress{background:color-mix(in srgb,var(--vscode-charts-yellow) 20%,transparent);color:var(--vscode-editor-foreground);border:1px solid color-mix(in srgb,var(--vscode-charts-yellow) 45%,var(--vscode-panel-border))} .status-done{background:color-mix(in srgb,var(--vscode-charts-green) 20%,transparent);color:var(--vscode-editor-foreground);border:1px solid color-mix(in srgb,var(--vscode-charts-green) 45%,var(--vscode-panel-border))} .status-blocked{background:color-mix(in srgb,var(--vscode-charts-red) 20%,transparent);color:var(--vscode-editor-foreground);border:1px solid color-mix(in srgb,var(--vscode-charts-red) 45%,var(--vscode-panel-border))} .status-close{background:color-mix(in srgb,var(--vscode-charts-purple) 20%,transparent);color:var(--vscode-editor-foreground);border:1px solid color-mix(in srgb,var(--vscode-charts-purple) 45%,var(--vscode-panel-border))} .status-archived{background:linear-gradient(135deg,color-mix(in srgb,var(--vscode-charts-gray) 25%,transparent),color-mix(in srgb,var(--vscode-charts-blue) 20%,transparent));color:var(--vscode-editor-foreground);border:1px solid color-mix(in srgb,var(--vscode-charts-blue) 55%,var(--vscode-panel-border));font-weight:800;letter-spacing:.2px;box-shadow:0 0 0 1px color-mix(in srgb,var(--vscode-charts-blue) 25%,transparent) inset}
-    .priority-low{background:#f0f0f0;color:#666} .priority-medium{background:color-mix(in srgb,var(--vscode-charts-yellow) 15%,transparent);color:var(--vscode-editor-foreground);border:1px solid color-mix(in srgb,var(--vscode-charts-yellow) 35%,var(--vscode-panel-border))} .priority-high{background:#ffedd5;color:#9a3412} .priority-critical{background:#fee2e2;color:#991b1b}
-    body.editing .view-only{display:none} body:not(.editing) .edit-only{display:none}
+    *{box-sizing:border-box}
+    body{background:var(--vscode-editor-background);color:var(--vscode-editor-foreground);font-family:var(--vscode-font-family);margin:0;padding:0}
+    .sticky-header{position:sticky;top:0;z-index:100;background:var(--vscode-sideBar-background);border-bottom:1px solid var(--vscode-panel-border);padding:10px 16px;display:flex;align-items:center;gap:8px}
+    .header-left{display:flex;align-items:center;gap:8px;flex:1;min-width:0;overflow:hidden}
+    .header-left h2{margin:0;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:1;min-width:0}
+    .header-left input{flex:1;min-width:0}
+    .header-right{display:flex;align-items:center;gap:6px;flex-shrink:0}
+    .content{padding:12px 16px;max-width:820px}
+    .panel{border:1px solid var(--vscode-panel-border);background:var(--vscode-sideBar-background);border-radius:8px;padding:14px;margin-bottom:12px}
+    .section-label{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;opacity:.55;margin-bottom:10px}
+    .btn{border:1px solid var(--vscode-panel-border);background:var(--vscode-button-background);color:var(--vscode-button-foreground);padding:4px 12px;border-radius:6px;cursor:pointer;font-size:12px}
+    .btn.secondary{background:transparent;color:var(--vscode-editor-foreground)}
+    .btn-x{background:transparent;border:none;color:var(--vscode-editor-foreground);font-size:20px;line-height:1;cursor:pointer;padding:0 4px;opacity:.6}
+    .btn-x:hover{opacity:1}
+    .badge{font-size:11px;border-radius:999px;font-weight:600;padding:2px 9px;white-space:nowrap;flex-shrink:0}
+    .status-todo{background:color-mix(in srgb,var(--vscode-charts-blue) 18%,transparent);color:var(--vscode-editor-foreground);border:1px solid color-mix(in srgb,var(--vscode-charts-blue) 45%,var(--vscode-panel-border))}
+    .status-in_progress{background:color-mix(in srgb,var(--vscode-charts-yellow) 20%,transparent);color:var(--vscode-editor-foreground);border:1px solid color-mix(in srgb,var(--vscode-charts-yellow) 45%,var(--vscode-panel-border))}
+    .status-done{background:color-mix(in srgb,var(--vscode-charts-green) 20%,transparent);color:var(--vscode-editor-foreground);border:1px solid color-mix(in srgb,var(--vscode-charts-green) 45%,var(--vscode-panel-border))}
+    .status-blocked{background:color-mix(in srgb,var(--vscode-charts-red) 20%,transparent);color:var(--vscode-editor-foreground);border:1px solid color-mix(in srgb,var(--vscode-charts-red) 45%,var(--vscode-panel-border))}
+    .status-close{background:color-mix(in srgb,var(--vscode-charts-purple) 20%,transparent);color:var(--vscode-editor-foreground);border:1px solid color-mix(in srgb,var(--vscode-charts-purple) 45%,var(--vscode-panel-border))}
+    .status-archived{background:linear-gradient(135deg,color-mix(in srgb,var(--vscode-charts-gray) 25%,transparent),color-mix(in srgb,var(--vscode-charts-blue) 20%,transparent));color:var(--vscode-editor-foreground);border:1px solid color-mix(in srgb,var(--vscode-charts-blue) 55%,var(--vscode-panel-border));font-weight:800;letter-spacing:.2px}
+    .priority-low{background:#f0f0f0;color:#666;border:1px solid #ddd}
+    .priority-medium{background:color-mix(in srgb,var(--vscode-charts-yellow) 15%,transparent);color:var(--vscode-editor-foreground);border:1px solid color-mix(in srgb,var(--vscode-charts-yellow) 35%,var(--vscode-panel-border))}
+    .priority-high{background:#ffedd5;color:#9a3412;border:1px solid #fed7aa}
+    .priority-critical{background:#fee2e2;color:#991b1b;border:1px solid #fca5a5}
+    body.editing .view-only{display:none!important} body:not(.editing) .edit-only{display:none!important}
+    input,select,textarea{background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:6px;padding:6px;width:100%}
+    textarea{resize:vertical;min-height:80px}
     .field{display:grid;grid-template-columns:90px 1fr;gap:8px;align-items:center;margin-bottom:8px}
-    input,select,textarea{background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:6px;padding:6px;box-sizing:border-box;width:100%} textarea{resize:vertical;min-height:84px}
-    .comment{display:grid;grid-template-columns:32px 1fr;gap:8px;padding:8px 0;border-bottom:1px solid var(--vscode-panel-border)}
-    .vote{display:flex;flex-direction:column;align-items:center;opacity:.7;font-size:11px}.meta{opacity:.8;font-size:12px}
-    .history{font-size:11px;opacity:.7;margin-top:4px}
-    .comment-author{font-weight:600;color:var(--vscode-editor-foreground)}.comment-date{opacity:.6;font-size:11px;margin-left:6px}.comment-body{white-space:pre-wrap;word-break:break-word;margin:4px 0}
-    .desc-view{white-space:pre-wrap;word-break:break-word}
+    .desc-view{white-space:pre-wrap;word-break:break-word;font-size:13px;line-height:1.6}
+    .props-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px 24px;margin-bottom:14px}
+    .prop-cell{display:flex;flex-direction:column;gap:4px}
+    .prop-head{display:flex;align-items:center;gap:5px}
+    .prop-icon{font-size:13px}
+    .prop-label{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;opacity:.5}
+    .prop-value{font-size:13px;word-break:break-word}
+    .tag-chip{display:inline-block;background:color-mix(in srgb,var(--vscode-charts-blue) 15%,transparent);border:1px solid color-mix(in srgb,var(--vscode-charts-blue) 30%,var(--vscode-panel-border));border-radius:999px;font-size:10px;padding:1px 8px;margin:0 3px 3px 0}
+    .progress-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;opacity:.55}
+    progress{width:100%;height:6px;border-radius:3px;border:none;display:block}
+    progress::-webkit-progress-bar{background:var(--vscode-panel-border);border-radius:3px}
+    progress::-webkit-progress-value{background:var(--vscode-progressBar-background,var(--vscode-charts-blue));border-radius:3px}
+    .comment{display:grid;grid-template-columns:32px 1fr;gap:10px;padding:10px 0;border-bottom:1px solid var(--vscode-panel-border)}
+    .comment:last-child{border-bottom:none}
+    .avatar{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;flex-shrink:0;margin-top:2px}
+    .comment-meta{display:flex;align-items:baseline;gap:6px;margin-bottom:3px}
+    .comment-author{font-weight:600;font-size:13px}
+    .comment-date{opacity:.5;font-size:11px}
+    .comment-body{white-space:pre-wrap;word-break:break-word;font-size:13px;line-height:1.5}
+    .comment-actions{display:flex;justify-content:space-between;align-items:center;margin-top:8px}
+    #error-banner{color:var(--vscode-errorForeground);padding:8px 12px;background:color-mix(in srgb,var(--vscode-errorForeground) 10%,transparent);border-radius:6px;margin-bottom:10px;display:none}
     </style></head><body>
-    <div class="layout detail-layout"><div class="main detail-main">
-      <section class="panel"><div id="error-banner" style="display:none;color:var(--vscode-errorForeground);margin-bottom:8px"></div><div class="row"><h2 style="margin:0" class="view-only">${safe(detail.title)}</h2><input class="edit-only" id="edit-title" value="${safe(detail.title)}" style="flex:1"/></div></section>
-      <section class="panel view-only" id="close-reason-panel" style="display:none"><h3>Close Task</h3><div class="field"><label>Reason</label><input id="close-reason-input" placeholder="Reason (required)"/></div><div class="row"><button id="btn-close-confirm" class="btn">Confirm Close</button><button id="btn-close-reason-dismiss" class="btn secondary">Dismiss</button></div></section>
-      <section class="panel"><h3>Description</h3><div class="view-only desc-view" id="desc-view">${safe(detail.description ?? '—')}</div><textarea class="edit-only" id="edit-description" rows="6">${safe(detail.description ?? '')}</textarea></section>
-      <section class="panel" ${subtasks.length===0?'style="display:none"':''}><h3>Subtasks</h3>${subtasks.map(s=>`<label class="row"><input type="checkbox" data-subtask-id="${s.taskId}" ${s.status==='done'?'checked':''}/> ${safe(s.title)} <span class="badge status-${s.status}">${statusLabel(s.status)}</span><span class="badge priority-${s.priority}">${priorityLabel(s.priority)}</span></label>`).join('')}</section>
-      <section class="panel"><h3>Comments / Activity</h3><div id="comments">${commentRows.map((c: CommentRow)=>`<div class="comment"><div class="vote">▲<span>•</span>▼</div><div><div class="meta"><span class="comment-author">${safe(c.createdBy)}</span><span class="comment-date">${new Date(c.createdAt).toLocaleString('ja-JP')}</span></div><div class="comment-body">${safe(c.body)}</div><div class="history">updated: ${new Date(c.updatedAt).toLocaleString('ja-JP')} ${c.deletedAt?`• deleted: ${new Date(c.deletedAt).toLocaleString('ja-JP')}`:''}</div></div></div>`).join('')}</div>
-      <textarea id="comment-input" rows="3" placeholder="コメントを追加..." style="width:100%"></textarea><div class="row"><button id="btn-comment-close" class="btn secondary">close comment</button><button id="btn-comment-add" class="btn">comment</button></div></section>
-    </div><aside class="side detail-side"><section class="panel"><h3>Actions</h3><div class="row"><button id="btn-edit" class="btn secondary view-only">Edit</button><button id="btn-save" class="btn edit-only">Save</button><button id="btn-close" class="btn secondary">Dismiss</button></div><div class="row" style="margin-top:8px"><button id="btn-close-task" class="btn secondary view-only">Close Task</button></div></section><section class="panel"><h3>Properties</h3>
-      <div class="field"><label>Assignee</label><div class="view-only">${safe(detail.assignee ?? '—')}</div><input class="edit-only" id="edit-assignee" value="${safe(detail.assignee ?? '')}"/></div>
-      <div class="field"><label>Due</label><div class="view-only">${safe(detail.dueDate ?? '—')}</div><input class="edit-only" type="date" id="edit-dueDate" value="${safe(detail.dueDate ?? '')}"/></div>
-      <div class="field"><label>Status</label><div class="view-only"><span class="badge status-${propertiesStatus}">${statusLabel(propertiesStatus)}</span></div><select class="edit-only" id="edit-status"><option value="todo">Todo</option><option value="in_progress">In Progress</option><option value="blocked">Blocked</option><option value="done">Done</option></select></div>
-      <div class="field"><label>Priority</label><div class="view-only"><span class="badge priority-${detail.priority}">${priorityLabel(detail.priority)}</span></div><select class="edit-only" id="edit-priority"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="critical">Critical</option></select></div>
-      <div class="field"><label>Progress</label><div class="view-only">${detail.progress}%</div><input class="edit-only" id="edit-progress" type="range" min="0" max="100" value="${detail.progress}"/></div>
-      <div class="field"><label>Tags</label><div class="view-only">${safe(detail.tags.join(', ')||'—')}</div><input class="edit-only" id="edit-tags" value="${safe(detail.tags.join(', '))}"/></div>
-    </section></aside></div>
+    <div class="sticky-header">
+      <div class="header-left">
+        <h2 class="view-only">${safe(detail.title)}</h2>
+        <input class="edit-only" id="edit-title" value="${safe(detail.title)}"/>
+        <span class="badge status-${displayStatus} view-only">${statusLabel(displayStatus)}</span>
+        <span class="badge priority-${detail.priority} view-only">${priorityLabel(detail.priority)}</span>
+      </div>
+      <div class="header-right">
+        <button id="btn-edit" class="btn secondary view-only">Edit</button>
+        <button id="btn-save" class="btn edit-only">Save</button>
+        <button id="btn-close-x" class="btn-x" title="Close">×</button>
+      </div>
+    </div>
+    <div class="content">
+      <div id="error-banner"></div>
+      <section class="panel">
+        <div class="section-label">✏ Description</div>
+        <div class="view-only desc-view" id="desc-view">${safe(detail.description ?? '—')}</div>
+        <textarea class="edit-only" id="edit-description" rows="6">${safe(detail.description ?? '')}</textarea>
+      </section>
+      <section class="panel">
+        <div class="section-label">Task Properties</div>
+        <div class="props-grid">
+          <div class="prop-cell">
+            <div class="prop-head"><span class="prop-icon">👤</span><span class="prop-label">Assignee</span></div>
+            <div class="prop-value view-only">${safe(detail.assignee ?? '—')}</div>
+            <input class="edit-only" id="edit-assignee" value="${safe(detail.assignee ?? '')}"/>
+          </div>
+          <div class="prop-cell">
+            <div class="prop-head"><span class="prop-icon">📅</span><span class="prop-label">Due Date</span></div>
+            <div class="prop-value view-only">${safe(detail.dueDate ?? '—')}</div>
+            <input class="edit-only" type="date" id="edit-dueDate" value="${safe(detail.dueDate ?? '')}"/>
+          </div>
+          <div class="prop-cell" style="grid-column:1/-1">
+            <div class="prop-head"><span class="prop-icon">🏷</span><span class="prop-label">Tags</span></div>
+            <div class="prop-value view-only">${tagChips}</div>
+            <input class="edit-only" id="edit-tags" value="${safe(detail.tags.join(', '))}"/>
+          </div>
+        </div>
+        <div class="edit-only" style="margin-bottom:12px">
+          <div class="field"><label>Status</label><select id="edit-status"><option value="todo">Todo</option><option value="in_progress">In Progress</option><option value="blocked">Blocked</option><option value="done">Done</option></select></div>
+          <div class="field"><label>Priority</label><select id="edit-priority"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="critical">Critical</option></select></div>
+          <div class="field"><label>Progress</label><input type="range" id="edit-progress" min="0" max="100" value="${detail.progress}"/></div>
+        </div>
+        <div class="view-only">
+          <div class="progress-row"><span>Completion Progress</span><span>${detail.progress}%</span></div>
+          <progress value="${detail.progress}" max="100"></progress>
+        </div>
+      </section>
+      ${subtasks.length > 0 ? `<section class="panel"><div class="section-label">Subtasks</div>${subtasks.map(s => `<label style="display:flex;align-items:center;gap:8px;padding:4px 0"><input type="checkbox" data-subtask-id="${s.taskId}" ${s.status === 'done' ? 'checked' : ''}/> <span>${safe(s.title)}</span> <span class="badge status-${s.status}">${statusLabel(s.status)}</span><span class="badge priority-${s.priority}">${priorityLabel(s.priority)}</span></label>`).join('')}</section>` : ''}
+      <section class="panel">
+        <div class="section-label">💬 Activity</div>
+        <div id="comments">${commentRows.map(commentHtml).join('')}</div>
+        <textarea id="comment-input" rows="3" placeholder="Type a message..." style="width:100%;margin-top:12px"></textarea>
+        <div class="comment-actions">
+          <button id="btn-comment-close" class="btn secondary">close comment</button>
+          <button id="btn-comment-add" class="btn">comment</button>
+        </div>
+      </section>
+    </div>
     <script>const vscode=acquireVsCodeApi();const orig=${JSON.stringify(detail)};
-      document.getElementById('btn-close').onclick=()=>{if(document.body.classList.contains('editing')){document.body.classList.remove('editing');return;}vscode.postMessage({type:'detail:close'});};
-      document.getElementById('btn-close-task').onclick=()=>{document.getElementById('close-reason-panel').style.display='block';document.getElementById('close-reason-input').focus();};
-      document.getElementById('btn-comment-close').onclick=()=>{document.getElementById('close-reason-panel').style.display='block';document.getElementById('close-reason-input').focus();};
-      document.getElementById('btn-close-confirm').onclick=()=>{const reason=document.getElementById('close-reason-input').value.trim();if(!reason){const b=document.getElementById('error-banner');b.textContent='Close reason is required.';b.style.display='block';return;}vscode.postMessage({type:'detail:closeTask',reason});};
-      document.getElementById('btn-close-reason-dismiss').onclick=()=>{document.getElementById('close-reason-panel').style.display='none';};
+      const relTime=(iso)=>{const d=Date.now()-new Date(iso).getTime(),m=Math.floor(d/60000);if(m<1)return'just now';if(m<60)return m+' min'+(m>1?'s':'')+' ago';const h=Math.floor(m/60);if(h<24)return h+' h ago';const dy=Math.floor(h/24);return dy+' day'+(dy>1?'s':'')+' ago';};
+      document.querySelectorAll('.comment-date[data-ts]').forEach(el=>{el.textContent=relTime(el.dataset.ts);});
+      document.getElementById('btn-close-x').onclick=()=>vscode.postMessage({type:'detail:close'});
       document.getElementById('btn-edit').onclick=()=>{document.body.classList.add('editing');document.getElementById('edit-status').value=orig.status;document.getElementById('edit-priority').value=orig.priority;};
       document.getElementById('btn-save').onclick=()=>{vscode.postMessage({type:'detail:save',title:document.getElementById('edit-title').value,description:document.getElementById('edit-description').value,status:document.getElementById('edit-status').value,priority:document.getElementById('edit-priority').value,assignee:document.getElementById('edit-assignee').value,dueDate:document.getElementById('edit-dueDate').value,tags:document.getElementById('edit-tags').value,progress:Number(document.getElementById('edit-progress').value)});};
-      document.querySelectorAll('[data-subtask-id]').forEach(el=>el.onchange=(e)=>{const t=e.target;vscode.postMessage({type:'detail:subtask:toggle',taskId:t.dataset.subtaskId,newStatus:t.checked?'done':'todo'});});
+      document.getElementById('btn-comment-close').onclick=()=>{const reason=document.getElementById('comment-input').value.trim();if(!reason){const b=document.getElementById('error-banner');b.textContent='Close reason is required.';b.style.display='block';return;}vscode.postMessage({type:'detail:closeWithComment',reason});};
       document.getElementById('btn-comment-add').onclick=()=>{const el=document.getElementById('comment-input');const body=el.value.trim();if(!body)return;vscode.postMessage({type:'detail:comment:add',body});el.value='';};
+      document.querySelectorAll('[data-subtask-id]').forEach(el=>el.onchange=(e)=>{const t=e.target;vscode.postMessage({type:'detail:subtask:toggle',taskId:t.dataset.subtaskId,newStatus:t.checked?'done':'todo'});});
       document.getElementById('comment-input').addEventListener('keydown',(e)=>{if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();document.getElementById('btn-comment-add').click();}});
       document.addEventListener('keydown',(e)=>{if((e.ctrlKey||e.metaKey)&&e.key==='Enter'&&document.body.classList.contains('editing')&&document.activeElement!==document.getElementById('comment-input')){e.preventDefault();document.getElementById('btn-save').click();}});
       const esc=(s)=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-      const renderComments=(cs)=>[...cs].filter(c=>!c.deletedAt).sort((a,b)=>a.createdAt.localeCompare(b.createdAt)).map(c=>'<div class="comment"><div class="vote">▲<span>•</span>▼</div><div><div class="meta"><span class="comment-author">'+esc(c.createdBy)+'</span><span class="comment-date">'+new Date(c.createdAt).toLocaleString('ja-JP')+'</span></div><div class="comment-body">'+esc(c.body)+'</div><div class="history">updated: '+new Date(c.updatedAt).toLocaleString('ja-JP')+(c.deletedAt?' • deleted: '+new Date(c.deletedAt).toLocaleString('ja-JP'):'')+' </div></div></div>').join('');
-      window.addEventListener('message',(event)=>{if(event.data?.type==='detail:comments:refresh'){document.getElementById('comments').innerHTML=renderComments(event.data.comments??[]);return;} if(event.data?.type==='detail:error'){const b=document.getElementById('error-banner');b.textContent=event.data.message||'error';b.style.display='block';}});
+      const renderComments=(cs)=>[...cs].filter(c=>!c.deletedAt).sort((a,b)=>a.createdAt.localeCompare(b.createdAt)).map(c=>{const isSystem=c.createdBy==='system';const initials=isSystem?'⚙':c.createdBy.trim().split(/\s+/).map(w=>w[0]??'').join('').slice(0,2).toUpperCase()||'?';const hue=[...(c.createdBy||'')].reduce((h,ch)=>h+ch.charCodeAt(0),0)%360;const bg=isSystem?'#888':'hsl('+hue+',60%,55%)';const bodyStyle=isSystem?' style="font-style:italic;opacity:.65"':'';return'<div class="comment"><div class="avatar" style="background:'+bg+'">'+initials+'</div><div><div class="comment-meta"><span class="comment-author">'+esc(c.createdBy)+'</span><span class="comment-date">'+relTime(c.createdAt)+'</span></div><div class="comment-body"'+bodyStyle+'>'+esc(c.body)+'</div></div></div>';}).join('');
+      window.addEventListener('message',(event)=>{if(event.data?.type==='detail:comments:refresh'){document.getElementById('comments').innerHTML=renderComments(event.data.comments??[]);return;}if(event.data?.type==='detail:error'){const b=document.getElementById('error-banner');b.textContent=event.data.message||'error';b.style.display='block';}});
     </script></body></html>`;
   }
 }
