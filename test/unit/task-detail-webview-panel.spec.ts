@@ -10,7 +10,10 @@ describe('TaskDetailWebviewPanel', () => {
     await panel.render({ title:'', webview, dispose: vi.fn() } as never, 't1');
     expect(webview.html).toContain('detail-layout');
     expect(webview.html).toContain('detail-main');
-    expect(webview.html).toContain('detail-side');
+    expect(webview.html).not.toContain('detail-side');
+    expect(webview.html).toContain('detail-header');
+    expect(webview.html).toContain('Task Properties');
+    expect(webview.html).toContain('Type a message...');
     expect(webview.html).toContain('--vscode-editor-background');
   });
 
@@ -28,7 +31,7 @@ describe('TaskDetailWebviewPanel', () => {
     await handlerRef.current?.({ type:'detail:save', title:'x' });
     await handlerRef.current?.({ type:'detail:comment:add', body:'hello' });
     await handlerRef.current?.({ type:'detail:file:open', path:'file:///tmp/demo.txt' });
-    await handlerRef.current?.({ type:'detail:closeTask', reason:'duplicate' });
+    await handlerRef.current?.({ type:'detail:closeWithComment', reason:'duplicate' });
     await handlerRef.current?.({ type:'detail:archiveTask' });
     await handlerRef.current?.({ type:'detail:close' });
     expect(moveTaskStatusUseCase.execute).toHaveBeenCalled();
@@ -36,6 +39,7 @@ describe('TaskDetailWebviewPanel', () => {
     expect(addCommentUseCase.execute).toHaveBeenCalled();
     expect(executeCommand).toHaveBeenCalledWith('vscode.open', expect.objectContaining({ scheme: 'file', fsPath: '/tmp/demo.txt' }));
     expect(updateTaskUseCase.execute).toHaveBeenCalledWith(expect.objectContaining({ isClosed: true, closeReason: 'duplicate' }));
+    expect(addCommentUseCase.execute).toHaveBeenCalledWith(expect.objectContaining({ body: 'duplicate' }));
     expect(dispose).toHaveBeenCalled();
   });
 
