@@ -55,16 +55,16 @@
 
 ## グループB: タスク詳細画面 UI
 
-- [ ] **B-1 ボタン配置**
+- [x] **B-1 ボタン配置**
   - 右上に `Edit` / `Close` を固定表示
   - `Close` 押下時は理由入力ダイアログを開き、空文字は禁止
   - `Edit` 押下で編集モードに切り替え、ボタン構成を `Save` / `Cancel` に変更
 
-- [ ] **B-2 閲覧モードと編集モードの分離**
+- [x] **B-2 閲覧モードと編集モードの分離**
   - `body.editing` などのクラスを用いて表示要素を切り替える
   - タイトルの長さに応じてボタン位置が崩れないようにレイアウトを固定
 
-- [ ] **B-3 HTML メッセージ連携**
+- [x] **B-3 HTML メッセージ連携**
   - Webview から `closeTask`, `saveTask`, `cancelEdit` のメッセージを `vscode.postMessage` で送る
   - `task-detail-webview-panel.ts` で `onDidReceiveMessage` を受け取り、対応コマンドを実行
 
