@@ -238,11 +238,6 @@
           "group": "navigation"
         },
         {
-          "command": "taskDock.openBoard",
-          "when": "view == taskDock.allProjects && viewItem == project",
-          "group": "navigation"
-        },
-        {
           "command": "taskDock.createTaskInProject",
           "when": "view == taskDock.allProjects && viewItem == project",
           "group": "navigation"
