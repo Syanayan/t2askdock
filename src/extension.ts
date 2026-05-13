@@ -581,6 +581,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       allProjectsProvider.toggleArchived();
       await vscode.commands.executeCommand('setContext', 'taskDock.showArchivedCategories', allProjectsProvider.isShowingArchived());
     }),
+    vscode.commands.registerCommand('taskDock.allProjects.showActiveCategories', async () => {
+      allProjectsProvider.toggleArchived();
+      await vscode.commands.executeCommand('setContext', 'taskDock.showArchivedCategories', allProjectsProvider.isShowingArchived());
+    }),
     vscode.commands.registerCommand('taskDock.openBoard', async (input: { projectId?: string; profileId?: string; projectName?: string } = {}) => {
       currentBoardProjectId = input.projectId;
       currentBoardProfileId = input.profileId;

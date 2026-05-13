@@ -162,6 +162,11 @@
         "icon": "$(archive)"
       },
       {
+        "command": "taskDock.allProjects.showActiveCategories",
+        "title": "Show Active Repositories",
+        "icon": "$(list-flat)"
+      },
+      {
         "command": "taskDock.mountDatabase",
         "title": "Task Dock: DBファイルをマウント"
       },
@@ -207,7 +212,12 @@
         },
         {
           "command": "taskDock.allProjects.showArchivedCategories",
-          "when": "view == taskDock.allProjects",
+          "when": "view == taskDock.allProjects && !taskDock.showArchivedCategories",
+          "group": "navigation"
+        },
+        {
+          "command": "taskDock.allProjects.showActiveCategories",
+          "when": "view == taskDock.allProjects && taskDock.showArchivedCategories",
           "group": "navigation"
         },
         {
