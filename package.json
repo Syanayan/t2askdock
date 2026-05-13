@@ -73,7 +73,7 @@
       },
       {
         "command": "taskDock.unmountDatabase",
-        "title": "Task Dock: Unmount Active Database"
+        "title": "Unmount Database"
       },
       {
         "command": "taskDock.toggleReadOnly",
@@ -253,7 +253,7 @@
           "group": "inline"
         },
         {
-          "command": "taskDock.createTaskInDb",
+          "command": "taskDock.unmountDatabase",
           "when": "view == taskDock.allProjects && viewItem == database",
           "group": "navigation"
         },

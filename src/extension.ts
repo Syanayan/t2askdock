@@ -698,7 +698,34 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       if (!picked.profileId) return undefined;
       return switchActiveDatabaseProfile(picked.profileId);
     }),
-    vscode.commands.registerCommand('taskDock.unmountDatabase', async () => {
+    vscode.commands.registerCommand('taskDock.unmountDatabase', async (item?: TaskTreeItem) => {
+      if (item?.kind === 'database' && item.profileId) {
+        const activeProfile = stateStore.getState().activeProfile;
+        if (item.profileId === activeProfile) {
+          void vscode.window.showErrorMessage('使用中のDBはアンマウントできません');
+          return;
+        }
+        try {
+          await useCases.unmountDatabaseUseCase.execute({ profileId: item.profileId, actorRole: 'admin' });
+          await multiDbReadManager.refresh();
+          allProjectsProvider.refresh();
+          myRecentTasksProvider.refresh();
+          for (const panel of tableWebviewPanels) {
+            if (tableWebviewProfileIds.get(panel) === item.profileId) panel.dispose();
+          }
+          if (currentBoardProfileId === item.profileId && boardWebviewPanel) {
+            boardWebviewPanel.dispose();
+            boardWebviewPanel = undefined;
+            currentBoardProfileId = undefined;
+            currentBoardProjectId = undefined;
+            currentBoardProjectName = undefined;
+          }
+          void vscode.window.showInformationMessage('DBをアンマウントしました');
+        } catch (error) {
+          void vscode.window.showErrorMessage(toUserFacingMessage(error));
+        }
+        return;
+      }
       const activeProfile = stateStore.getState().activeProfile;
       if (!activeProfile) {
         void vscode.window.showInformationMessage('すでにDB未接続です');
