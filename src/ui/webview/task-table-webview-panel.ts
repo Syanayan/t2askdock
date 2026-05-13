@@ -234,10 +234,10 @@ export class TaskTableWebviewPanel {
       <div class="search-wrap"><span class="search-icon">⌕</span><input class="search-input" id="search-input" placeholder="検索..." type="text"/></div>
       <div class="header-right">
         ${singleProject ? '<button id="btn-rename" class="btn" type="button">Rename</button>' : ''}
+        ${singleProject && this.openProject ? '<button id="btn-open-board" class="btn" type="button">Board</button>' : ''}
         <button id="btn-archive-selected" class="btn" type="button" style="display:none">Archive</button>
         <button id="btn-add-task" class="btn btn-primary" type="button" style="display:none">+ Add Task</button>
         ${singleProject && this.archiveCategory ? '<button id="btn-archive-category" class="btn" type="button" disabled>Archive Category</button>' : ''}
-        <button id="btn-unmount-db" class="btn" type="button" style="display:none">Unmount DB</button>
       </div>
     </header>
     <div class="tabs-bar">
@@ -324,10 +324,10 @@ export class TaskTableWebviewPanel {
     if(archiveBtn){archiveBtn.addEventListener('click',()=>{const ids=collectArchivable();if(ids.length===0)return;vscode.postMessage({type:'table:archiveTasks',taskIds:ids});});}
     const renameBtn=document.getElementById('btn-rename');
     if(renameBtn){renameBtn.addEventListener('click',()=>{const pid=roots[0]?.projectId;if(pid)vscode.postMessage({type:'table:renameCategoryRequest',projectId:pid});});}
+    const boardBtn=document.getElementById('btn-open-board');
+    if(boardBtn){boardBtn.addEventListener('click',()=>{const pid=roots[0]?.projectId;const pname=roots.find(n=>n.projectName)?.projectName||'';if(pid)vscode.postMessage({type:'table:openProject',projectId:pid,projectName:pname});});}
     const archiveCatBtn=document.getElementById('btn-archive-category');
     if(archiveCatBtn){archiveCatBtn.addEventListener('click',()=>{if(archiveCatBtn.disabled)return;const pid=roots[0]?.projectId;if(pid)vscode.postMessage({type:'table:archiveCategoryRequest',projectId:pid});});}
-    const unmountBtn=document.getElementById('btn-unmount-db');
-    if(unmountBtn){const can=${this.unmountDatabase ? 'true' : 'false'};if(can){unmountBtn.style.display='inline-block';unmountBtn.addEventListener('click',()=>vscode.postMessage({type:'table:unmountDatabase'}));}}
     document.getElementById('search-input').addEventListener('input',(e)=>{searchQuery=e.target.value;render();});
     document.querySelectorAll('.tab').forEach(el=>el.onclick=()=>{document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));el.classList.add('active');currentTab=el.dataset.tab;render();});
     window.addEventListener('message',(event)=>{if(event.data?.type==='table:init'){roots=event.data.tasks??[];document.getElementById('panel-title').textContent=event.data.title??'Task Table';render();}});

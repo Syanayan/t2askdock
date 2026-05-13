@@ -585,10 +585,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       allProjectsProvider.toggleArchived();
       await vscode.commands.executeCommand('setContext', 'taskDock.showArchivedCategories', allProjectsProvider.isShowingArchived());
     }),
-    vscode.commands.registerCommand('taskDock.openBoard', async (input: { projectId?: string; profileId?: string; projectName?: string } = {}) => {
-      currentBoardProjectId = input.projectId;
-      currentBoardProfileId = input.profileId;
-      currentBoardProjectName = input.projectName;
+    vscode.commands.registerCommand('taskDock.openBoard', async (input: { projectId?: string; profileId?: string; projectName?: string } | TaskTreeItem = {}) => {
+      const isTreeItem = 'kind' in input && (input as TaskTreeItem).kind === 'project';
+      currentBoardProjectId = isTreeItem ? ((input as TaskTreeItem).projectId ?? (input as TaskTreeItem).id) : (input as { projectId?: string }).projectId;
+      currentBoardProfileId = isTreeItem ? (input as TaskTreeItem).profileId : (input as { profileId?: string }).profileId;
+      currentBoardProjectName = isTreeItem ? String((input as TaskTreeItem).label) : (input as { projectName?: string }).projectName;
       const boardTasks = await withProfileClient(currentBoardProfileId, () => fetchBoardTasks(currentBoardProjectId));
       if (!boardWebviewPanel) {
         boardWebviewPanel = vscode.window.createWebviewPanel(

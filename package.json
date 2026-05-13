@@ -228,26 +228,6 @@
       ],
       "view/item/context": [
         {
-          "command": "taskDock.openTaskDetail",
-          "when": "(view == taskDock.myRecentTasks || view == taskDock.allProjects) && viewItem == task",
-          "group": "navigation"
-        },
-        {
-          "command": "taskDock.updateTask",
-          "when": "(view == taskDock.myRecentTasks || view == taskDock.allProjects) && viewItem == task",
-          "group": "navigation"
-        },
-        {
-          "command": "taskDock.deleteTask",
-          "when": "(view == taskDock.myRecentTasks || view == taskDock.allProjects) && viewItem == task",
-          "group": "navigation"
-        },
-        {
-          "command": "taskDock.createSubtask",
-          "when": "(view == taskDock.myRecentTasks || view == taskDock.allProjects) && (viewItem == task || viewItem == subtask)",
-          "group": "navigation"
-        },
-        {
           "command": "taskDock.addCategoryToDb",
           "when": "view == taskDock.allProjects && viewItem == database",
           "group": "inline"
@@ -258,13 +238,13 @@
           "group": "navigation"
         },
         {
-          "command": "taskDock.createTaskInProject",
+          "command": "taskDock.openBoard",
           "when": "view == taskDock.allProjects && viewItem == project",
           "group": "navigation"
         },
         {
-          "command": "taskDock.archiveSelectedTasks",
-          "when": "view == taskDock.allProjects && (viewItem == task || viewItem == subtask)",
+          "command": "taskDock.createTaskInProject",
+          "when": "view == taskDock.allProjects && viewItem == project",
           "group": "navigation"
         }
       ]
