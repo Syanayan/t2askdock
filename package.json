@@ -157,13 +157,8 @@
       },
       {
         "command": "taskDock.allProjects.showArchivedCategories",
-        "title": "Show Archived Categories",
+        "title": "Show Archived Repositories",
         "icon": "$(archive)"
-      },
-      {
-        "command": "taskDock.allProjects.showActiveCategories",
-        "title": "Show Active Categories",
-        "icon": "$(list-tree)"
       },
       {
         "command": "taskDock.mountDatabase",
@@ -221,12 +216,7 @@
         },
         {
           "command": "taskDock.allProjects.showArchivedCategories",
-          "when": "view == taskDock.allProjects && !taskDock.showArchivedCategories",
-          "group": "navigation"
-        },
-        {
-          "command": "taskDock.allProjects.showActiveCategories",
-          "when": "view == taskDock.allProjects && taskDock.showArchivedCategories",
+          "when": "view == taskDock.allProjects",
           "group": "navigation"
         },
         {

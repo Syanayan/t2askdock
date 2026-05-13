@@ -306,7 +306,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       { execute: (input) => withProfileClient(profileId, () => useCases.moveTaskStatusUseCase.execute(input)) },
       { execute: (input) => withProfileClient(profileId, () => useCases.updateTaskUseCase.execute(input)) },
       async () => {
-        const projects = projectId ? [{ projectId, projectName: projectName ?? projectId }] : await loader.listProjects();
+        const projects = projectId
+          ? await loader.listProjects().then(all => {
+              const found = all.find(p => p.projectId === projectId);
+              return [{ projectId, projectName: found?.projectName ?? projectName ?? projectId }];
+            })
+          : await loader.listProjects();
         const groups = await Promise.all(projects.map(async (project) => {
           const nodes = await loader.listTasksWithDetail(project.projectId);
           if (nodes.length === 0) {
@@ -573,10 +578,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       await vscode.commands.executeCommand('setContext', 'taskDock.showDone', allProjectsProvider.isShowingDone());
     }),
     vscode.commands.registerCommand('taskDock.allProjects.showArchivedCategories', async () => {
-      allProjectsProvider.toggleArchived();
-      await vscode.commands.executeCommand('setContext', 'taskDock.showArchivedCategories', allProjectsProvider.isShowingArchived());
-    }),
-    vscode.commands.registerCommand('taskDock.allProjects.showActiveCategories', async () => {
       allProjectsProvider.toggleArchived();
       await vscode.commands.executeCommand('setContext', 'taskDock.showArchivedCategories', allProjectsProvider.isShowingArchived());
     }),

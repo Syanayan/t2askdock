@@ -83,7 +83,8 @@ export class TaskTableWebviewPanel {
 
   private async postTasks(webview: Pick<vscode.Webview, 'postMessage'>): Promise<void> {
     const tasks = this.withCalculatedProgress(await this.loadTree());
-    await webview.postMessage?.({ type: 'table:init', tasks, title: this.panelTitle });
+    const title = tasks.find(t => t.projectName)?.projectName ?? this.panelTitle;
+    await webview.postMessage?.({ type: 'table:init', tasks, title });
   }
 
   private withCalculatedProgress(nodes: TableTaskNode[]): TableTaskNode[] {
