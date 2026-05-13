@@ -68,7 +68,8 @@
       },
       {
         "command": "taskDock.selectDatabase",
-        "title": "Task Dock: Select Database"
+        "title": "Task Dock: Select Database",
+        "icon": "$(database)"
       },
       {
         "command": "taskDock.unmountDatabase",
@@ -205,32 +206,12 @@
           "group": "navigation"
         },
         {
-          "command": "taskDock.allProjects.showActiveOnly",
-          "when": "view == taskDock.allProjects && taskDock.showDone",
-          "group": "navigation"
-        },
-        {
-          "command": "taskDock.allProjects.showDoneOnly",
-          "when": "view == taskDock.allProjects && !taskDock.showDone",
-          "group": "navigation"
-        },
-        {
           "command": "taskDock.allProjects.showArchivedCategories",
           "when": "view == taskDock.allProjects",
           "group": "navigation"
         },
         {
-          "command": "taskDock.allProjects.sortUpdated",
-          "when": "view == taskDock.allProjects",
-          "group": "navigation"
-        },
-        {
-          "command": "taskDock.allProjects.sortPriority",
-          "when": "view == taskDock.allProjects",
-          "group": "navigation"
-        },
-        {
-          "command": "taskDock.allProjects.sortDeadline",
+          "command": "taskDock.selectDatabase",
           "when": "view == taskDock.allProjects",
           "group": "navigation"
         }
