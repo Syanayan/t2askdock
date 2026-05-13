@@ -16,9 +16,6 @@ export function makeAllProjectsTreeItem(element: TaskTreeItem): vscode.TreeItem 
       ? vscode.TreeItemCollapsibleState.Collapsed
       : vscode.TreeItemCollapsibleState.None;
     treeItem.contextValue = 'database';
-    if (element.available) {
-      treeItem.command = { command: 'taskDock.openDbTable', title: 'Open Table', arguments: [element] };
-    }
   }
 
   if (element.status) {

@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { makeAllProjectsTreeItem } from './ui/tree/all-projects-tree-item-factory.js';
+import { addCategoryCommand } from './ui/commands/add-category-command.js';
 import { TaskDockCommandRegistry } from './ui/commands/command-registry.js';
 import { UiEventBus } from './ui/events/ui-event-bus.js';
 import { ExtensionStateStore } from './ui/state/extension-state-store.js';
@@ -620,19 +621,23 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       webviewPanel.onDidDispose(() => { tableWebviewPanels.delete(webviewPanel); tableWebviewProfileIds.delete(webviewPanel); });
       await createTablePanel(input.profileId, String(input.projectName ?? input.projectId), () => webviewPanel.dispose(), input.projectId, input.projectName, true).render(webviewPanel);
     }),
-    vscode.commands.registerCommand('taskDock.openDbTable', async (item?: TaskTreeItem) => {
+    vscode.commands.registerCommand('taskDock.addCategoryToDb', async (item?: TaskTreeItem) => {
       if (!item || item.kind !== 'database' || !item.profileId || !item.available) return;
       try {
-        const webviewPanel = vscode.window.createWebviewPanel(
-          TaskTableWebviewPanel.VIEW_TYPE,
-          `Task Dock Table - ${item.label}`,
-          vscode.ViewColumn.One,
-          { enableScripts: true }
-        );
-        tableWebviewPanels.add(webviewPanel);
-        tableWebviewProfileIds.set(webviewPanel, item.profileId);
-        webviewPanel.onDidDispose(() => { tableWebviewPanels.delete(webviewPanel); tableWebviewProfileIds.delete(webviewPanel); });
-        await createTablePanel(item.profileId, String(item.label), () => webviewPanel.dispose(), undefined, undefined, false).render(webviewPanel);
+        await addCategoryCommand({
+          showInputBox: (opts) => vscode.window.showInputBox(opts),
+          insertCategory: async (name) => {
+            const now = new Date().toISOString();
+            await withProfileClient(item.profileId, async () => {
+              const client = activeClientHolder.get();
+              await client.run(
+                'INSERT INTO projects(project_id, name, archived, created_at, updated_at) VALUES (?, ?, 0, ?, ?)',
+                [idGenerator.nextUlid(), name, now, now]
+              );
+            });
+          },
+          refresh: () => allProjectsProvider.refresh()
+        });
       } catch (error) {
         void vscode.window.showErrorMessage(toUserFacingMessage(error));
       }

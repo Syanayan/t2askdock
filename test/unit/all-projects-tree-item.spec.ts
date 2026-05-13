@@ -47,10 +47,10 @@ describe('makeAllProjectsTreeItem', () => {
   });
 
   describe('database item', () => {
-    it('uses taskDock.openDbTable command when available', () => {
+    it('has no click command when available (expands/collapses only)', () => {
       const element = { id: 'db1', label: 'DB1', kind: 'database' as const, profileId: 'db1', hasChildren: true, available: true };
       const item = makeAllProjectsTreeItem(element);
-      expect(item.command).toMatchObject({ command: 'taskDock.openDbTable' });
+      expect(item.command).toBeUndefined();
     });
 
     it('has no command when unavailable', () => {

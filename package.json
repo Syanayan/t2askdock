@@ -83,8 +83,9 @@
         "title": "Task Dock: Create Task"
       },
       {
-        "command": "taskDock.openDbTable",
-        "title": "Task Dock: このDBのリストを表示"
+        "command": "taskDock.addCategoryToDb",
+        "title": "カテゴリを追加",
+        "icon": "$(add)"
       },
       {
         "command": "taskDock.createTaskInDb",
@@ -244,6 +245,11 @@
           "command": "taskDock.createSubtask",
           "when": "(view == taskDock.myRecentTasks || view == taskDock.allProjects) && (viewItem == task || viewItem == subtask)",
           "group": "navigation"
+        },
+        {
+          "command": "taskDock.addCategoryToDb",
+          "when": "view == taskDock.allProjects && viewItem == database",
+          "group": "inline"
         },
         {
           "command": "taskDock.createTaskInDb",
