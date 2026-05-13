@@ -59,7 +59,7 @@ describe('BoardWebviewPanel', () => {
     expect(onDidReceiveMessage).toHaveBeenCalledTimes(2);
   });
 
-  it('uses VSCode theme variables and flat style tokens', () => {
+  it('uses VSCode theme variables and modern card styles', () => {
     const panel = new BoardWebviewPanel({ execute: vi.fn() } as never, { publish: vi.fn() } as never, vi.fn());
     const webview = { html: '', postMessage: vi.fn(), onDidReceiveMessage: vi.fn(() => ({ dispose: vi.fn() })) };
     panel.render({ title: '', webview }, []);
@@ -68,8 +68,9 @@ describe('BoardWebviewPanel', () => {
     expect(webview.html).toContain('var(--vscode-editor-foreground)');
     expect(webview.html).toContain('var(--vscode-panel-border)');
     expect(webview.html).toContain('var(--vscode-sideBar-background)');
-    expect(webview.html).toContain('.task{border:1px solid var(--vscode-panel-border)');
+    expect(webview.html).toContain('.task-card{background:var(--vscode-editor-background)');
     expect(webview.html).not.toContain('transform:translateY(-1px)');
+    expect(webview.html).not.toContain('.card-menu-btn');
   });
 
   it('includes Add Task action button in top toolbar', () => {
@@ -81,20 +82,17 @@ describe('BoardWebviewPanel', () => {
     expect(webview.html).not.toContain('inline-create');
   });
 
-  it('uses themed styles for card menu popup and menu trigger', () => {
+  it('uses priority-colored card borders and badge styles', () => {
     const panel = new BoardWebviewPanel({ execute: vi.fn() } as never, { publish: vi.fn() } as never, vi.fn());
     const webview = { html: '', postMessage: vi.fn(), onDidReceiveMessage: vi.fn(() => ({ dispose: vi.fn() })) };
     panel.render({ title: '', webview }, []);
 
-    expect(webview.html).toContain('.card-menu-btn');
-    expect(webview.html).toContain('.card-menu-popup');
-    expect(webview.html).toContain('var(--vscode-menu-background)');
-    expect(webview.html).toContain("const isDone=task.status==='done'");
-    expect(webview.html).toContain("if(evt.key==='ArrowDown')");
-    expect(webview.html).toContain("if(evt.key==='ArrowUp')");
-    expect(webview.html).toContain("if(evt.key==='Enter')");
-    expect(webview.html).toContain("popup.addEventListener('focusout'");
-    expect(webview.html).toContain("type:'card:menuAction'");
+    expect(webview.html).toContain('.task-card[data-priority="critical"]{border-left-color:#f87171}');
+    expect(webview.html).toContain('.pb-critical{background:rgba(239,68,68,.12)');
+    expect(webview.html).toContain('.pb-high{background:rgba(249,115,22,.12)');
+    expect(webview.html).toContain('.sb-todo{background:rgba(59,130,246,.1)');
+    expect(webview.html).toContain('class="app-header"');
+    expect(webview.html).toContain('class="board-wrap"');
   });
 
   it('normalizes nested tasks from board:init so subtasks appear in kanban columns', () => {
@@ -102,8 +100,8 @@ describe('BoardWebviewPanel', () => {
     const webview = { html: '', postMessage: vi.fn(), onDidReceiveMessage: vi.fn(() => ({ dispose: vi.fn() })) };
     panel.render({ title: '', webview }, []);
 
-    expect(webview.html).toContain('const normalizeTreeTasks=(nodes,parentTaskId=null)=>');
-    expect(webview.html).toContain('tasks=normalizeTreeTasks(event.data.tasks??[])');
+    expect(webview.html).toContain('const normalizeTreeTasks=(nodes,parentId=null)=>');
+    expect(webview.html).toContain('tasks=normalizeTreeTasks(e.data.tasks??[])');
   });
 
 });
