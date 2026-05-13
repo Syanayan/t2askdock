@@ -13,7 +13,7 @@ export type TaskTreeItem = {
 };
 
 export type ProjectTaskLoader = {
-  listProjects(): Promise<Array<{ projectId: string; projectName: string }>>;
+  listProjects(options?: { archivedOnly?: boolean }): Promise<Array<{ projectId: string; projectName: string }>>;
   listTasksByProject(input: {
     projectId: string;
     offset: number;

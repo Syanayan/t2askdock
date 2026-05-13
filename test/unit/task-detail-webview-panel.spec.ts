@@ -8,9 +8,8 @@ describe('TaskDetailWebviewPanel', () => {
     const panel = new TaskDetailWebviewPanel(async()=>detail as never, async()=>[], async()=>[], {execute:vi.fn()} as never, {execute:vi.fn()} as never, {execute:vi.fn()} as never, async()=>undefined, { execute: vi.fn() } as never);
     const webview: any = { html:'', onDidReceiveMessage:vi.fn(()=>({dispose(){}})), postMessage: vi.fn() };
     await panel.render({ title:'', webview, dispose: vi.fn() } as never, 't1');
-    expect(webview.html).toContain('detail-layout');
-    expect(webview.html).toContain('detail-main');
-    expect(webview.html).toContain('detail-side');
+    expect(webview.html).toContain('sticky-header');
+    expect(webview.html).toContain('detail:close');
     expect(webview.html).toContain('--vscode-editor-background');
   });
 

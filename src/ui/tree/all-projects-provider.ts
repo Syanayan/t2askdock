@@ -6,6 +6,7 @@ export class AllProjectsProvider {
   private readonly listeners = new Set<() => void>();
   private sortBy: SortKey = 'updatedAt';
   private doneFilter: 'active' | 'done' = 'active';
+  private archiveFilter: 'active' | 'archived' = 'active';
 
   public constructor(
     private readonly loader: ProjectTaskLoader,
@@ -37,6 +38,15 @@ export class AllProjectsProvider {
     this.refresh();
   }
 
+  public isShowingArchived(): boolean {
+    return this.archiveFilter === 'archived';
+  }
+
+  public toggleArchived(): void {
+    this.archiveFilter = this.archiveFilter === 'active' ? 'archived' : 'active';
+    this.refresh();
+  }
+
   public async getChildren(parent?: TaskTreeItem): Promise<TaskTreeItem[]> {
     if (!parent) {
       if (this.multiDbReadManager) {
@@ -49,7 +59,7 @@ export class AllProjectsProvider {
           hasChildren: profile.available
         }));
       }
-      const projects = await this.loader.listProjects();
+      const projects = await this.loader.listProjects({ archivedOnly: this.archiveFilter === 'archived' });
       return projects.map(project => ({
         id: project.projectId,
         label: project.projectName,
@@ -62,7 +72,7 @@ export class AllProjectsProvider {
     if (parent.kind === 'database' && parent.profileId && this.multiDbReadManager) {
       const repo = this.multiDbReadManager.getRepo(parent.profileId);
       if (!repo) return [];
-      const projects = await repo.listProjects();
+      const projects = await repo.listProjects({ archivedOnly: this.archiveFilter === 'archived' });
       return projects.map(project => ({
         id: project.projectId,
         label: project.projectName,

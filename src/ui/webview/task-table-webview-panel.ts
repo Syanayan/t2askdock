@@ -23,7 +23,9 @@ export class TaskTableWebviewPanel {
     private readonly confirmArchive?: (count: number) => Promise<boolean>,
     private readonly addCategory?: () => Promise<void>,
     private readonly renameCategory?: (projectId: string) => Promise<void>,
-    private readonly onCategoryChanged?: () => void
+    private readonly onCategoryChanged?: () => void,
+    private readonly projectId?: string,
+    private readonly archiveCategory?: (projectId: string) => Promise<void>
   ) {}
 
   public async render(panel: { title: string; webview: Pick<vscode.Webview, 'html' | 'postMessage' | 'onDidReceiveMessage'> }): Promise<void> {
@@ -65,6 +67,9 @@ export class TaskTableWebviewPanel {
         await this.renameCategory(message.projectId);
         this.onCategoryChanged?.();
         await this.postTasks(panel.webview);
+      }
+      if (isArchiveCategoryRequestMessage(message) && this.archiveCategory) {
+        await this.archiveCategory(message.projectId);
       }
       if (isReadyMessage(message)) {
         await this.postTasks(panel.webview);
@@ -168,6 +173,7 @@ export class TaskTableWebviewPanel {
   }
 
   private buildHtml(): string {
+    const singleProject = !!this.projectId;
     return `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"/><style>
     *{box-sizing:border-box}
     body{font-family:var(--vscode-font-family,sans-serif);margin:0;padding:0;background:var(--vscode-editor-background);color:var(--vscode-editor-foreground)}
@@ -226,9 +232,10 @@ export class TaskTableWebviewPanel {
       <span class="app-title" id="panel-title">...</span>
       <div class="search-wrap"><span class="search-icon">⌕</span><input class="search-input" id="search-input" placeholder="検索..." type="text"/></div>
       <div class="header-right">
-        <button id="btn-add-category" class="btn" type="button">Add Category</button>
+        ${singleProject ? '<button id="btn-rename" class="btn" type="button">Rename</button>' : ''}
         <button id="btn-archive-selected" class="btn" type="button" style="display:none">Archive</button>
         <button id="btn-add-task" class="btn btn-primary" type="button" style="display:none">+ Add Task</button>
+        ${singleProject && this.archiveCategory ? '<button id="btn-archive-category" class="btn" type="button" disabled>Archive Category</button>' : ''}
         <button id="btn-unmount-db" class="btn" type="button" style="display:none">Unmount DB</button>
       </div>
     </header>
@@ -247,6 +254,7 @@ export class TaskTableWebviewPanel {
     </div>
     <script>
     const vscode = acquireVsCodeApi();
+    const singleProject = ${singleProject};
     let roots=[]; let currentTab='task'; const expanded=new Set(); const collapsedProjects=new Set(); const clickTimers={};
     let selectedTaskIds=[]; let anchorTaskId=null; let searchQuery='';
     const effectiveStatus=(n)=>n.isArchived?'archived':(n.isClosed?'close':n.status);
@@ -260,11 +268,10 @@ export class TaskTableWebviewPanel {
     const matchSearch=(n)=>!searchQuery||esc(n.title).toLowerCase().includes(searchQuery.toLowerCase())||n.title.toLowerCase().includes(searchQuery.toLowerCase());
     const statColors={todo:'#93c5fd',in_progress:'#fcd34d',done:'#86efac',close:'#fdba74',blocked:'#fca5a5',archived:'#9ca3af'};
     const statLabels={todo:'Todo',in_progress:'Progress',done:'Done',close:'Close',blocked:'Blocked',archived:'Archived'};
+    const flatAll=(nodes)=>nodes.flatMap(function flat(x){return[x,...(x.children||[]).flatMap(flat)];});
     const render=()=>{
       const rows=document.getElementById('rows'); rows.innerHTML='';
       let totalCount=0; const stats={};
-      const byProject={}; const pidOrder=[]; const pnames={};
-      roots.forEach(n=>{const pid=n.projectId||'';if(!(pid in pnames)){pidOrder.push(pid);pnames[pid]=n.projectName||pid;byProject[pid]=[];}byProject[pid].push(n);});
       const walk=(nodes,depth)=>nodes.forEach(n=>{
         if(n.taskId?.startsWith('__empty__'))return;
         const hasChildren=(n.children||[]).length>0; const open=expanded.has(n.taskId);
@@ -283,17 +290,25 @@ export class TaskTableWebviewPanel {
         rows.appendChild(tr);
         if(hasChildren&&open)walk(n.children,depth+1);
       });
-      pidOrder.forEach(pid=>{
-        const isOpen=!collapsedProjects.has(pid);
-        const htr=document.createElement('tr'); htr.className='cat-row';
-        htr.innerHTML='<td colspan="6"><span class="cat-arrow">'+(isOpen?'▾':'▸')+'</span>'+esc(pnames[pid])+' <button data-rename-project="'+pid+'" class="btn" style="padding:1px 7px;font-size:11px">Rename</button></td>';
-        htr.addEventListener('click',()=>{if(clickTimers[pid]){clearTimeout(clickTimers[pid]);delete clickTimers[pid];vscode.postMessage({type:'table:openProject',projectId:pid,projectName:pnames[pid]});}else{clickTimers[pid]=setTimeout(()=>{delete clickTimers[pid];collapsedProjects.has(pid)?collapsedProjects.delete(pid):collapsedProjects.add(pid);document.getElementById('panel-title').textContent=pnames[pid];render();},250);}});
-        rows.appendChild(htr);
-        if(isOpen)walk(byProject[pid],0);
-      });
+      if(singleProject){
+        walk(roots,0);
+        const archiveCatBtn=document.getElementById('btn-archive-category');
+        if(archiveCatBtn){const realTasks=flatAll(roots).filter(n=>!n.taskId?.startsWith('__empty__'));const canArchive=realTasks.length===0||realTasks.every(n=>n.isArchived);archiveCatBtn.disabled=!canArchive;}
+      }else{
+        const byProject={}; const pidOrder=[]; const pnames={};
+        roots.forEach(n=>{const pid=n.projectId||'';if(!(pid in pnames)){pidOrder.push(pid);pnames[pid]=n.projectName||pid;byProject[pid]=[];}byProject[pid].push(n);});
+        pidOrder.forEach(pid=>{
+          const isOpen=!collapsedProjects.has(pid);
+          const htr=document.createElement('tr'); htr.className='cat-row';
+          htr.innerHTML='<td colspan="6"><span class="cat-arrow">'+(isOpen?'▾':'▸')+'</span>'+esc(pnames[pid])+' <button data-rename-project="'+pid+'" class="btn" style="padding:1px 7px;font-size:11px">Rename</button></td>';
+          htr.addEventListener('click',()=>{if(clickTimers[pid]){clearTimeout(clickTimers[pid]);delete clickTimers[pid];vscode.postMessage({type:'table:openProject',projectId:pid,projectName:pnames[pid]});}else{clickTimers[pid]=setTimeout(()=>{delete clickTimers[pid];collapsedProjects.has(pid)?collapsedProjects.delete(pid):collapsedProjects.add(pid);document.getElementById('panel-title').textContent=pnames[pid];render();},250);}});
+          rows.appendChild(htr);
+          if(isOpen)walk(byProject[pid],0);
+        });
+        rows.querySelectorAll('[data-rename-project]').forEach(el=>el.addEventListener('click',(ev)=>{ev.stopPropagation();vscode.postMessage({type:'table:renameCategoryRequest',projectId:el.dataset.renameProject});}));
+      }
       rows.querySelectorAll('[data-id]').forEach(el=>el.onclick=(e)=>{e.stopPropagation();const id=el.dataset.id;expanded.has(id)?expanded.delete(id):expanded.add(id);render();});
       rows.querySelectorAll('[data-open]').forEach(el=>el.onclick=(e)=>{e.stopPropagation();vscode.postMessage({type:'table:openTask',taskId:el.dataset.open});});
-      rows.querySelectorAll('[data-rename-project]').forEach(el=>el.addEventListener('click',(ev)=>{ev.stopPropagation();vscode.postMessage({type:'table:renameCategoryRequest',projectId:el.dataset.renameProject});}));
       rows.querySelectorAll('tr[data-task-id]').forEach(row=>row.addEventListener('click',(e)=>{const id=row.dataset.taskId;const ids=Array.from(rows.querySelectorAll('tr[data-task-id]')).map(r=>r.dataset.taskId);if(e.shiftKey&&anchorTaskId&&ids.includes(anchorTaskId)){const a=ids.indexOf(anchorTaskId),b=ids.indexOf(id);const[s,e2]=a<b?[a,b]:[b,a];selectedTaskIds=[...new Set([...selectedTaskIds,...ids.slice(s,e2+1)])];}else if(e.ctrlKey||e.metaKey){selectedTaskIds=selectedTaskIds.includes(id)?selectedTaskIds.filter(v=>v!==id):[...selectedTaskIds,id];anchorTaskId=id;}else{selectedTaskIds=[id];anchorTaskId=id;}applySelection();}));
       applySelection();
       document.getElementById('footer-count').textContent='Showing '+totalCount+' total tasks';
@@ -303,11 +318,13 @@ export class TaskTableWebviewPanel {
     const applySelection=()=>{const map=rowMap();Object.values(map).forEach(r=>r.classList.remove('selected'));selectedTaskIds.forEach(id=>map[id]?.classList.add('selected'));const ctrl=${this.enableArchiveControls ? 'true' : 'false'};const vis=ctrl&&['done','close'].includes(currentTab);const archiveBtn=document.getElementById('btn-archive-selected');const addTaskBtn=document.getElementById('btn-add-task');if(archiveBtn){archiveBtn.style.display=vis?'inline-block':'none';archiveBtn.disabled=selectedTaskIds.length===0;}if(addTaskBtn)addTaskBtn.style.display=ctrl?'inline-block':'none';};
     const archiveBtn=document.getElementById('btn-archive-selected');
     const addTaskBtn=document.getElementById('btn-add-task');
-    const addCategoryBtn=document.getElementById('btn-add-category');
-    const collectArchivable=()=>selectedTaskIds.filter(id=>{const n=roots.flatMap(function flat(x){return[x,...(x.children||[]).flatMap(flat)];}).find(x=>x.taskId===id);if(!n)return false;const s=effectiveStatus(n);return s==='done'||s==='close';});
+    const collectArchivable=()=>selectedTaskIds.filter(id=>{const n=flatAll(roots).find(x=>x.taskId===id);if(!n)return false;const s=effectiveStatus(n);return s==='done'||s==='close';});
     if(addTaskBtn){addTaskBtn.addEventListener('click',()=>{const row=selectedTaskIds.length?rowMap()[selectedTaskIds[0]]:null;const fallback=(roots[0]?.projectId)||undefined;vscode.postMessage({type:'table:addTask',projectId:row?.dataset.projectId||fallback});});}
-    if(addCategoryBtn){addCategoryBtn.addEventListener('click',()=>vscode.postMessage({type:'table:addCategoryRequest'}));}
     if(archiveBtn){archiveBtn.addEventListener('click',()=>{const ids=collectArchivable();if(ids.length===0)return;vscode.postMessage({type:'table:archiveTasks',taskIds:ids});});}
+    const renameBtn=document.getElementById('btn-rename');
+    if(renameBtn){renameBtn.addEventListener('click',()=>{const pid=roots[0]?.projectId;if(pid)vscode.postMessage({type:'table:renameCategoryRequest',projectId:pid});});}
+    const archiveCatBtn=document.getElementById('btn-archive-category');
+    if(archiveCatBtn){archiveCatBtn.addEventListener('click',()=>{if(archiveCatBtn.disabled)return;const pid=roots[0]?.projectId;if(pid)vscode.postMessage({type:'table:archiveCategoryRequest',projectId:pid});});}
     const unmountBtn=document.getElementById('btn-unmount-db');
     if(unmountBtn){const can=${this.unmountDatabase ? 'true' : 'false'};if(can){unmountBtn.style.display='inline-block';unmountBtn.addEventListener('click',()=>vscode.postMessage({type:'table:unmountDatabase'}));}}
     document.getElementById('search-input').addEventListener('input',(e)=>{searchQuery=e.target.value;render();});
@@ -370,6 +387,12 @@ function isRenameCategoryRequestMessage(value: unknown): value is { type: 'table
   if (!value || typeof value !== 'object') return false;
   const c = value as Record<string, unknown>;
   return c.type === 'table:renameCategoryRequest' && typeof c.projectId === 'string';
+}
+
+function isArchiveCategoryRequestMessage(value: unknown): value is { type: 'table:archiveCategoryRequest'; projectId: string } {
+  if (!value || typeof value !== 'object') return false;
+  const c = value as Record<string, unknown>;
+  return c.type === 'table:archiveCategoryRequest' && typeof c.projectId === 'string';
 }
 
 

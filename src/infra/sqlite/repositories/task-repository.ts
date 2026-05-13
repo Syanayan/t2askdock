@@ -84,12 +84,14 @@ export class TaskRepository implements TaskRepositoryPort {
     }
   }
 
-  public async listProjects(): Promise<Array<{ projectId: string; projectName: string }>> {
+  public async listProjects(options?: { archivedOnly?: boolean }): Promise<Array<{ projectId: string; projectName: string }>> {
+    const archived = options?.archivedOnly ? 1 : 0;
     const rows = await this.holder.get().all<{ projectId: string; projectName: string }>(
       `SELECT project_id AS projectId, name AS projectName
        FROM projects
-       WHERE archived = 0
-       ORDER BY updated_at DESC`
+       WHERE archived = ?
+       ORDER BY updated_at DESC`,
+      [archived]
     );
     return [...rows];
   }

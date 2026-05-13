@@ -52,7 +52,7 @@ export type TaskTreeNode = {
 export interface TaskRepository {
   create(task: Task): Promise<void>;
   updateWithVersion(task: TaskUpdate, expectedVersion: number): Promise<void>;
-  listProjects(): Promise<Array<{ projectId: string; projectName: string }>>;
+  listProjects(options?: { archivedOnly?: boolean }): Promise<Array<{ projectId: string; projectName: string }>>;
   listTasksByProject(input: {
     projectId: string;
     offset: number;

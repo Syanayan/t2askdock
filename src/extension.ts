@@ -368,18 +368,28 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           await client.run('INSERT INTO projects(project_id, name, archived, created_at, updated_at) VALUES (?, ?, 0, ?, ?)', [idGenerator.nextUlid(), name.trim(), now, now]);
         });
       },
-      async (projectId) => {
+      async (pid) => {
         const name = await vscode.window.showInputBox({ prompt: '新しいカテゴリ名を入力してください' });
         if (!name?.trim()) return;
         const now = new Date().toISOString();
         await withProfileClient(profileId, async () => {
           const client = activeClientHolder.get();
-          await client.run('UPDATE projects SET name = ?, updated_at = ? WHERE project_id = ?', [name.trim(), now, projectId]);
+          await client.run('UPDATE projects SET name = ?, updated_at = ? WHERE project_id = ?', [name.trim(), now, pid]);
         });
       },
       () => {
         allProjectsProvider.refresh();
-      }
+      },
+      projectId,
+      projectId ? async (pid) => {
+        const now = new Date().toISOString();
+        await withProfileClient(profileId, async () => {
+          const client = activeClientHolder.get();
+          await client.run('UPDATE projects SET archived = 1, updated_at = ? WHERE project_id = ?', [now, pid]);
+        });
+        allProjectsProvider.refresh();
+        onUnmounted?.();
+      } : undefined
     );
   };
   const commands = commandRegistry.register();
@@ -525,6 +535,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const resolveSelectedItem = (item?: TaskTreeItem): TaskTreeItem | undefined =>
     item ?? myRecentTasksTreeView.selection[0] ?? allProjectsTreeView.selection[0];
   void vscode.commands.executeCommand('setContext', 'taskDock.showDone', allProjectsProvider.isShowingDone());
+  void vscode.commands.executeCommand('setContext', 'taskDock.showArchivedCategories', allProjectsProvider.isShowingArchived());
 
   context.subscriptions.push(
     dbStatusBarItem,
@@ -560,6 +571,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.commands.registerCommand('taskDock.allProjects.showActiveOnly', async () => {
       allProjectsProvider.toggleDone();
       await vscode.commands.executeCommand('setContext', 'taskDock.showDone', allProjectsProvider.isShowingDone());
+    }),
+    vscode.commands.registerCommand('taskDock.allProjects.showArchivedCategories', async () => {
+      allProjectsProvider.toggleArchived();
+      await vscode.commands.executeCommand('setContext', 'taskDock.showArchivedCategories', allProjectsProvider.isShowingArchived());
+    }),
+    vscode.commands.registerCommand('taskDock.allProjects.showActiveCategories', async () => {
+      allProjectsProvider.toggleArchived();
+      await vscode.commands.executeCommand('setContext', 'taskDock.showArchivedCategories', allProjectsProvider.isShowingArchived());
     }),
     vscode.commands.registerCommand('taskDock.openBoard', async (input: { projectId?: string; profileId?: string; projectName?: string } = {}) => {
       currentBoardProjectId = input.projectId;

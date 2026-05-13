@@ -156,6 +156,16 @@
         "icon": "$(eye-closed)"
       },
       {
+        "command": "taskDock.allProjects.showArchivedCategories",
+        "title": "Show Archived Categories",
+        "icon": "$(archive)"
+      },
+      {
+        "command": "taskDock.allProjects.showActiveCategories",
+        "title": "Show Active Categories",
+        "icon": "$(list-tree)"
+      },
+      {
         "command": "taskDock.mountDatabase",
         "title": "Task Dock: DBファイルをマウント"
       },
@@ -207,6 +217,16 @@
         {
           "command": "taskDock.allProjects.showDoneOnly",
           "when": "view == taskDock.allProjects && !taskDock.showDone",
+          "group": "navigation"
+        },
+        {
+          "command": "taskDock.allProjects.showArchivedCategories",
+          "when": "view == taskDock.allProjects && !taskDock.showArchivedCategories",
+          "group": "navigation"
+        },
+        {
+          "command": "taskDock.allProjects.showActiveCategories",
+          "when": "view == taskDock.allProjects && taskDock.showArchivedCategories",
           "group": "navigation"
         },
         {
