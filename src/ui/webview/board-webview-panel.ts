@@ -27,6 +27,7 @@ export class BoardWebviewPanel {
   public static readonly VIEW_TYPE = 'taskDock.boardView';
   private messageListenerDisposable: vscode.Disposable | undefined;
   private onBack: (() => void) | undefined;
+  private initPayload: { type: 'board:init'; tasks: unknown[] } | undefined;
 
   public constructor(
     private readonly moveTaskStatusUseCase: Pick<MoveTaskStatusUseCase, 'execute'>,
@@ -37,10 +38,15 @@ export class BoardWebviewPanel {
   public render(panel: Pick<vscode.WebviewPanel, 'webview' | 'title'>, tasks: BoardTask[], projectName?: string, userId?: string, projectId?: string, onBack?: () => void): void {
     panel.title = 'Task Dock Board';
     this.onBack = onBack;
+    this.initPayload = { type: 'board:init', tasks: tasks.map((task, index) => ({ ...task, sequenceNumber: task.sequenceNumber ?? index + 1 })) };
     const resolvedProjectId = projectId ?? tasks[0]?.projectId ?? null;
     panel.webview.html = this.buildHtml(resolvedProjectId, projectName, userId, !!onBack);
     this.messageListenerDisposable?.dispose();
     this.messageListenerDisposable = panel.webview.onDidReceiveMessage?.(async (message: unknown) => {
+      if (isBoardReadyMessage(message)) {
+        void panel.webview.postMessage?.(this.initPayload);
+        return;
+      }
       if (isDropMessage(message)) {
         await this.onDrop({ ...message.task, toStatus: message.toStatus, actorId: 'system', now: new Date().toISOString() });
         return;
@@ -67,7 +73,6 @@ export class BoardWebviewPanel {
         return;
       }
     });
-    void panel.webview.postMessage?.({ type: 'board:init', tasks: tasks.map((task, index) => ({ ...task, sequenceNumber: task.sequenceNumber ?? index + 1 })) });
   }
 
   public renderDisconnected(panel: Pick<vscode.WebviewPanel, 'webview' | 'title'>): void {
@@ -107,8 +112,8 @@ body{font-family:var(--vscode-font-family,sans-serif);margin:0;padding:0;backgro
 .pb-medium{background:rgba(234,179,8,.12);color:#facc15;border-color:rgba(234,179,8,.25)}
 .pb-low{background:rgba(34,197,94,.12);color:#4ade80;border-color:rgba(34,197,94,.25)}
 .avatar{width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;flex-shrink:0}
-.board-wrap{display:flex;gap:12px;padding:16px 20px;overflow-x:auto;align-items:flex-start;min-height:calc(100vh - 61px)}
-.column{flex:0 0 250px;background:var(--vscode-sideBar-background);border-radius:12px;border:1px solid var(--vscode-panel-border);overflow:hidden}
+.board-wrap{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:10px;padding:14px 16px;overflow-x:auto;align-items:flex-start}
+.column{background:var(--vscode-sideBar-background);border-radius:12px;border:1px solid var(--vscode-panel-border);overflow:hidden;min-width:0}
 .column.drag-over{border-color:#0ea5e9;background:color-mix(in srgb,#0ea5e9 4%,var(--vscode-sideBar-background))}
 .col-header{display:flex;align-items:center;gap:8px;padding:11px 14px;border-bottom:1px solid var(--vscode-panel-border)}
 .col-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
@@ -186,6 +191,7 @@ document.querySelectorAll('.column').forEach(col=>{
 });
 const normalizeTreeTasks=(nodes,parentId=null)=>{const out=[];for(const node of nodes??[]){const{children=[],...rest}=node;out.push({...rest,parentTaskId:rest.parentTaskId??parentId});if(children.length>0)out.push(...normalizeTreeTasks(children,node.taskId));}return out;};
 window.addEventListener('message',e=>{if(e.data?.type==='board:init'){tasks=normalizeTreeTasks(e.data.tasks??[]);if(!projectId)projectId=tasks[0]?.projectId??null;render();}});
+vscode.postMessage({type:'board:ready'});
 </script></body></html>`;
   }
 
@@ -234,4 +240,9 @@ function isCardMenuActionMessage(value: unknown): value is { type: 'card:menuAct
 function isBoardBackMessage(value: unknown): value is { type: 'board:back' } {
   if (!value || typeof value !== 'object') return false;
   return (value as Record<string, unknown>).type === 'board:back';
+}
+
+function isBoardReadyMessage(value: unknown): value is { type: 'board:ready' } {
+  if (!value || typeof value !== 'object') return false;
+  return (value as Record<string, unknown>).type === 'board:ready';
 }

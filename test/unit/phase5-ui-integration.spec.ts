@@ -174,6 +174,7 @@ describe('Phase5 UI integration', () => {
       ]
     );
 
+    await handler?.({ type: 'board:ready' });
     expect(postMessage).toHaveBeenCalledWith({
       type: 'board:init',
       tasks: [expect.objectContaining({ sequenceNumber: 1 })]
