@@ -300,7 +300,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const tableWebviewPanels = new Set<vscode.WebviewPanel>();
   const tableWebviewProfileIds = new Map<vscode.WebviewPanel, string | undefined>();
   const taskDetailPanels = new Set<vscode.WebviewPanel>();
-  const createTablePanel = (profileId?: string, panelTitle?: string, onUnmounted?: () => void, projectId?: string, projectName?: string, enableArchiveControls: boolean = true): TaskTableWebviewPanel => {
+  const createTablePanel = (profileId?: string, panelTitle?: string, onUnmounted?: () => void, projectId?: string, projectName?: string, enableArchiveControls: boolean = true, vsPanel?: vscode.WebviewPanel): TaskTableWebviewPanel => {
     const loader = (profileId ? multiDbReadManager.getRepo(profileId) : undefined) ?? tableLoader;
     return new TaskTableWebviewPanel(
       { execute: (input) => withProfileClient(profileId, () => useCases.moveTaskStatusUseCase.execute(input)) },
@@ -328,8 +328,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       async (projectId) => {
         await vscode.commands.executeCommand('taskDock.openTaskCreate', { projectId, profileId });
       },
-      async (projectId, projectName) => {
-        await vscode.commands.executeCommand('taskDock.openBoard', { projectId, profileId, projectName });
+      async (pid, pname) => {
+        if (vsPanel) {
+          const tasks = await withProfileClient(profileId, () => fetchBoardTasks(pid));
+          const backTable = createTablePanel(profileId, pname ?? panelTitle, onUnmounted, pid, pname, enableArchiveControls, vsPanel);
+          boardPanel.render(vsPanel, tasks, pname, getUserId(), pid, () => { void backTable.render(vsPanel); });
+        } else {
+          await vscode.commands.executeCommand('taskDock.openBoard', { projectId: pid, profileId, projectName: pname });
+        }
       },
       profileId
         ? async () => {
@@ -456,7 +462,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }
     for (const panel of tableWebviewPanels) {
       const profileId = tableWebviewProfileIds.get(panel);
-      await createTablePanel(profileId, panel.title).render(panel);
+      await createTablePanel(profileId, panel.title, undefined, undefined, undefined, true, panel).render(panel);
     }
   });
 
@@ -630,7 +636,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       tableWebviewPanels.add(webviewPanel);
       tableWebviewProfileIds.set(webviewPanel, undefined);
       webviewPanel.onDidDispose(() => { tableWebviewPanels.delete(webviewPanel); tableWebviewProfileIds.delete(webviewPanel); });
-      await createTablePanel(undefined, undefined, () => webviewPanel.dispose()).render(webviewPanel);
+      await createTablePanel(undefined, undefined, () => webviewPanel.dispose(), undefined, undefined, true, webviewPanel).render(webviewPanel);
       return { viewId: 'taskDock.tableView' as const };
     }),
     vscode.commands.registerCommand('taskDock.openProjectTable', async (input?: { projectId?: string; profileId?: string; projectName?: string }) => {
@@ -644,7 +650,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       tableWebviewPanels.add(webviewPanel);
       tableWebviewProfileIds.set(webviewPanel, input.profileId);
       webviewPanel.onDidDispose(() => { tableWebviewPanels.delete(webviewPanel); tableWebviewProfileIds.delete(webviewPanel); });
-      await createTablePanel(input.profileId, String(input.projectName ?? input.projectId), () => webviewPanel.dispose(), input.projectId, input.projectName, true).render(webviewPanel);
+      await createTablePanel(input.profileId, String(input.projectName ?? input.projectId), () => webviewPanel.dispose(), input.projectId, input.projectName, true, webviewPanel).render(webviewPanel);
     }),
     vscode.commands.registerCommand('taskDock.addCategoryToDb', async (item?: TaskTreeItem) => {
       if (!item || item.kind !== 'database' || !item.profileId || !item.available) return;
