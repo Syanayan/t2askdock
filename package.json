@@ -68,11 +68,13 @@
       },
       {
         "command": "taskDock.selectDatabase",
-        "title": "Task Dock: Select Database"
+        "title": "Task Dock: Select Database",
+        "icon": "$(database)"
       },
       {
         "command": "taskDock.unmountDatabase",
-        "title": "Task Dock: Unmount Active Database"
+        "title": "Unmount Database",
+        "icon": "$(debug-disconnect)"
       },
       {
         "command": "taskDock.toggleReadOnly",
@@ -83,8 +85,9 @@
         "title": "Task Dock: Create Task"
       },
       {
-        "command": "taskDock.openDbTable",
-        "title": "Task Dock: このDBのリストを表示"
+        "command": "taskDock.addCategoryToDb",
+        "title": "カテゴリを追加",
+        "icon": "$(add)"
       },
       {
         "command": "taskDock.createTaskInDb",
@@ -155,6 +158,16 @@
         "icon": "$(eye-closed)"
       },
       {
+        "command": "taskDock.allProjects.showArchivedCategories",
+        "title": "Show Archived Repositories",
+        "icon": "$(archive)"
+      },
+      {
+        "command": "taskDock.allProjects.showActiveCategories",
+        "title": "Show Active Repositories",
+        "icon": "$(list-flat)"
+      },
+      {
         "command": "taskDock.mountDatabase",
         "title": "Task Dock: DBファイルをマウント"
       },
@@ -199,65 +212,35 @@
           "group": "navigation"
         },
         {
-          "command": "taskDock.allProjects.showActiveOnly",
-          "when": "view == taskDock.allProjects && taskDock.showDone",
+          "command": "taskDock.allProjects.showArchivedCategories",
+          "when": "view == taskDock.allProjects && !taskDock.showArchivedCategories",
           "group": "navigation"
         },
         {
-          "command": "taskDock.allProjects.showDoneOnly",
-          "when": "view == taskDock.allProjects && !taskDock.showDone",
+          "command": "taskDock.allProjects.showActiveCategories",
+          "when": "view == taskDock.allProjects && taskDock.showArchivedCategories",
           "group": "navigation"
         },
         {
-          "command": "taskDock.allProjects.sortUpdated",
-          "when": "view == taskDock.allProjects",
-          "group": "navigation"
-        },
-        {
-          "command": "taskDock.allProjects.sortPriority",
-          "when": "view == taskDock.allProjects",
-          "group": "navigation"
-        },
-        {
-          "command": "taskDock.allProjects.sortDeadline",
+          "command": "taskDock.selectDatabase",
           "when": "view == taskDock.allProjects",
           "group": "navigation"
         }
       ],
       "view/item/context": [
         {
-          "command": "taskDock.openTaskDetail",
-          "when": "(view == taskDock.myRecentTasks || view == taskDock.allProjects) && viewItem == task",
-          "group": "navigation"
-        },
-        {
-          "command": "taskDock.updateTask",
-          "when": "(view == taskDock.myRecentTasks || view == taskDock.allProjects) && viewItem == task",
-          "group": "navigation"
-        },
-        {
-          "command": "taskDock.deleteTask",
-          "when": "(view == taskDock.myRecentTasks || view == taskDock.allProjects) && viewItem == task",
-          "group": "navigation"
-        },
-        {
-          "command": "taskDock.createSubtask",
-          "when": "(view == taskDock.myRecentTasks || view == taskDock.allProjects) && (viewItem == task || viewItem == subtask)",
-          "group": "navigation"
-        },
-        {
-          "command": "taskDock.createTaskInDb",
+          "command": "taskDock.addCategoryToDb",
           "when": "view == taskDock.allProjects && viewItem == database",
-          "group": "navigation"
+          "group": "inline"
+        },
+        {
+          "command": "taskDock.unmountDatabase",
+          "when": "view == taskDock.allProjects && viewItem == database",
+          "group": "inline"
         },
         {
           "command": "taskDock.createTaskInProject",
           "when": "view == taskDock.allProjects && viewItem == project",
-          "group": "navigation"
-        },
-        {
-          "command": "taskDock.archiveSelectedTasks",
-          "when": "view == taskDock.allProjects && (viewItem == task || viewItem == subtask)",
           "group": "navigation"
         }
       ]

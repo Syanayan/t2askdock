@@ -108,12 +108,12 @@ describe('SQLite repositories (phase2)', () => {
 
   it('TaskRepository.listProjects groups by project_id and maps projectName to projectId', async () => {
     const client = new FakeSqliteClient();
-    client.allResult = [{ projectId: 'p1' }, { projectId: 'p2' }];
+    client.allResult = [{ projectId: 'p1', projectName: 'Project 1', archived: 0 }, { projectId: 'p2', projectName: 'Project 2', archived: 1 }];
     const repository = new TaskRepository({ get: () => client });
 
     const projects = await repository.listProjects();
 
-    expect(projects).toEqual([{ projectId: 'p1' }, { projectId: 'p2' }]);
+    expect(projects).toEqual([{ projectId: 'p1', projectName: 'Project 1', archived: false }, { projectId: 'p2', projectName: 'Project 2', archived: true }]);
     const call = client.executed.find((item) => item.type === 'get' && item.sql.includes('FROM projects'));
     expect(call).toBeDefined();
   });

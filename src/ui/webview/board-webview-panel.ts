@@ -26,6 +26,9 @@ type WebviewCommandArgs = Record<string, unknown>;
 export class BoardWebviewPanel {
   public static readonly VIEW_TYPE = 'taskDock.boardView';
   private messageListenerDisposable: vscode.Disposable | undefined;
+  private onBack: (() => void) | undefined;
+  private onRefresh: (() => Promise<void>) | undefined;
+  private initPayload: { type: 'board:init'; tasks: unknown[] } | undefined;
 
   public constructor(
     private readonly moveTaskStatusUseCase: Pick<MoveTaskStatusUseCase, 'execute'>,
@@ -33,12 +36,19 @@ export class BoardWebviewPanel {
     private readonly executeCommand: (command: string, args?: WebviewCommandArgs) => Promise<unknown> = async () => undefined
   ) {}
 
-  public render(panel: Pick<vscode.WebviewPanel, 'webview' | 'title'>, tasks: BoardTask[], projectName?: string, userId?: string, projectId?: string): void {
+  public render(panel: Pick<vscode.WebviewPanel, 'webview' | 'title'>, tasks: BoardTask[], projectName?: string, userId?: string, projectId?: string, onBack?: () => void, onRefresh?: () => Promise<void>): void {
     panel.title = 'Task Dock Board';
+    this.onBack = onBack;
+    this.onRefresh = onRefresh;
+    this.initPayload = { type: 'board:init', tasks: tasks.map((task, index) => ({ ...task, sequenceNumber: task.sequenceNumber ?? index + 1 })) };
     const resolvedProjectId = projectId ?? tasks[0]?.projectId ?? null;
-    panel.webview.html = this.buildHtml(resolvedProjectId, projectName, userId);
+    panel.webview.html = this.buildHtml(resolvedProjectId, projectName, userId, !!onBack);
     this.messageListenerDisposable?.dispose();
     this.messageListenerDisposable = panel.webview.onDidReceiveMessage?.(async (message: unknown) => {
+      if (isBoardReadyMessage(message)) {
+        void panel.webview.postMessage?.(this.initPayload);
+        return;
+      }
       if (isDropMessage(message)) {
         await this.onDrop({ ...message.task, toStatus: message.toStatus, actorId: 'system', now: new Date().toISOString() });
         return;
@@ -58,9 +68,22 @@ export class BoardWebviewPanel {
       if (isCardCreateMessage(message)) {
         const { type: _type, ...createArgs } = message;
         await this.executeCommand('taskDock.openTaskCreate', createArgs);
+        return;
+      }
+      if (isBoardBackMessage(message)) {
+        this.onBack?.();
+        return;
+      }
+      if (isBoardRefreshMessage(message)) {
+        void this.onRefresh?.();
+        return;
       }
     });
-    void panel.webview.postMessage?.({ type: 'board:init', tasks: tasks.map((task, index) => ({ ...task, sequenceNumber: task.sequenceNumber ?? index + 1 })) });
+  }
+
+  public refreshTasks(panel: Pick<vscode.WebviewPanel, 'webview'>, tasks: BoardTask[]): void {
+    this.initPayload = { type: 'board:init', tasks: tasks.map((task, index) => ({ ...task, sequenceNumber: task.sequenceNumber ?? index + 1 })) };
+    void panel.webview.postMessage(this.initPayload);
   }
 
   public renderDisconnected(panel: Pick<vscode.WebviewPanel, 'webview' | 'title'>): void {
@@ -68,35 +91,120 @@ export class BoardWebviewPanel {
     panel.webview.html = `<!DOCTYPE html><html lang="ja"><body style="font-family:sans-serif;padding:16px;">DB未接続です。右上のDB選択から接続してください。</body></html>`;
   }
 
-  private buildHtml(projectId: string | null, projectName?: string, userId?: string): string {
-    return `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/><title>Task Dock Board</title><style>
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;margin:16px;background:var(--vscode-editor-background);color:var(--vscode-editor-foreground)}.hint{color:var(--vscode-descriptionForeground);font-size:12px}.toolbar{display:flex;justify-content:space-between;gap:8px;margin:8px 0}.toolbar-left{display:flex;gap:8px;align-items:center}.toolbar-right{display:flex;gap:8px;align-items:center}.toolbar button{border:1px solid var(--vscode-panel-border);background:var(--vscode-button-background);color:var(--vscode-button-foreground);border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer}.toolbar button[disabled]{opacity:.5;cursor:not-allowed}#my-tasks-toggle{border-radius:999px;padding:6px 12px;font-weight:600;letter-spacing:.2px;background:color-mix(in srgb,var(--vscode-button-secondaryBackground) 70%,transparent);color:var(--vscode-button-secondaryForeground);border:1px solid color-mix(in srgb,var(--vscode-focusBorder) 35%,var(--vscode-panel-border));transition:all .16s ease;box-shadow:0 1px 2px rgba(0,0,0,.12)}#my-tasks-toggle:hover{box-shadow:0 4px 10px rgba(0,0,0,.16)}#my-tasks-toggle.toggle-active{background:linear-gradient(135deg,color-mix(in srgb,var(--vscode-charts-blue) 85%,#2b7fff),color-mix(in srgb,var(--vscode-charts-purple) 65%,#6d5cff));border-color:color-mix(in srgb,var(--vscode-charts-blue) 70%,#2b7fff);color:#fff;box-shadow:0 6px 16px color-mix(in srgb,var(--vscode-charts-blue) 35%,transparent)}
-#search-box{width:180px;border:1px solid var(--vscode-input-border);background:var(--vscode-input-background);color:var(--vscode-input-foreground);border-radius:6px;padding:5px 10px;font-size:12px}.status-tabs{display:flex;gap:8px;margin:8px 0}.status-tab{padding:4px 10px;border:1px solid var(--vscode-panel-border);border-radius:999px;background:var(--vscode-input-background);color:var(--vscode-editor-foreground);cursor:pointer}.status-tab.active{background:var(--vscode-button-background);color:var(--vscode-button-foreground);border-color:var(--vscode-button-background)}.view-tab{border:1px solid var(--vscode-panel-border);padding:4px 10px;background:var(--vscode-input-background);color:var(--vscode-editor-foreground);cursor:pointer}.view-tab.active{background:var(--vscode-button-background);color:var(--vscode-button-foreground);border-color:var(--vscode-button-background)}
-.board{display:grid;grid-template-columns:repeat(4,minmax(140px,1fr));gap:12px;margin-top:12px}.list-view{margin-top:12px}.task-table-wrap{border-radius:8px;overflow:hidden;border:1px solid var(--vscode-panel-border)}.task-table{width:100%;border-collapse:collapse}.task-table th,.task-table td{font-size:12px;border-bottom:1px solid var(--vscode-panel-border);padding:6px;text-align:left}.task-table th{background:var(--vscode-keybindingTable-headerBackground);font-weight:600;cursor:pointer}.task-table tr:nth-child(even){background:var(--vscode-keybindingTable-rowsBackground)}.task-table tr:hover{background:var(--vscode-list-hoverBackground)}.task-table tr.selected{background:var(--vscode-list-activeSelectionBackground)!important}.task-title-cell{display:flex;align-items:center;gap:4px}.task-title-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.expand{display:inline-flex;align-items:center;justify-content:center;width:12px;height:12px;padding:0;border:none;border-radius:2px;background:transparent;color:var(--vscode-editor-foreground);line-height:1;cursor:pointer;flex-shrink:0}.expand:hover{background:var(--vscode-list-hoverBackground)}.expand-icon{width:6px;height:6px;border-top:1.5px solid currentColor;border-right:1.5px solid currentColor;transform:rotate(45deg);transition:transform .12s ease}.expand-icon.open{transform:rotate(135deg)}.subtask-connector{display:inline-block;width:12px;height:12px;border-left:2px solid var(--vscode-panel-border);border-bottom:2px solid var(--vscode-panel-border);border-radius:0 0 0 3px;flex-shrink:0;vertical-align:middle}
-.column{background:var(--vscode-sideBar-background);border-radius:10px;padding:12px;min-height:120px;border:none;border-top-width:4px}.column.drag-over{background:var(--vscode-editorGroup-dropBackground);outline:2px dashed var(--vscode-focusBorder)}.column[data-status="todo"]{border-top-color:#2196F3}.column[data-status="in_progress"]{border-top-color:#4CAF50}.column[data-status="blocked"]{border-top-color:#F44336}.column[data-status="done"]{border-top-color:#9C27B0}
-.column-header{margin-bottom:6px}.column h3{margin:0;font-size:13px}.count-badge{font-size:11px;border-radius:999px;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground);padding:1px 6px}.add-task{width:100%;margin-bottom:8px;border:1px dashed var(--vscode-panel-border);background:var(--vscode-input-background);color:var(--vscode-input-foreground);border-radius:6px;padding:4px;font-size:12px;cursor:pointer}
-.task{border:1px solid var(--vscode-panel-border);border-radius:8px;padding:6px;margin-bottom:6px;background:var(--vscode-editor-background);cursor:grab}.task:hover{background:var(--vscode-list-hoverBackground)}.task-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}.task-seq{font-size:11px;color:#555}.task-desc{font-size:12px;color:#666;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin:4px 0}.task-meta{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}.badge{font-size:11px;border-radius:999px;font-weight:600;padding:2px 8px}.priority-low{background:#f0f0f0;color:#666}.priority-medium{background:color-mix(in srgb,var(--vscode-charts-yellow) 15%,transparent);color:var(--vscode-editor-foreground);border:1px solid color-mix(in srgb,var(--vscode-charts-yellow) 35%,var(--vscode-panel-border))}.priority-high{background:#ffedd5;color:#9a3412}.priority-critical{background:#fee2e2;color:#991b1b}.due-overdue{color:#b91c1c}
-.status-todo{background:color-mix(in srgb,var(--vscode-charts-blue) 18%,transparent);color:var(--vscode-editor-foreground);border:1px solid color-mix(in srgb,var(--vscode-charts-blue) 45%,var(--vscode-panel-border))}.status-in_progress{background:color-mix(in srgb,var(--vscode-charts-yellow) 20%,transparent);color:var(--vscode-editor-foreground);border:1px solid color-mix(in srgb,var(--vscode-charts-yellow) 45%,var(--vscode-panel-border))}.status-done{background:color-mix(in srgb,var(--vscode-charts-green) 20%,transparent);color:var(--vscode-editor-foreground);border:1px solid color-mix(in srgb,var(--vscode-charts-green) 45%,var(--vscode-panel-border))}.status-blocked{background:color-mix(in srgb,var(--vscode-charts-red) 20%,transparent);color:var(--vscode-editor-foreground);border:1px solid color-mix(in srgb,var(--vscode-charts-red) 45%,var(--vscode-panel-border))}.status-select{border-radius:6px;padding:2px 6px;appearance:none;font-weight:600;min-width:118px}
-.card-menu{position:relative}.card-menu-btn{border:1px solid var(--vscode-panel-border);background:var(--vscode-toolbar-hoverBackground);color:var(--vscode-editor-foreground);border-radius:4px;padding:0 6px;cursor:pointer}.card-menu-popup{position:absolute;right:0;top:24px;z-index:20;min-width:140px;border:1px solid var(--vscode-menu-border);background:var(--vscode-menu-background);color:var(--vscode-menu-foreground);box-shadow:0 6px 24px rgba(0,0,0,.25);border-radius:6px;padding:4px 0}.card-menu-item{display:block;width:100%;text-align:left;border:0;background:transparent;color:inherit;padding:6px 10px;cursor:pointer}.card-menu-item:hover,.card-menu-item:focus{background:var(--vscode-list-hoverBackground)}body.collapsed .task-desc,body.collapsed .task-meta{display:none}
-</style></head><body><h2>${projectName ?? 'Task Board'}</h2><div class="toolbar"><div class="toolbar-left"><input type="search" id="search-box" placeholder="検索..."/><button type="button" id="my-tasks-toggle">マイタスク: OFF</button></div><div class="toolbar-right view-switcher"><button id="archive-bulk" type="button" style="display:none">Archive</button><button id="add-task" type="button">Add Task</button><button id="view-kanban" class="view-tab" type="button">カンバン</button><button id="view-list" class="view-tab active" type="button">リスト</button></div></div><div class="status-tabs"><button type="button" class="status-tab active" data-stab="tasks">Tasks</button><button type="button" class="status-tab" data-stab="done">Done</button><button type="button" class="status-tab" data-stab="close">Close</button><button type="button" class="status-tab" data-stab="archive">Archive</button></div><section class="board">${['todo','in_progress','blocked','done'].map((s,i)=>`<article class="column" data-status="${s}"><div class="column-header"><h3>${['Todo','In Progress','Blocked','Done'][i]} <span class="count-badge">0</span></h3></div><div class="tasks"></div></article>`).join('')}</section>
-<section class="list-view" style="display:block"><div class="task-table-wrap"><table class="task-table"><thead><tr><th data-col="title">Title</th><th data-col="status">Status</th><th data-col="assignee">Assignee</th><th data-col="priority">Priority</th><th data-col="dueDate">Due</th><th>Progress</th></tr></thead><tbody class="task-rows"></tbody></table></div></section>
-<script>const vscode=acquireVsCodeApi();let tasks=[];let myTasksOnly=false;let searchQuery='';const saved=vscode.getState();let currentView=saved?.currentView??'list';let projectId=${JSON.stringify(projectId)};const expanded=new Set();let listSort={col:'title',dir:'asc'};const statuses=['todo','in_progress','blocked','done'];let activeTab='tasks';const priorityOrder={critical:0,high:1,medium:2,low:3};let selectedRows=[];let anchorRowId=null;
-const currentUserId=${JSON.stringify(userId ?? 'system')};const syncMyTasksToggle=()=>{const btn=document.getElementById('my-tasks-toggle');btn.textContent=(myTasksOnly?'● ':'○ ')+'マイタスク';btn.classList.toggle('toggle-active',myTasksOnly);};const matchesFilters=t=>{const q=searchQuery.toLowerCase();const m=!q||t.title.toLowerCase().includes(q)||((t.assignee??'').toLowerCase().includes(q))||((t.tags??[]).some(tag=>tag.toLowerCase().includes(q)));return (!myTasksOnly||t.assignee===currentUserId)&&m;};
-const statusLabel=s=>({todo:'Todo',in_progress:'In Progress',blocked:'Blocked',done:'Done',close:'Close',archived:'Archive'}[s]??s);
+  private buildHtml(projectId: string | null, projectName?: string, userId?: string, showBack?: boolean): string {
+    const dotColors = ['#93c5fd', '#fcd34d', '#c4b5fd', '#86efac'];
+    const colLabels = ['Todo', 'In Progress', 'Review', 'Done'];
+    const statuses = ['todo', 'in_progress', 'review', 'done'];
+    const cols = statuses.map((s, i) =>
+      `<div class="column" data-status="${s}"><div class="col-header"><span class="col-dot" style="background:${dotColors[i]}"></span><span class="col-title">${colLabels[i]}</span><span class="col-count" id="cnt-${s}">0</span></div><div class="tasks-area" id="col-${s}"></div></div>`
+    ).join('');
+    return `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/><title>Task Board</title><style>
+*{box-sizing:border-box}
+body{font-family:var(--vscode-font-family,sans-serif);margin:0;padding:0;background:var(--vscode-editor-background);color:var(--vscode-editor-foreground)}
+.app-header{display:flex;align-items:center;gap:10px;padding:12px 20px;border-bottom:1px solid var(--vscode-panel-border);flex-wrap:wrap}
+.app-title{font-size:18px;font-weight:700;flex-shrink:0;white-space:nowrap}
+.search-wrap{flex:1;max-width:220px;position:relative;min-width:100px}
+.search-icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);opacity:.4;font-size:14px;pointer-events:none}
+.search-input{width:100%;background:var(--vscode-input-background);border:1px solid var(--vscode-input-border);border-radius:999px;padding:5px 12px 5px 30px;color:var(--vscode-input-foreground);outline:none;font-size:13px}
+.header-right{margin-left:auto;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.btn{cursor:pointer;border:1px solid var(--vscode-panel-border);border-radius:8px;padding:5px 12px;font-size:12px;background:transparent;color:var(--vscode-editor-foreground);font-family:inherit}
+.btn:hover{background:var(--vscode-list-hoverBackground)}
+.btn-primary{background:#0ea5e9;color:#fff;border-color:transparent;font-weight:600}
+.btn-primary:hover{background:#0284c7}
+.btn-active{background:color-mix(in srgb,#0ea5e9 15%,transparent);border-color:color-mix(in srgb,#0ea5e9 40%,transparent);color:#38bdf8}
+.sb{display:inline-flex;align-items:center;gap:3px;border-radius:999px;padding:2px 8px;font-size:11px;font-weight:700;border:1px solid;white-space:nowrap;letter-spacing:.02em}
+.sb-todo{background:rgba(59,130,246,.1);color:#93c5fd;border-color:rgba(59,130,246,.25)}
+.sb-in_progress{background:rgba(245,158,11,.1);color:#fcd34d;border-color:rgba(245,158,11,.25)}
+.sb-done{background:rgba(34,197,94,.1);color:#86efac;border-color:rgba(34,197,94,.25)}
+.sb-review{background:rgba(139,92,246,.1);color:#c4b5fd;border-color:rgba(139,92,246,.25)}
+.pb{display:inline-block;border-radius:4px;padding:1px 7px;font-size:11px;font-weight:700;border:1px solid;white-space:nowrap}
+.pb-critical{background:rgba(239,68,68,.12);color:#f87171;border-color:rgba(239,68,68,.25)}
+.pb-high{background:rgba(249,115,22,.12);color:#fb923c;border-color:rgba(249,115,22,.25)}
+.pb-medium{background:rgba(234,179,8,.12);color:#facc15;border-color:rgba(234,179,8,.25)}
+.pb-low{background:rgba(34,197,94,.12);color:#4ade80;border-color:rgba(34,197,94,.25)}
+.avatar{width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;flex-shrink:0}
+.board-wrap{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:10px;padding:14px 16px;overflow-x:auto;align-items:stretch}
+.column{background:var(--vscode-sideBar-background);border-radius:12px;border:1px solid var(--vscode-panel-border);overflow:hidden;min-width:0;display:flex;flex-direction:column}
+.column.drag-over{border-color:#0ea5e9;background:color-mix(in srgb,#0ea5e9 4%,var(--vscode-sideBar-background))}
+.col-header{display:flex;align-items:center;gap:8px;padding:11px 14px;border-bottom:1px solid var(--vscode-panel-border)}
+.col-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.col-title{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;opacity:.65}
+.col-count{margin-left:auto;font-size:11px;font-weight:700;background:color-mix(in srgb,var(--vscode-editor-foreground) 10%,transparent);border-radius:999px;padding:1px 7px;opacity:.55}
+.tasks-area{padding:8px;display:flex;flex-direction:column;gap:6px;min-height:40px;flex:1}
+.task-card{background:var(--vscode-editor-background);border:1px solid var(--vscode-panel-border);border-left-width:3px;border-radius:8px;padding:10px 12px;cursor:pointer;transition:border-color .12s,box-shadow .12s}
+.task-card:hover{border-color:color-mix(in srgb,#0ea5e9 50%,var(--vscode-panel-border));box-shadow:0 2px 8px rgba(0,0,0,.15)}
+.task-card[data-priority="critical"]{border-left-color:#f87171}
+.task-card[data-priority="high"]{border-left-color:#fb923c}
+.task-card[data-priority="medium"]{border-left-color:#facc15}
+.task-card[data-priority="low"]{border-left-color:#4ade80}
+.card-seq{font-size:10px;opacity:.3;font-weight:600;margin-bottom:4px}
+.card-title{font-size:13px;font-weight:500;line-height:1.45;word-break:break-word;margin-bottom:8px}
+.card-footer{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.card-due{font-size:11px;opacity:.5}
+.card-due.overdue{color:#f87171;opacity:.9}
+</style></head><body>
+<header class="app-header">
+  ${showBack ? '<button id="btn-back" class="btn" type="button">← 戻る</button>' : ''}
+  <span class="app-title">${projectName ?? 'Task Board'}</span>
+  <div class="search-wrap"><span class="search-icon">⌕</span><input class="search-input" id="search-box" placeholder="検索..." type="search"/></div>
+  <div class="header-right">
+    <button id="btn-refresh" class="btn" type="button" title="Refresh">↺</button>
+    <button id="my-tasks-toggle" class="btn" type="button">マイタスク</button>
+    <button id="add-task" class="btn btn-primary" type="button">+ Add Task</button>
+  </div>
+</header>
+<div class="board-wrap">${cols}</div>
+<script>
+const vscode=acquireVsCodeApi();
+let tasks=[];let myTasksOnly=false;let searchQuery='';let draggingTaskId=null;
+let projectId=${JSON.stringify(projectId)};
+const currentUserId=${JSON.stringify(userId ?? 'system')};
+const statuses=['todo','in_progress','review','done'];
+const esc=s=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 const effectiveStatus=t=>t.isArchived?'archived':(t.isClosed||t.status==='close'?'close':t.status);
-const listStatus=t=>t.isClosed||t.status==='close'?'close':t.status;
-const tabMatch=t=>{const s=effectiveStatus(t);if(activeTab==='tasks')return ['todo','in_progress','blocked'].includes(s);if(activeTab==='done')return s==='done';if(activeTab==='close')return s==='close';return s==='archived';};
-const visibleKanbanTask=t=>!t.isArchived && !(t.isClosed||t.status==='close');
-const render=()=>{syncMyTasksToggle();for(const status of statuses){const inStatus=tasks.filter(t=>effectiveStatus(t)===status&&matchesFilters(t)&&visibleKanbanTask(t));const list=document.querySelector('.column[data-status="'+status+'"] .tasks');document.querySelector('.column[data-status="'+status+'"] .count-badge').textContent=String(inStatus.length);list.innerHTML='';for(const task of inStatus){const el=document.createElement('div');el.className='task';const dueClass=task.dueDate&&new Date(task.dueDate).toISOString().slice(0,10)<new Date().toISOString().slice(0,10)?'due-overdue':'';const priorityBadge='<span class="badge priority-'+task.priority+'">'+({low:'Low',medium:'Medium',high:'High',critical:'Critical'}[task.priority]??task.priority)+'</span>';const due=task.dueDate?'<span class="badge '+dueClass+'">'+new Date(task.dueDate).toLocaleDateString('ja-JP')+'</span>':'';const assigneeBadge=task.assignee?'<span class="badge" style="background:var(--vscode-badge-background);color:var(--vscode-badge-foreground)">@'+task.assignee+'</span>':'';el.innerHTML='<div class="task-header"><span class="task-seq">#'+(task.sequenceNumber??'')+'</span><div class="card-menu"><button type="button" class="card-menu-btn" data-action="menu" aria-haspopup="menu" aria-expanded="false">...</button></div></div><div>'+task.title+'</div><div class="task-meta">'+priorityBadge+due+assigneeBadge+'</div>';el.draggable=true;el.dataset.taskId=task.taskId;el.querySelector('button[data-action="menu"]').addEventListener('click',(e)=>{e.stopPropagation();document.querySelectorAll('.card-menu-popup').forEach(menu=>menu.remove());const wrap=el.querySelector('.card-menu');const button=el.querySelector('button[data-action="menu"]');const popup=document.createElement('div');popup.className='card-menu-popup';popup.setAttribute('role','menu');const isDone=task.status==='done';popup.innerHTML='<button type="button" class="card-menu-item" data-menu-action="edit" role="menuitem" '+(isDone?'disabled aria-disabled="true"':'')+'>編集</button><button type="button" class="card-menu-item" data-menu-action="delete" role="menuitem">削除</button>';wrap.appendChild(popup);button.setAttribute('aria-expanded','true');const close=()=>{popup.remove();button.setAttribute('aria-expanded','false');};const items=[...popup.querySelectorAll('[data-menu-action]')];items.forEach(item=>item.addEventListener('click',evt=>{evt.stopPropagation();if(item.hasAttribute('disabled'))return;vscode.postMessage({type:'card:menuAction',action:item.dataset.menuAction,taskId:task.taskId});close();}));popup.addEventListener('keydown',evt=>{if(evt.key==='Escape'){close();button.focus();return;}const currentIndex=items.findIndex(item=>item===document.activeElement);if(evt.key==='ArrowDown'){evt.preventDefault();const next=(currentIndex+1+items.length)%items.length;items[next]?.focus();}if(evt.key==='ArrowUp'){evt.preventDefault();const prev=(currentIndex-1+items.length)%items.length;items[prev]?.focus();}if(evt.key==='Enter'){const active=document.activeElement;if(active instanceof HTMLElement&&active.dataset.menuAction&&!active.hasAttribute('disabled')){evt.preventDefault();vscode.postMessage({type:'card:menuAction',action:active.dataset.menuAction,taskId:task.taskId});close();}}});popup.addEventListener('focusout',evt=>{if(!popup.contains(evt.relatedTarget)){close();}});setTimeout(()=>{const onDocClick=(evt)=>{if(!wrap.contains(evt.target)){close();document.removeEventListener('click',onDocClick,true);}};document.addEventListener('click',onDocClick,true);items.find(item=>!item.hasAttribute('disabled'))?.focus();},0);});el.addEventListener('click',()=>vscode.postMessage({type:'card:open',taskId:task.taskId}));el.addEventListener('dragstart',()=>el.dataset.dragging='true');el.addEventListener('dragend',()=>delete el.dataset.dragging);list.appendChild(el);}};renderList();};
-const sorted=(arr)=>arr.sort((a,b)=>{const c=listSort.col;const d=listSort.dir==='asc'?1:-1;if(c==='priority')return ((priorityOrder[a.priority]??9)-(priorityOrder[b.priority]??9))*d;if(c==='status')return String(a.status).localeCompare(String(b.status))*d;if(c==='dueDate')return String(a.dueDate??'').localeCompare(String(b.dueDate??''))*d;return String(a[c]??'').localeCompare(String(b[c]??''))*d;});
-const renderList=()=>{const body=document.querySelector('.task-rows');body.innerHTML='';const byParent=new Map();for(const task of tasks.filter(t=>matchesFilters(t)&&tabMatch(t))){const key=task.parentTaskId??'root';const curr=byParent.get(key)??[];curr.push(task);byParent.set(key,curr);}const addRows=(parentId,depth)=>{const rows=sorted([...(byParent.get(parentId)??[])]);for(const task of rows){const isOpen=expanded.has(task.taskId);const hasChildren=(byParent.get(task.taskId)?.length??0)>0;const tr=document.createElement('tr');const toggle=hasChildren?'<button type="button" class="expand" data-task-id="'+task.taskId+'" aria-label="サブタスクを'+(isOpen?'折りたたむ':'展開する')+'"><span class="expand-icon '+(isOpen?'open':'')+'" aria-hidden="true"></span></button> ':'';const st=listStatus(task);tr.dataset.taskId=task.taskId;tr.innerHTML='<td class="task-title-cell"><span class="task-indent" style="display:inline-block;width:'+(depth*16)+'px;flex-shrink:0"></span>'+(depth>0?'<span class="subtask-connector"></span>':'')+toggle+task.title+'</td><td><span class="badge status-'+st+'">'+statusLabel(st)+'</span></td><td>'+(task.assignee??'-')+'</td><td><span class="badge priority-'+task.priority+'">'+({low:'Low',medium:'Medium',high:'High',critical:'Critical'}[task.priority]??task.priority)+'</span></td><td>'+(task.dueDate??'-')+'</td><td>'+(task.hasChildren?'サブタスクあり':'-')+'</td>';const btn=tr.querySelector('.expand');if(btn){btn.addEventListener('click',e=>{e.stopPropagation();if(expanded.has(task.taskId))expanded.delete(task.taskId);else expanded.add(task.taskId);renderList();});btn.addEventListener('dblclick',e=>e.stopPropagation());}tr.addEventListener('click',()=>{if(!hasChildren)return;if(expanded.has(task.taskId))expanded.delete(task.taskId);else expanded.add(task.taskId);renderList();});tr.addEventListener('dblclick',()=>vscode.postMessage({type:'card:open',taskId:task.taskId}));body.appendChild(tr);if(hasChildren&&isOpen)addRows(task.taskId,depth+1);}};addRows('root',0);Array.from(body.querySelectorAll('tr[data-task-id]')).forEach(r=>{if(selectedRows.includes(r.dataset.taskId))r.classList.add('selected');});const archiveBtn=document.getElementById('archive-bulk');if(archiveBtn){archiveBtn.style.display=(activeTab==='done'||activeTab==='close')?'inline-block':'none';archiveBtn.disabled=selectedRows.length===0;}document.querySelectorAll('th[data-col]').forEach(th=>{const col=th.dataset.col;th.textContent=th.textContent.split(' ')[0]+(listSort.col===col?(listSort.dir==='asc'?' ▲':' ▼'):'');});};
-const renderView=()=>{document.querySelector('.board').style.display=currentView==='kanban'?'grid':'none';document.querySelector('.list-view').style.display=currentView==='list'?'block':'none';document.querySelector('.status-tabs').style.display=currentView==='list'?'flex':'none';document.getElementById('view-kanban').classList.toggle('active',currentView==='kanban');document.getElementById('view-list').classList.toggle('active',currentView==='list');vscode.setState({currentView});};
-const updateArchiveButton=()=>{const btn=document.getElementById('archive-bulk');if(!btn)return;btn.style.display=(currentView==='list'&&(activeTab==='done'||activeTab==='close'))?'inline-block':'none';};
-document.querySelector('.task-rows').addEventListener('click',(e)=>{const tr=e.target instanceof Element?e.target.closest('tr[data-task-id]'):null;if(!tr)return;const id=tr.dataset.taskId;const ids=Array.from(document.querySelectorAll('tr[data-task-id]')).map(r=>r.dataset.taskId);if(e.shiftKey&&anchorRowId&&ids.includes(anchorRowId)){const a=ids.indexOf(anchorRowId),b=ids.indexOf(id);const [s,e2]=a<b?[a,b]:[b,a];selectedRows=[...new Set([...selectedRows,...ids.slice(s,e2+1)])];}else if(e.ctrlKey||e.metaKey){selectedRows=selectedRows.includes(id)?selectedRows.filter(v=>v!==id):[...selectedRows,id];anchorRowId=id;}else{selectedRows=[id];anchorRowId=id;}renderList();});
-document.getElementById('archive-bulk').addEventListener('click',()=>{const ids=selectedRows.filter(id=>{const t=tasks.find(v=>v.taskId===id);if(!t)return false;const s=effectiveStatus(t);return s==='done'||s==='close';});if(ids.length===0)return;vscode.postMessage({type:'board:archive',taskIds:ids});});
-document.querySelectorAll('[data-stab]').forEach(el=>el.addEventListener('click',()=>{document.querySelectorAll('[data-stab]').forEach(t=>t.classList.remove('active'));el.classList.add('active');activeTab=el.dataset.stab;renderList();updateArchiveButton();}));document.getElementById('search-box').addEventListener('input',e=>{searchQuery=e.target.value;render();});document.getElementById('my-tasks-toggle').addEventListener('click',()=>{myTasksOnly=!myTasksOnly;render();});document.getElementById('view-kanban').addEventListener('click',()=>{currentView='kanban';renderView();updateArchiveButton();});document.getElementById('view-list').addEventListener('click',()=>{currentView='list';renderView();updateArchiveButton();});document.querySelectorAll('th[data-col]').forEach(th=>th.addEventListener('click',()=>{const col=th.dataset.col;if(listSort.col===col){listSort.dir=listSort.dir==='asc'?'desc':'asc';}else{listSort={col,dir:'asc'};}renderList();}));
-document.getElementById('add-task').addEventListener('click',()=>{vscode.postMessage({type:'card:create',status:'todo',projectId});});
-document.querySelectorAll('.column').forEach(column=>{column.addEventListener('dragover',(event)=>{event.preventDefault();document.querySelectorAll('.column').forEach(c=>c.classList.remove('drag-over'));column.classList.add('drag-over');});column.addEventListener('dragleave',()=>column.classList.remove('drag-over'));column.addEventListener('drop',()=>{document.querySelectorAll('.column').forEach(c=>c.classList.remove('drag-over'));const dragging=document.querySelector('.task[data-dragging="true"]');if(!dragging)return;const task=tasks.find(t=>t.taskId===dragging.dataset.taskId);if(!task)return;const toStatus=column.dataset.status;if(task.status===toStatus)return;const {version,...taskWithoutVersion}=task;vscode.postMessage({type:'board:drop',task:{...taskWithoutVersion,expectedVersion:version},toStatus});task.status=toStatus;task.version+=1;render();});});const normalizeTreeTasks=(nodes,parentTaskId=null)=>{const out=[];for(const node of nodes??[]){const {children=[],...rest}=node;const normalized={...rest,parentTaskId:rest.parentTaskId??parentTaskId};out.push(normalized);if(Array.isArray(children)&&children.length>0){out.push(...normalizeTreeTasks(children,node.taskId));}}return out;};window.addEventListener('message',(event)=>{if(event.data?.type==='board:init'){tasks=normalizeTreeTasks(event.data.tasks??[]);if(!projectId){projectId=tasks[0]?.projectId??null;}render();renderView();updateArchiveButton();}});
+const visibleKanbanTask=t=>!t.isArchived&&!(t.isClosed||t.status==='close');
+const matchesFilters=t=>{const q=searchQuery.toLowerCase();return(!myTasksOnly||t.assignee===currentUserId)&&(!q||t.title.toLowerCase().includes(q)||((t.assignee??'').toLowerCase().includes(q)));};
+const avatarEl=a=>{if(!a)return'';const ini=a.trim().split(/\s+/).map(w=>w[0]||'').join('').slice(0,2).toUpperCase()||'?';const hue=[...a].reduce((h,c)=>h+c.charCodeAt(0),0)%360;return'<div class="avatar" style="background:hsl('+hue+',55%,45%)">'+ini+'</div>';};
+const priLabel={low:'Low',medium:'Med',high:'High',critical:'Crit'};
+const render=()=>{
+  for(const status of statuses){
+    const inStatus=tasks.filter(t=>effectiveStatus(t)===status&&matchesFilters(t)&&visibleKanbanTask(t));
+    document.getElementById('cnt-'+status).textContent=String(inStatus.length);
+    const area=document.getElementById('col-'+status);area.innerHTML='';
+    for(const task of inStatus){
+      const el=document.createElement('div');
+      el.className='task-card';el.dataset.taskId=task.taskId;el.dataset.priority=task.priority;el.draggable=true;
+      const today=new Date().toISOString().slice(0,10);
+      const dueStr=task.dueDate?('<span class="card-due'+(task.dueDate<today?' overdue':'')+'">📅 '+new Date(task.dueDate).toLocaleDateString('ja-JP')+'</span>'):'';
+      el.innerHTML='<div class="card-seq">#'+(task.sequenceNumber??'')+'</div><div class="card-title">'+esc(task.title)+'</div><div class="card-footer"><span class="pb pb-'+task.priority+'">'+(priLabel[task.priority]??task.priority)+'</span>'+avatarEl(task.assignee)+dueStr+'</div>';
+      el.addEventListener('click',()=>vscode.postMessage({type:'card:open',taskId:task.taskId}));
+      el.addEventListener('dragstart',()=>{draggingTaskId=task.taskId;el.style.opacity='.35';});
+      el.addEventListener('dragend',()=>{el.style.opacity='';draggingTaskId=null;});
+      area.appendChild(el);
+    }
+  }
+};
+${showBack ? "document.getElementById('btn-back').addEventListener('click',()=>vscode.postMessage({type:'board:back'}));" : ''}
+document.getElementById('search-box').addEventListener('input',e=>{searchQuery=e.target.value;render();});
+document.getElementById('btn-refresh').addEventListener('click',()=>vscode.postMessage({type:'board:refresh'}));
+document.getElementById('my-tasks-toggle').addEventListener('click',function(){myTasksOnly=!myTasksOnly;this.classList.toggle('btn-active',myTasksOnly);render();});
+document.getElementById('add-task').addEventListener('click',()=>vscode.postMessage({type:'card:create',status:'todo',projectId}));
+document.querySelectorAll('.column').forEach(col=>{
+  col.addEventListener('dragover',e=>{e.preventDefault();document.querySelectorAll('.column').forEach(c=>c.classList.remove('drag-over'));col.classList.add('drag-over');});
+  col.addEventListener('dragleave',()=>col.classList.remove('drag-over'));
+  col.addEventListener('drop',()=>{
+    document.querySelectorAll('.column').forEach(c=>c.classList.remove('drag-over'));
+    if(!draggingTaskId)return;
+    const task=tasks.find(t=>t.taskId===draggingTaskId);if(!task)return;
+    const toStatus=col.dataset.status;if(task.status===toStatus)return;
+    const{version,...rest}=task;
+    vscode.postMessage({type:'board:drop',task:{...rest,expectedVersion:version},toStatus});
+    task.status=toStatus;task.version+=1;render();
+  });
+});
+const normalizeTreeTasks=(nodes,parentId=null)=>{const out=[];for(const node of nodes??[]){const{children=[],...rest}=node;out.push({...rest,parentTaskId:rest.parentTaskId??parentId});if(children.length>0)out.push(...normalizeTreeTasks(children,node.taskId));}return out;};
+window.addEventListener('message',e=>{if(e.data?.type==='board:init'){tasks=normalizeTreeTasks(e.data.tasks??[]);if(!projectId)projectId=tasks[0]?.projectId??null;render();}});
+vscode.postMessage({type:'board:ready'});
 </script></body></html>`;
   }
 
@@ -127,7 +235,7 @@ function isCardMenuMessage(value: unknown): value is { type: 'card:menu'; action
 function isCardCreateMessage(value: unknown): value is { type: 'card:create'; status: TaskStatus; title?: string; projectId?: string; priority?: Priority; assignee?: string | null; dueDate?: string | null; tags?: string[] } {
   if (!value || typeof value !== 'object') return false;
   const c = value as Record<string, unknown>;
-  return c.type === 'card:create' && ['todo', 'in_progress', 'blocked', 'done'].includes(String(c.status)) && (c.title === undefined || typeof c.title === 'string') && (c.projectId === undefined || typeof c.projectId === 'string') && (c.priority === undefined || ['low', 'medium', 'high', 'critical'].includes(String(c.priority))) && (c.assignee === undefined || c.assignee === null || typeof c.assignee === 'string') && (c.dueDate === undefined || c.dueDate === null || typeof c.dueDate === 'string') && (c.tags === undefined || (Array.isArray(c.tags) && c.tags.every(tag => typeof tag === 'string')));
+  return c.type === 'card:create' && ['todo', 'in_progress', 'review', 'done'].includes(String(c.status)) && (c.title === undefined || typeof c.title === 'string') && (c.projectId === undefined || typeof c.projectId === 'string') && (c.priority === undefined || ['low', 'medium', 'high', 'critical'].includes(String(c.priority))) && (c.assignee === undefined || c.assignee === null || typeof c.assignee === 'string') && (c.dueDate === undefined || c.dueDate === null || typeof c.dueDate === 'string') && (c.tags === undefined || (Array.isArray(c.tags) && c.tags.every(tag => typeof tag === 'string')));
 }
 
 function isBoardArchiveMessage(value: unknown): value is { type: 'board:archive'; taskIds: string[] } {
@@ -140,4 +248,19 @@ function isCardMenuActionMessage(value: unknown): value is { type: 'card:menuAct
   if (!value || typeof value !== 'object') return false;
   const candidate = value as Record<string, unknown>;
   return candidate.type === 'card:menuAction' && (candidate.action === 'edit' || candidate.action === 'delete') && typeof candidate.taskId === 'string';
+}
+
+function isBoardBackMessage(value: unknown): value is { type: 'board:back' } {
+  if (!value || typeof value !== 'object') return false;
+  return (value as Record<string, unknown>).type === 'board:back';
+}
+
+function isBoardReadyMessage(value: unknown): value is { type: 'board:ready' } {
+  if (!value || typeof value !== 'object') return false;
+  return (value as Record<string, unknown>).type === 'board:ready';
+}
+
+function isBoardRefreshMessage(value: unknown): value is { type: 'board:refresh' } {
+  if (!value || typeof value !== 'object') return false;
+  return (value as Record<string, unknown>).type === 'board:refresh';
 }

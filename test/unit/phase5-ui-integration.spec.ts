@@ -174,15 +174,16 @@ describe('Phase5 UI integration', () => {
       ]
     );
 
+    await handler?.({ type: 'board:ready' });
     expect(postMessage).toHaveBeenCalledWith({
       type: 'board:init',
       tasks: [expect.objectContaining({ sequenceNumber: 1 })]
     });
-    expect(fakePanel.webview.html).toContain('count-badge');
-    expect(fakePanel.webview.html).toContain('toolbar');
+    expect(fakePanel.webview.html).toContain('col-count');
+    expect(fakePanel.webview.html).toContain('app-header');
     expect(fakePanel.webview.html).toContain('id="add-task"');
     expect(fakePanel.webview.html).toContain('search-box');
-    expect(fakePanel.webview.html).toContain('view-list');
+    expect(fakePanel.webview.html).toContain('class="board-wrap"');
 
     await handler?.({ type: 'card:menu', action: 'edit', taskId: 't1' });
     await handler?.({ type: 'card:create', status: 'todo' });

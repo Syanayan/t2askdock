@@ -23,7 +23,10 @@ export class TaskTableWebviewPanel {
     private readonly confirmArchive?: (count: number) => Promise<boolean>,
     private readonly addCategory?: () => Promise<void>,
     private readonly renameCategory?: (projectId: string) => Promise<void>,
-    private readonly onCategoryChanged?: () => void
+    private readonly onCategoryChanged?: () => void,
+    private readonly projectId?: string,
+    private readonly archiveCategory?: (projectId: string) => Promise<void>,
+    private readonly loadProjectArchived?: () => Promise<boolean>
   ) {}
 
   public async render(panel: { title: string; webview: Pick<vscode.Webview, 'html' | 'postMessage' | 'onDidReceiveMessage'> }): Promise<void> {
@@ -66,10 +69,17 @@ export class TaskTableWebviewPanel {
         this.onCategoryChanged?.();
         await this.postTasks(panel.webview);
       }
-      if (isReadyMessage(message)) {
+      if (isArchiveCategoryRequestMessage(message) && this.archiveCategory) {
+        await this.archiveCategory(message.projectId);
+      }
+      if (isReadyMessage(message) || isRefreshMessage(message)) {
         await this.postTasks(panel.webview);
       }
     });
+  }
+
+  public async refresh(webview: Pick<vscode.Webview, 'postMessage'>): Promise<void> {
+    await this.postTasks(webview);
   }
 
   public renderDisconnected(panel: { title: string; webview: Pick<vscode.Webview, 'html'> }): void {
@@ -78,7 +88,9 @@ export class TaskTableWebviewPanel {
 
   private async postTasks(webview: Pick<vscode.Webview, 'postMessage'>): Promise<void> {
     const tasks = this.withCalculatedProgress(await this.loadTree());
-    await webview.postMessage?.({ type: 'table:init', tasks, title: this.panelTitle });
+    const title = tasks.find(t => t.projectName)?.projectName ?? this.panelTitle;
+    const isProjectArchived = this.loadProjectArchived ? await this.loadProjectArchived() : false;
+    await webview.postMessage?.({ type: 'table:init', tasks, title, isProjectArchived });
   }
 
   private withCalculatedProgress(nodes: TableTaskNode[]): TableTaskNode[] {
@@ -168,6 +180,7 @@ export class TaskTableWebviewPanel {
   }
 
   private buildHtml(): string {
+    const singleProject = !!this.projectId;
     return `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"/><style>
     *{box-sizing:border-box}
     body{font-family:var(--vscode-font-family,sans-serif);margin:0;padding:0;background:var(--vscode-editor-background);color:var(--vscode-editor-foreground)}
@@ -199,7 +212,7 @@ export class TaskTableWebviewPanel {
     .sb-in_progress{background:rgba(245,158,11,.1);color:#fcd34d;border-color:rgba(245,158,11,.25)}
     .sb-done{background:rgba(34,197,94,.1);color:#86efac;border-color:rgba(34,197,94,.25)}
     .sb-close{background:rgba(251,146,60,.1);color:#fdba74;border-color:rgba(251,146,60,.25)}
-    .sb-blocked{background:rgba(239,68,68,.1);color:#fca5a5;border-color:rgba(239,68,68,.25)}
+    .sb-review{background:rgba(139,92,246,.1);color:#c4b5fd;border-color:rgba(139,92,246,.25)}
     .sb-archived{background:rgba(156,163,175,.08);color:rgba(156,163,175,.7);border-color:rgba(156,163,175,.2)}
     .pb{display:inline-block;border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700;border:1px solid;white-space:nowrap}
     .pb-critical{background:rgba(239,68,68,.12);color:#f87171;border-color:rgba(239,68,68,.25)}
@@ -211,25 +224,30 @@ export class TaskTableWebviewPanel {
     .prog-pct{font-size:11px;font-weight:600;opacity:.75}
     .prog-bar{height:4px;border-radius:2px;background:color-mix(in srgb,var(--vscode-editor-foreground) 10%,transparent);overflow:hidden}
     .prog-fill{height:100%;border-radius:2px}
-    .task-link{cursor:pointer;font-weight:500}
-    .task-link:hover{color:#0ea5e9;text-decoration:underline}
-    .tree-toggle{cursor:pointer;display:inline-block;width:16px;font-size:10px;opacity:.5;flex-shrink:0}
+    .task-link{font-weight:500}
+    .tree-toggle{cursor:pointer;font-size:11px;opacity:.5;flex-shrink:0;width:14px;text-align:center}
     .tree-toggle:hover{opacity:1}
     .cat-row td{background:color-mix(in srgb,var(--vscode-editor-foreground) 5%,transparent);font-weight:600;font-size:13px;cursor:pointer;user-select:none;padding:8px 14px;border-bottom:1px solid var(--vscode-panel-border)}
     .cat-arrow{display:inline-block;width:16px;font-size:10px;opacity:.5;margin-right:2px}
     .table-footer{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-top:1px solid var(--vscode-panel-border);font-size:12px;opacity:.55;flex-wrap:wrap;gap:6px}
     .footer-stat{display:inline-flex;align-items:center;gap:4px;margin-left:10px}
     .stat-dot{width:7px;height:7px;border-radius:50%;display:inline-block;flex-shrink:0}
+    .archived-badge{display:none;align-items:center;gap:5px;background:rgba(156,163,175,.12);border:1px solid rgba(156,163,175,.3);border-radius:999px;padding:3px 10px;font-size:11px;font-weight:700;color:rgba(156,163,175,.8);white-space:nowrap}
+    body.project-archived .archived-badge{display:inline-flex}
+    body.project-archived #btn-rename,body.project-archived #btn-open-board,body.project-archived #btn-archive-selected,body.project-archived #btn-add-task,body.project-archived #btn-archive-category{opacity:.35;pointer-events:none;cursor:not-allowed}
     </style></head>
     <body>
     <header class="app-header">
       <span class="app-title" id="panel-title">...</span>
+      <span class="archived-badge">▪ アーカイブ済み</span>
       <div class="search-wrap"><span class="search-icon">⌕</span><input class="search-input" id="search-input" placeholder="検索..." type="text"/></div>
       <div class="header-right">
-        <button id="btn-add-category" class="btn" type="button">Add Category</button>
+        ${singleProject ? '<button id="btn-rename" class="btn" type="button">Rename</button>' : ''}
+        ${singleProject && this.openProject ? '<button id="btn-open-board" class="btn" type="button">Board</button>' : ''}
+        <button id="btn-refresh" class="btn" type="button" title="Refresh">↺</button>
         <button id="btn-archive-selected" class="btn" type="button" style="display:none">Archive</button>
         <button id="btn-add-task" class="btn btn-primary" type="button" style="display:none">+ Add Task</button>
-        <button id="btn-unmount-db" class="btn" type="button" style="display:none">Unmount DB</button>
+        ${singleProject && this.archiveCategory ? '<button id="btn-archive-category" class="btn" type="button" disabled>Archive Category</button>' : ''}
       </div>
     </header>
     <div class="tabs-bar">
@@ -247,24 +265,24 @@ export class TaskTableWebviewPanel {
     </div>
     <script>
     const vscode = acquireVsCodeApi();
+    const singleProject = ${singleProject};
     let roots=[]; let currentTab='task'; const expanded=new Set(); const collapsedProjects=new Set(); const clickTimers={};
     let selectedTaskIds=[]; let anchorTaskId=null; let searchQuery='';
     const effectiveStatus=(n)=>n.isArchived?'archived':(n.isClosed?'close':n.status);
     const esc=(s)=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    const statusMap={todo:['⊙','TODO','sb-todo'],in_progress:['●','PROGRESS','sb-in_progress'],done:['✓','DONE','sb-done'],close:['⊗','CLOSE','sb-close'],blocked:['⚠','BLOCKED','sb-blocked'],archived:['▪','ARCHIVED','sb-archived']};
+    const statusMap={todo:['⊙','TODO','sb-todo'],in_progress:['●','PROGRESS','sb-in_progress'],done:['✓','DONE','sb-done'],close:['⊗','CLOSE','sb-close'],review:['◉','REVIEW','sb-review'],archived:['▪','ARCHIVED','sb-archived']};
     const statusBadge=(s)=>{const[ic,lb,cls]=statusMap[s]||['','unknown','sb-todo'];return'<span class="sb '+cls+'">'+ic+' '+lb+'</span>';};
     const avatarEl=(a)=>{if(!a)return'<span style="opacity:.3">—</span>';const ini=a.trim().split(/\s+/).map(w=>w[0]||'').join('').slice(0,2).toUpperCase()||'?';const hue=[...a].reduce((h,c)=>h+c.charCodeAt(0),0)%360;return'<div class="avatar" style="background:hsl('+hue+',55%,45%)">'+ini+'</div>';};
     const priBadge=(p)=>{const cls='pb-'+(p||'low');const lb=(p||'low').toUpperCase();return'<span class="pb '+cls+'">'+lb+'</span>';};
     const progBar=(pct)=>{const c=pct>=100?'#22c55e':pct>=60?'#0ea5e9':pct>=30?'#f59e0b':'#6b7280';return'<div class="prog-wrap"><div class="prog-pct">'+pct+'%</div><div class="prog-bar"><div class="prog-fill" style="width:'+pct+'%;background:'+c+'"></div></div></div>';};
-    const matchTab=(n)=>{const s=effectiveStatus(n);if(currentTab==='task')return s==='todo'||s==='in_progress'||s==='blocked';return s===currentTab;};
+    const matchTab=(n)=>{const s=effectiveStatus(n);if(currentTab==='task')return s==='todo'||s==='in_progress'||s==='review';return s===currentTab;};
     const matchSearch=(n)=>!searchQuery||esc(n.title).toLowerCase().includes(searchQuery.toLowerCase())||n.title.toLowerCase().includes(searchQuery.toLowerCase());
     const statColors={todo:'#93c5fd',in_progress:'#fcd34d',done:'#86efac',close:'#fdba74',blocked:'#fca5a5',archived:'#9ca3af'};
     const statLabels={todo:'Todo',in_progress:'Progress',done:'Done',close:'Close',blocked:'Blocked',archived:'Archived'};
+    const flatAll=(nodes)=>nodes.flatMap(function flat(x){return[x,...(x.children||[]).flatMap(flat)];});
     const render=()=>{
       const rows=document.getElementById('rows'); rows.innerHTML='';
       let totalCount=0; const stats={};
-      const byProject={}; const pidOrder=[]; const pnames={};
-      roots.forEach(n=>{const pid=n.projectId||'';if(!(pid in pnames)){pidOrder.push(pid);pnames[pid]=n.projectName||pid;byProject[pid]=[];}byProject[pid].push(n);});
       const walk=(nodes,depth)=>nodes.forEach(n=>{
         if(n.taskId?.startsWith('__empty__'))return;
         const hasChildren=(n.children||[]).length>0; const open=expanded.has(n.taskId);
@@ -273,8 +291,9 @@ export class TaskTableWebviewPanel {
         const tr=document.createElement('tr');
         if(selectedTaskIds.includes(n.taskId))tr.classList.add('selected');
         tr.dataset.taskId=n.taskId; tr.dataset.projectId=n.projectId||'';
-        const pad=depth*16;
-        tr.innerHTML='<td style="display:flex;align-items:center;gap:4px;padding:11px 14px"><span style="display:inline-block;width:'+pad+'px;flex-shrink:0"></span><span class="tree-toggle" data-id="'+n.taskId+'">'+(hasChildren?(open?'▾':'▸'):'')+'</span><span class="task-link" data-open="'+n.taskId+'">'+esc(n.title)+'</span></td>'+
+        const padLeft=14+depth*16;
+        const toggleHtml=hasChildren?'<span class="tree-toggle" data-id="'+n.taskId+'">'+(open?'▾':'▸')+'</span>':'';
+        tr.innerHTML='<td style="display:flex;align-items:center;gap:4px;padding:11px 14px 11px '+padLeft+'px">'+toggleHtml+'<span class="task-link">'+esc(n.title)+'</span></td>'+
         '<td>'+statusBadge(es)+'</td>'+
         '<td>'+avatarEl(n.assignee)+'</td>'+
         '<td>'+priBadge(n.priority)+'</td>'+
@@ -283,18 +302,25 @@ export class TaskTableWebviewPanel {
         rows.appendChild(tr);
         if(hasChildren&&open)walk(n.children,depth+1);
       });
-      pidOrder.forEach(pid=>{
-        const isOpen=!collapsedProjects.has(pid);
-        const htr=document.createElement('tr'); htr.className='cat-row';
-        htr.innerHTML='<td colspan="6"><span class="cat-arrow">'+(isOpen?'▾':'▸')+'</span>'+esc(pnames[pid])+' <button data-rename-project="'+pid+'" class="btn" style="padding:1px 7px;font-size:11px">Rename</button></td>';
-        htr.addEventListener('click',()=>{if(clickTimers[pid]){clearTimeout(clickTimers[pid]);delete clickTimers[pid];vscode.postMessage({type:'table:openProject',projectId:pid,projectName:pnames[pid]});}else{clickTimers[pid]=setTimeout(()=>{delete clickTimers[pid];collapsedProjects.has(pid)?collapsedProjects.delete(pid):collapsedProjects.add(pid);document.getElementById('panel-title').textContent=pnames[pid];render();},250);}});
-        rows.appendChild(htr);
-        if(isOpen)walk(byProject[pid],0);
-      });
-      rows.querySelectorAll('[data-id]').forEach(el=>el.onclick=(e)=>{e.stopPropagation();const id=el.dataset.id;expanded.has(id)?expanded.delete(id):expanded.add(id);render();});
-      rows.querySelectorAll('[data-open]').forEach(el=>el.onclick=(e)=>{e.stopPropagation();vscode.postMessage({type:'table:openTask',taskId:el.dataset.open});});
-      rows.querySelectorAll('[data-rename-project]').forEach(el=>el.addEventListener('click',(ev)=>{ev.stopPropagation();vscode.postMessage({type:'table:renameCategoryRequest',projectId:el.dataset.renameProject});}));
-      rows.querySelectorAll('tr[data-task-id]').forEach(row=>row.addEventListener('click',(e)=>{const id=row.dataset.taskId;const ids=Array.from(rows.querySelectorAll('tr[data-task-id]')).map(r=>r.dataset.taskId);if(e.shiftKey&&anchorTaskId&&ids.includes(anchorTaskId)){const a=ids.indexOf(anchorTaskId),b=ids.indexOf(id);const[s,e2]=a<b?[a,b]:[b,a];selectedTaskIds=[...new Set([...selectedTaskIds,...ids.slice(s,e2+1)])];}else if(e.ctrlKey||e.metaKey){selectedTaskIds=selectedTaskIds.includes(id)?selectedTaskIds.filter(v=>v!==id):[...selectedTaskIds,id];anchorTaskId=id;}else{selectedTaskIds=[id];anchorTaskId=id;}applySelection();}));
+      if(singleProject){
+        walk(roots,0);
+        const archiveCatBtn=document.getElementById('btn-archive-category');
+        if(archiveCatBtn){const realTasks=flatAll(roots).filter(n=>!n.taskId?.startsWith('__empty__'));const canArchive=realTasks.length===0||realTasks.every(n=>n.isArchived||n.status==='done');archiveCatBtn.disabled=!canArchive;}
+      }else{
+        const byProject={}; const pidOrder=[]; const pnames={};
+        roots.forEach(n=>{const pid=n.projectId||'';if(!(pid in pnames)){pidOrder.push(pid);pnames[pid]=n.projectName||pid;byProject[pid]=[];}byProject[pid].push(n);});
+        pidOrder.forEach(pid=>{
+          const isOpen=!collapsedProjects.has(pid);
+          const htr=document.createElement('tr'); htr.className='cat-row';
+          htr.innerHTML='<td colspan="6"><span class="cat-arrow">'+(isOpen?'▾':'▸')+'</span>'+esc(pnames[pid])+' <button data-rename-project="'+pid+'" class="btn" style="padding:1px 7px;font-size:11px">Rename</button></td>';
+          htr.addEventListener('click',()=>{if(clickTimers[pid]){clearTimeout(clickTimers[pid]);delete clickTimers[pid];vscode.postMessage({type:'table:openProject',projectId:pid,projectName:pnames[pid]});}else{clickTimers[pid]=setTimeout(()=>{delete clickTimers[pid];collapsedProjects.has(pid)?collapsedProjects.delete(pid):collapsedProjects.add(pid);document.getElementById('panel-title').textContent=pnames[pid];render();},250);}});
+          rows.appendChild(htr);
+          if(isOpen)walk(byProject[pid],0);
+        });
+        rows.querySelectorAll('[data-rename-project]').forEach(el=>el.addEventListener('click',(ev)=>{ev.stopPropagation();vscode.postMessage({type:'table:renameCategoryRequest',projectId:el.dataset.renameProject});}));
+      }
+      rows.querySelectorAll('[data-id]').forEach(el=>{el.onclick=(e)=>{e.stopPropagation();const id=el.dataset.id;expanded.has(id)?expanded.delete(id):expanded.add(id);render();};el.ondblclick=(e)=>e.stopPropagation();});
+      rows.querySelectorAll('tr[data-task-id]').forEach(row=>{row.addEventListener('click',(e)=>{const id=row.dataset.taskId;const ids=Array.from(rows.querySelectorAll('tr[data-task-id]')).map(r=>r.dataset.taskId);if(e.shiftKey&&anchorTaskId&&ids.includes(anchorTaskId)){const a=ids.indexOf(anchorTaskId),b=ids.indexOf(id);const[s,e2]=a<b?[a,b]:[b,a];selectedTaskIds=[...new Set([...selectedTaskIds,...ids.slice(s,e2+1)])];}else if(e.ctrlKey||e.metaKey){selectedTaskIds=selectedTaskIds.includes(id)?selectedTaskIds.filter(v=>v!==id):[...selectedTaskIds,id];anchorTaskId=id;}else{selectedTaskIds=[id];anchorTaskId=id;}applySelection();});row.addEventListener('dblclick',()=>{vscode.postMessage({type:'table:openTask',taskId:row.dataset.taskId});});});
       applySelection();
       document.getElementById('footer-count').textContent='Showing '+totalCount+' total tasks';
       document.getElementById('footer-stats').innerHTML=Object.entries(stats).map(([k,v])=>'<span class="footer-stat"><span class="stat-dot" style="background:'+(statColors[k]||'#888')+'"></span>'+v+' '+(statLabels[k]||k)+'</span>').join('');
@@ -303,16 +329,19 @@ export class TaskTableWebviewPanel {
     const applySelection=()=>{const map=rowMap();Object.values(map).forEach(r=>r.classList.remove('selected'));selectedTaskIds.forEach(id=>map[id]?.classList.add('selected'));const ctrl=${this.enableArchiveControls ? 'true' : 'false'};const vis=ctrl&&['done','close'].includes(currentTab);const archiveBtn=document.getElementById('btn-archive-selected');const addTaskBtn=document.getElementById('btn-add-task');if(archiveBtn){archiveBtn.style.display=vis?'inline-block':'none';archiveBtn.disabled=selectedTaskIds.length===0;}if(addTaskBtn)addTaskBtn.style.display=ctrl?'inline-block':'none';};
     const archiveBtn=document.getElementById('btn-archive-selected');
     const addTaskBtn=document.getElementById('btn-add-task');
-    const addCategoryBtn=document.getElementById('btn-add-category');
-    const collectArchivable=()=>selectedTaskIds.filter(id=>{const n=roots.flatMap(function flat(x){return[x,...(x.children||[]).flatMap(flat)];}).find(x=>x.taskId===id);if(!n)return false;const s=effectiveStatus(n);return s==='done'||s==='close';});
+    const collectArchivable=()=>selectedTaskIds.filter(id=>{const n=flatAll(roots).find(x=>x.taskId===id);if(!n)return false;const s=effectiveStatus(n);return s==='done'||s==='close';});
     if(addTaskBtn){addTaskBtn.addEventListener('click',()=>{const row=selectedTaskIds.length?rowMap()[selectedTaskIds[0]]:null;const fallback=(roots[0]?.projectId)||undefined;vscode.postMessage({type:'table:addTask',projectId:row?.dataset.projectId||fallback});});}
-    if(addCategoryBtn){addCategoryBtn.addEventListener('click',()=>vscode.postMessage({type:'table:addCategoryRequest'}));}
     if(archiveBtn){archiveBtn.addEventListener('click',()=>{const ids=collectArchivable();if(ids.length===0)return;vscode.postMessage({type:'table:archiveTasks',taskIds:ids});});}
-    const unmountBtn=document.getElementById('btn-unmount-db');
-    if(unmountBtn){const can=${this.unmountDatabase ? 'true' : 'false'};if(can){unmountBtn.style.display='inline-block';unmountBtn.addEventListener('click',()=>vscode.postMessage({type:'table:unmountDatabase'}));}}
+    const renameBtn=document.getElementById('btn-rename');
+    if(renameBtn){renameBtn.addEventListener('click',()=>{const pid=roots[0]?.projectId;if(pid)vscode.postMessage({type:'table:renameCategoryRequest',projectId:pid});});}
+    const boardBtn=document.getElementById('btn-open-board');
+    if(boardBtn){boardBtn.addEventListener('click',()=>{const pid=roots[0]?.projectId;const pname=roots.find(n=>n.projectName)?.projectName||'';if(pid)vscode.postMessage({type:'table:openProject',projectId:pid,projectName:pname});});}
+    const archiveCatBtn=document.getElementById('btn-archive-category');
+    if(archiveCatBtn){archiveCatBtn.addEventListener('click',()=>{if(archiveCatBtn.disabled)return;const pid=roots[0]?.projectId;if(pid)vscode.postMessage({type:'table:archiveCategoryRequest',projectId:pid});});}
+    document.getElementById('btn-refresh').addEventListener('click',()=>vscode.postMessage({type:'table:refresh'}));
     document.getElementById('search-input').addEventListener('input',(e)=>{searchQuery=e.target.value;render();});
     document.querySelectorAll('.tab').forEach(el=>el.onclick=()=>{document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));el.classList.add('active');currentTab=el.dataset.tab;render();});
-    window.addEventListener('message',(event)=>{if(event.data?.type==='table:init'){roots=event.data.tasks??[];document.getElementById('panel-title').textContent=event.data.title??'Task Table';render();}});
+    window.addEventListener('message',(event)=>{if(event.data?.type==='table:init'){roots=event.data.tasks??[];document.getElementById('panel-title').textContent=event.data.title??'Task Table';document.body.classList.toggle('project-archived',!!event.data.isProjectArchived);render();}});
     vscode.postMessage({type:'table:ready'});
     </script></body></html>`;
   }
@@ -372,9 +401,20 @@ function isRenameCategoryRequestMessage(value: unknown): value is { type: 'table
   return c.type === 'table:renameCategoryRequest' && typeof c.projectId === 'string';
 }
 
+function isArchiveCategoryRequestMessage(value: unknown): value is { type: 'table:archiveCategoryRequest'; projectId: string } {
+  if (!value || typeof value !== 'object') return false;
+  const c = value as Record<string, unknown>;
+  return c.type === 'table:archiveCategoryRequest' && typeof c.projectId === 'string';
+}
+
 
 function isReadyMessage(value: unknown): value is { type: 'table:ready' } {
   if (!value || typeof value !== 'object') return false;
   const c = value as Record<string, unknown>;
   return c.type === 'table:ready';
+}
+
+function isRefreshMessage(value: unknown): value is { type: 'table:refresh' } {
+  if (!value || typeof value !== 'object') return false;
+  return (value as Record<string, unknown>).type === 'table:refresh';
 }

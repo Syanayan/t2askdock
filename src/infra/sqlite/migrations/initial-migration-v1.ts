@@ -21,7 +21,7 @@ export const INITIAL_MIGRATION_V1_SQL = [
     project_id TEXT NOT NULL REFERENCES projects(project_id),
     title TEXT NOT NULL,
     description TEXT,
-    status TEXT NOT NULL CHECK(status IN ('todo','in_progress','done','blocked')),
+    status TEXT NOT NULL CHECK(status IN ('todo','in_progress','done','review')),
     priority TEXT NOT NULL CHECK(priority IN ('low','medium','high','critical')),
     assignee TEXT,
     due_date TEXT,

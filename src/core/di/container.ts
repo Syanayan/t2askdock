@@ -194,7 +194,7 @@ export class AppContainer {
   }
 
   public buildProjectTaskLoader(): {
-    listProjects(): Promise<Array<{ projectId: string; projectName: string }>>;
+    listProjects(options?: { archivedOnly?: boolean }): Promise<Array<{ projectId: string; projectName: string; archived?: boolean }>>;
     listTasksByProject(input: {
       projectId: string;
       offset: number;
@@ -208,7 +208,7 @@ export class AppContainer {
     }): Promise<Array<{ taskId: string; projectId: string; title: string; status: TaskStatus; priority: Priority; version: number; hasChildren: boolean }>>;
   } {
     return {
-      listProjects: () => this.infrastructure.taskRepository.listProjects(),
+      listProjects: (opts) => this.infrastructure.taskRepository.listProjects(opts),
       listTasksByProject: (input) => this.infrastructure.taskRepository.listTasksByProject(input),
       listSubtasksByParent: (parentTaskId) => this.infrastructure.taskRepository.listSubtasksByParent(parentTaskId),
       listMyTasks: (input) => this.infrastructure.taskRepository.listMyTasks(input)
@@ -216,11 +216,11 @@ export class AppContainer {
   }
 
   public buildTaskTreeLoader(): {
-    listProjects(): Promise<Array<{ projectId: string; projectName: string }>>;
+    listProjects(options?: { archivedOnly?: boolean }): Promise<Array<{ projectId: string; projectName: string; archived?: boolean }>>;
     listTasksWithDetail(projectId: string): Promise<import('../ports/repositories/task-repository.js').TaskTreeNode[]>;
   } {
     return {
-      listProjects: () => this.infrastructure.taskRepository.listProjects(),
+      listProjects: (opts) => this.infrastructure.taskRepository.listProjects(opts),
       listTasksWithDetail: (projectId) => this.infrastructure.taskRepository.listTasksWithDetail(projectId)
     };
   }

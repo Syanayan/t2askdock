@@ -4,6 +4,9 @@ import type { SwitchDatabaseProfileUseCase } from '../../core/usecase/db/switch-
 import { INITIAL_MIGRATION_V1_SQL } from '../../infra/sqlite/migrations/initial-migration-v1.js';
 import { MIGRATION_V2_SQL } from '../../infra/sqlite/migrations/initial-migration-v2.js';
 import { MIGRATION_V3_SQL } from '../../infra/sqlite/migrations/initial-migration-v3.js';
+import { MIGRATION_V4_SQL } from '../../infra/sqlite/migrations/initial-migration-v4.js';
+import { MIGRATION_V5_SQL } from '../../infra/sqlite/migrations/initial-migration-v5.js';
+import { MIGRATION_V6_SQL } from '../../infra/sqlite/migrations/initial-migration-v6.js';
 import { Migrator } from '../../infra/sqlite/migrations/migrator.js';
 import type { ActiveClientHolder } from '../../infra/sqlite/active-client-holder.js';
 import type { SqliteClient } from '../../infra/sqlite/sqlite-client.js';
@@ -45,7 +48,7 @@ export class TaskDockCommandRegistry {
           reconnectReadOnly: async () => undefined,
           appendMigrationFailedAudit: async () => undefined
         });
-        await migrator.migrate([{ version: 1, statements: INITIAL_MIGRATION_V1_SQL }, { version: 2, statements: MIGRATION_V2_SQL }, { version: 3, statements: MIGRATION_V3_SQL }]);
+        await migrator.migrate([{ version: 1, statements: INITIAL_MIGRATION_V1_SQL }, { version: 2, statements: MIGRATION_V2_SQL }, { version: 3, statements: MIGRATION_V3_SQL }, { version: 4, statements: MIGRATION_V4_SQL }, { version: 5, statements: MIGRATION_V5_SQL }, { version: 6, statements: MIGRATION_V6_SQL }]);
         this.activeClientHolder.switch(newClient);
         this.stateStore.patch({
           activeProfile: output.profileSummary.profileId,

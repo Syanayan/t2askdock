@@ -15,7 +15,7 @@ describe('AllProjectsProvider', () => {
 
     const projects = await provider.getChildren();
     expect(projects).toEqual([
-      { id: 'p1', label: 'P1', kind: 'project', projectId: 'p1', hasChildren: true }
+      { id: 'p1', label: 'P1', kind: 'project', projectId: 'p1', hasChildren: true, archived: false }
     ]);
 
     const tasks = await provider.getChildren(projects[0]);

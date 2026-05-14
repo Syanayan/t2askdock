@@ -4,7 +4,7 @@ import { Title } from '../value-objects/title.js';
 import { Ulid } from '../value-objects/ulid.js';
 import { Version } from '../value-objects/version.js';
 
-export type TaskStatus = 'todo' | 'in_progress' | 'done' | 'blocked' | 'close';
+export type TaskStatus = 'todo' | 'in_progress' | 'done' | 'review' | 'close';
 export type Priority = 'low' | 'medium' | 'high' | 'critical';
 
 export type TaskProps = {
