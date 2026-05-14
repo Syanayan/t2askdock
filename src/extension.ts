@@ -303,6 +303,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const tableWebviewPanels = new Set<vscode.WebviewPanel>();
   const tableWebviewProfileIds = new Map<vscode.WebviewPanel, string | undefined>();
   const tableWebviewInstances = new Map<vscode.WebviewPanel, TaskTableWebviewPanel>();
+  const projectTablePanelByKey = new Map<string, vscode.WebviewPanel>();
   const taskDetailPanels = new Set<vscode.WebviewPanel>();
   const taskDetailPanelByTaskId = new Map<string, vscode.WebviewPanel>();
   const createTablePanel = (profileId?: string, panelTitle?: string, onUnmounted?: () => void, projectId?: string, projectName?: string, enableArchiveControls: boolean = true, vsPanel?: vscode.WebviewPanel): TaskTableWebviewPanel => {
@@ -707,6 +708,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }),
     vscode.commands.registerCommand('taskDock.openProjectTable', async (input?: { projectId?: string; profileId?: string; projectName?: string }) => {
       if (!input?.projectId) return;
+      const projectKey = `${input.profileId ?? ''}:${input.projectId}`;
+      const existingPanel = projectTablePanelByKey.get(projectKey);
+      if (existingPanel) { existingPanel.reveal(vscode.ViewColumn.One); return; }
       const webviewPanel = vscode.window.createWebviewPanel(
         TaskTableWebviewPanel.VIEW_TYPE,
         `Task - ${input.projectName ?? input.projectId}`,
@@ -715,7 +719,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       );
       tableWebviewPanels.add(webviewPanel);
       tableWebviewProfileIds.set(webviewPanel, input.profileId);
-      webviewPanel.onDidDispose(() => { tableWebviewPanels.delete(webviewPanel); tableWebviewProfileIds.delete(webviewPanel); tableWebviewInstances.delete(webviewPanel); if (currentBoardInlinePanel === webviewPanel) currentBoardInlinePanel = undefined; });
+      projectTablePanelByKey.set(projectKey, webviewPanel);
+      webviewPanel.onDidDispose(() => { tableWebviewPanels.delete(webviewPanel); tableWebviewProfileIds.delete(webviewPanel); tableWebviewInstances.delete(webviewPanel); projectTablePanelByKey.delete(projectKey); if (currentBoardInlinePanel === webviewPanel) currentBoardInlinePanel = undefined; });
       const tableInstance = createTablePanel(input.profileId, String(input.projectName ?? input.projectId), () => webviewPanel.dispose(), input.projectId, input.projectName, true, webviewPanel);
       tableWebviewInstances.set(webviewPanel, tableInstance);
       await tableInstance.render(webviewPanel);
