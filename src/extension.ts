@@ -422,6 +422,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         });
         allProjectsProvider.refresh();
         onUnmounted?.();
+      } : undefined,
+      projectId ? async () => {
+        const projects = await withProfileClient(profileId, () => loader.listProjects());
+        return projects.find(p => p.projectId === projectId)?.archived ?? false;
       } : undefined
     );
   };

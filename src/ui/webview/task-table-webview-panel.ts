@@ -25,7 +25,8 @@ export class TaskTableWebviewPanel {
     private readonly renameCategory?: (projectId: string) => Promise<void>,
     private readonly onCategoryChanged?: () => void,
     private readonly projectId?: string,
-    private readonly archiveCategory?: (projectId: string) => Promise<void>
+    private readonly archiveCategory?: (projectId: string) => Promise<void>,
+    private readonly loadProjectArchived?: () => Promise<boolean>
   ) {}
 
   public async render(panel: { title: string; webview: Pick<vscode.Webview, 'html' | 'postMessage' | 'onDidReceiveMessage'> }): Promise<void> {
@@ -88,7 +89,8 @@ export class TaskTableWebviewPanel {
   private async postTasks(webview: Pick<vscode.Webview, 'postMessage'>): Promise<void> {
     const tasks = this.withCalculatedProgress(await this.loadTree());
     const title = tasks.find(t => t.projectName)?.projectName ?? this.panelTitle;
-    await webview.postMessage?.({ type: 'table:init', tasks, title });
+    const isProjectArchived = this.loadProjectArchived ? await this.loadProjectArchived() : false;
+    await webview.postMessage?.({ type: 'table:init', tasks, title, isProjectArchived });
   }
 
   private withCalculatedProgress(nodes: TableTaskNode[]): TableTaskNode[] {
@@ -230,10 +232,14 @@ export class TaskTableWebviewPanel {
     .table-footer{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-top:1px solid var(--vscode-panel-border);font-size:12px;opacity:.55;flex-wrap:wrap;gap:6px}
     .footer-stat{display:inline-flex;align-items:center;gap:4px;margin-left:10px}
     .stat-dot{width:7px;height:7px;border-radius:50%;display:inline-block;flex-shrink:0}
+    .archived-badge{display:none;align-items:center;gap:5px;background:rgba(156,163,175,.12);border:1px solid rgba(156,163,175,.3);border-radius:999px;padding:3px 10px;font-size:11px;font-weight:700;color:rgba(156,163,175,.8);white-space:nowrap}
+    body.project-archived .archived-badge{display:inline-flex}
+    body.project-archived #btn-rename,body.project-archived #btn-open-board,body.project-archived #btn-archive-selected,body.project-archived #btn-add-task,body.project-archived #btn-archive-category{opacity:.35;pointer-events:none;cursor:not-allowed}
     </style></head>
     <body>
     <header class="app-header">
       <span class="app-title" id="panel-title">...</span>
+      <span class="archived-badge">▪ アーカイブ済み</span>
       <div class="search-wrap"><span class="search-icon">⌕</span><input class="search-input" id="search-input" placeholder="検索..." type="text"/></div>
       <div class="header-right">
         ${singleProject ? '<button id="btn-rename" class="btn" type="button">Rename</button>' : ''}
@@ -335,7 +341,7 @@ export class TaskTableWebviewPanel {
     document.getElementById('btn-refresh').addEventListener('click',()=>vscode.postMessage({type:'table:refresh'}));
     document.getElementById('search-input').addEventListener('input',(e)=>{searchQuery=e.target.value;render();});
     document.querySelectorAll('.tab').forEach(el=>el.onclick=()=>{document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));el.classList.add('active');currentTab=el.dataset.tab;render();});
-    window.addEventListener('message',(event)=>{if(event.data?.type==='table:init'){roots=event.data.tasks??[];document.getElementById('panel-title').textContent=event.data.title??'Task Table';render();}});
+    window.addEventListener('message',(event)=>{if(event.data?.type==='table:init'){roots=event.data.tasks??[];document.getElementById('panel-title').textContent=event.data.title??'Task Table';document.body.classList.toggle('project-archived',!!event.data.isProjectArchived);render();}});
     vscode.postMessage({type:'table:ready'});
     </script></body></html>`;
   }
