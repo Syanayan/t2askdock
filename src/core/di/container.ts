@@ -194,7 +194,7 @@ export class AppContainer {
   }
 
   public buildProjectTaskLoader(): {
-    listProjects(options?: { archivedOnly?: boolean }): Promise<Array<{ projectId: string; projectName: string }>>;
+    listProjects(options?: { archivedOnly?: boolean }): Promise<Array<{ projectId: string; projectName: string; archived?: boolean }>>;
     listTasksByProject(input: {
       projectId: string;
       offset: number;
@@ -216,7 +216,7 @@ export class AppContainer {
   }
 
   public buildTaskTreeLoader(): {
-    listProjects(options?: { archivedOnly?: boolean }): Promise<Array<{ projectId: string; projectName: string }>>;
+    listProjects(options?: { archivedOnly?: boolean }): Promise<Array<{ projectId: string; projectName: string; archived?: boolean }>>;
     listTasksWithDetail(projectId: string): Promise<import('../ports/repositories/task-repository.js').TaskTreeNode[]>;
   } {
     return {
