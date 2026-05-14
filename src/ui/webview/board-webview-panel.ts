@@ -123,14 +123,14 @@ body{font-family:var(--vscode-font-family,sans-serif);margin:0;padding:0;backgro
 .pb-medium{background:rgba(234,179,8,.12);color:#facc15;border-color:rgba(234,179,8,.25)}
 .pb-low{background:rgba(34,197,94,.12);color:#4ade80;border-color:rgba(34,197,94,.25)}
 .avatar{width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;flex-shrink:0}
-.board-wrap{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:10px;padding:14px 16px;overflow-x:auto;align-items:flex-start}
-.column{background:var(--vscode-sideBar-background);border-radius:12px;border:1px solid var(--vscode-panel-border);overflow:hidden;min-width:0}
+.board-wrap{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:10px;padding:14px 16px;overflow-x:auto;align-items:stretch}
+.column{background:var(--vscode-sideBar-background);border-radius:12px;border:1px solid var(--vscode-panel-border);overflow:hidden;min-width:0;display:flex;flex-direction:column}
 .column.drag-over{border-color:#0ea5e9;background:color-mix(in srgb,#0ea5e9 4%,var(--vscode-sideBar-background))}
 .col-header{display:flex;align-items:center;gap:8px;padding:11px 14px;border-bottom:1px solid var(--vscode-panel-border)}
 .col-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
 .col-title{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;opacity:.65}
 .col-count{margin-left:auto;font-size:11px;font-weight:700;background:color-mix(in srgb,var(--vscode-editor-foreground) 10%,transparent);border-radius:999px;padding:1px 7px;opacity:.55}
-.tasks-area{padding:8px;display:flex;flex-direction:column;gap:6px;min-height:40px}
+.tasks-area{padding:8px;display:flex;flex-direction:column;gap:6px;min-height:40px;flex:1}
 .task-card{background:var(--vscode-editor-background);border:1px solid var(--vscode-panel-border);border-left-width:3px;border-radius:8px;padding:10px 12px;cursor:pointer;transition:border-color .12s,box-shadow .12s}
 .task-card:hover{border-color:color-mix(in srgb,#0ea5e9 50%,var(--vscode-panel-border));box-shadow:0 2px 8px rgba(0,0,0,.15)}
 .task-card[data-priority="critical"]{border-left-color:#f87171}
