@@ -84,16 +84,16 @@ export class TaskRepository implements TaskRepositoryPort {
     }
   }
 
-  public async listProjects(options?: { archivedOnly?: boolean }): Promise<Array<{ projectId: string; projectName: string }>> {
+  public async listProjects(options?: { archivedOnly?: boolean }): Promise<Array<{ projectId: string; projectName: string; archived: boolean }>> {
     const archived = options?.archivedOnly ? 1 : 0;
-    const rows = await this.holder.get().all<{ projectId: string; projectName: string }>(
-      `SELECT project_id AS projectId, name AS projectName
+    const rows = await this.holder.get().all<{ projectId: string; projectName: string; archived: number }>(
+      `SELECT project_id AS projectId, name AS projectName, archived
        FROM projects
        WHERE archived = ?
        ORDER BY updated_at DESC`,
       [archived]
     );
-    return [...rows];
+    return rows.map(r => ({ projectId: r.projectId, projectName: r.projectName, archived: r.archived === 1 }));
   }
 
   public async listTasksByProject(input: {

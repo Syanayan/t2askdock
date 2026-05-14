@@ -44,7 +44,13 @@ export function makeAllProjectsTreeItem(element: TaskTreeItem): vscode.TreeItem 
       title: 'Open Table',
       arguments: [{ projectId: element.id, profileId: element.profileId, projectName: String(element.label) }]
     };
-    treeItem.tooltip = `カテゴリ: ${element.label}`;
+    if (element.archived) {
+      treeItem.iconPath = new vscode.ThemeIcon('archive', new vscode.ThemeColor('charts.gray'));
+      treeItem.description = 'アーカイブ済み';
+      treeItem.tooltip = `[アーカイブ済み] ${element.label}`;
+    } else {
+      treeItem.tooltip = `カテゴリ: ${element.label}`;
+    }
     treeItem.contextValue = element.kind;
   }
 

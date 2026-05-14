@@ -299,7 +299,7 @@ export class TaskTableWebviewPanel {
       if(singleProject){
         walk(roots,0);
         const archiveCatBtn=document.getElementById('btn-archive-category');
-        if(archiveCatBtn){const realTasks=flatAll(roots).filter(n=>!n.taskId?.startsWith('__empty__'));const canArchive=realTasks.length===0||realTasks.every(n=>n.isArchived);archiveCatBtn.disabled=!canArchive;}
+        if(archiveCatBtn){const realTasks=flatAll(roots).filter(n=>!n.taskId?.startsWith('__empty__'));const canArchive=realTasks.length===0||realTasks.every(n=>n.isArchived||n.status==='done');archiveCatBtn.disabled=!canArchive;}
       }else{
         const byProject={}; const pidOrder=[]; const pnames={};
         roots.forEach(n=>{const pid=n.projectId||'';if(!(pid in pnames)){pidOrder.push(pid);pnames[pid]=n.projectName||pid;byProject[pid]=[];}byProject[pid].push(n);});

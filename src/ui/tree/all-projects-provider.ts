@@ -65,7 +65,8 @@ export class AllProjectsProvider {
         label: project.projectName,
         kind: 'project',
         projectId: project.projectId,
-        hasChildren: true
+        hasChildren: true,
+        archived: project.archived ?? false
       }));
     }
 
@@ -79,7 +80,8 @@ export class AllProjectsProvider {
         kind: 'project',
         projectId: project.projectId,
         profileId: parent.profileId,
-        hasChildren: true
+        hasChildren: true,
+        archived: project.archived ?? false
       }));
     }
 
