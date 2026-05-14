@@ -27,6 +27,7 @@ export class BoardWebviewPanel {
   public static readonly VIEW_TYPE = 'taskDock.boardView';
   private messageListenerDisposable: vscode.Disposable | undefined;
   private onBack: (() => void) | undefined;
+  private onRefresh: (() => Promise<void>) | undefined;
   private initPayload: { type: 'board:init'; tasks: unknown[] } | undefined;
 
   public constructor(
@@ -35,9 +36,10 @@ export class BoardWebviewPanel {
     private readonly executeCommand: (command: string, args?: WebviewCommandArgs) => Promise<unknown> = async () => undefined
   ) {}
 
-  public render(panel: Pick<vscode.WebviewPanel, 'webview' | 'title'>, tasks: BoardTask[], projectName?: string, userId?: string, projectId?: string, onBack?: () => void): void {
+  public render(panel: Pick<vscode.WebviewPanel, 'webview' | 'title'>, tasks: BoardTask[], projectName?: string, userId?: string, projectId?: string, onBack?: () => void, onRefresh?: () => Promise<void>): void {
     panel.title = 'Task Dock Board';
     this.onBack = onBack;
+    this.onRefresh = onRefresh;
     this.initPayload = { type: 'board:init', tasks: tasks.map((task, index) => ({ ...task, sequenceNumber: task.sequenceNumber ?? index + 1 })) };
     const resolvedProjectId = projectId ?? tasks[0]?.projectId ?? null;
     panel.webview.html = this.buildHtml(resolvedProjectId, projectName, userId, !!onBack);
@@ -72,7 +74,16 @@ export class BoardWebviewPanel {
         this.onBack?.();
         return;
       }
+      if (isBoardRefreshMessage(message)) {
+        void this.onRefresh?.();
+        return;
+      }
     });
+  }
+
+  public refreshTasks(panel: Pick<vscode.WebviewPanel, 'webview'>, tasks: BoardTask[]): void {
+    this.initPayload = { type: 'board:init', tasks: tasks.map((task, index) => ({ ...task, sequenceNumber: task.sequenceNumber ?? index + 1 })) };
+    void panel.webview.postMessage(this.initPayload);
   }
 
   public renderDisconnected(panel: Pick<vscode.WebviewPanel, 'webview' | 'title'>): void {
@@ -81,9 +92,9 @@ export class BoardWebviewPanel {
   }
 
   private buildHtml(projectId: string | null, projectName?: string, userId?: string, showBack?: boolean): string {
-    const dotColors = ['#93c5fd', '#fcd34d', '#fca5a5', '#86efac'];
-    const colLabels = ['Todo', 'In Progress', 'Blocked', 'Done'];
-    const statuses = ['todo', 'in_progress', 'blocked', 'done'];
+    const dotColors = ['#93c5fd', '#fcd34d', '#c4b5fd', '#86efac'];
+    const colLabels = ['Todo', 'In Progress', 'Review', 'Done'];
+    const statuses = ['todo', 'in_progress', 'review', 'done'];
     const cols = statuses.map((s, i) =>
       `<div class="column" data-status="${s}"><div class="col-header"><span class="col-dot" style="background:${dotColors[i]}"></span><span class="col-title">${colLabels[i]}</span><span class="col-count" id="cnt-${s}">0</span></div><div class="tasks-area" id="col-${s}"></div></div>`
     ).join('');
@@ -105,7 +116,7 @@ body{font-family:var(--vscode-font-family,sans-serif);margin:0;padding:0;backgro
 .sb-todo{background:rgba(59,130,246,.1);color:#93c5fd;border-color:rgba(59,130,246,.25)}
 .sb-in_progress{background:rgba(245,158,11,.1);color:#fcd34d;border-color:rgba(245,158,11,.25)}
 .sb-done{background:rgba(34,197,94,.1);color:#86efac;border-color:rgba(34,197,94,.25)}
-.sb-blocked{background:rgba(239,68,68,.1);color:#fca5a5;border-color:rgba(239,68,68,.25)}
+.sb-review{background:rgba(139,92,246,.1);color:#c4b5fd;border-color:rgba(139,92,246,.25)}
 .pb{display:inline-block;border-radius:4px;padding:1px 7px;font-size:11px;font-weight:700;border:1px solid;white-space:nowrap}
 .pb-critical{background:rgba(239,68,68,.12);color:#f87171;border-color:rgba(239,68,68,.25)}
 .pb-high{background:rgba(249,115,22,.12);color:#fb923c;border-color:rgba(249,115,22,.25)}
@@ -137,6 +148,7 @@ body{font-family:var(--vscode-font-family,sans-serif);margin:0;padding:0;backgro
   <span class="app-title">${projectName ?? 'Task Board'}</span>
   <div class="search-wrap"><span class="search-icon">⌕</span><input class="search-input" id="search-box" placeholder="検索..." type="search"/></div>
   <div class="header-right">
+    <button id="btn-refresh" class="btn" type="button" title="Refresh">↺</button>
     <button id="my-tasks-toggle" class="btn" type="button">マイタスク</button>
     <button id="add-task" class="btn btn-primary" type="button">+ Add Task</button>
   </div>
@@ -147,7 +159,7 @@ const vscode=acquireVsCodeApi();
 let tasks=[];let myTasksOnly=false;let searchQuery='';let draggingTaskId=null;
 let projectId=${JSON.stringify(projectId)};
 const currentUserId=${JSON.stringify(userId ?? 'system')};
-const statuses=['todo','in_progress','blocked','done'];
+const statuses=['todo','in_progress','review','done'];
 const esc=s=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 const effectiveStatus=t=>t.isArchived?'archived':(t.isClosed||t.status==='close'?'close':t.status);
 const visibleKanbanTask=t=>!t.isArchived&&!(t.isClosed||t.status==='close');
@@ -174,6 +186,7 @@ const render=()=>{
 };
 ${showBack ? "document.getElementById('btn-back').addEventListener('click',()=>vscode.postMessage({type:'board:back'}));" : ''}
 document.getElementById('search-box').addEventListener('input',e=>{searchQuery=e.target.value;render();});
+document.getElementById('btn-refresh').addEventListener('click',()=>vscode.postMessage({type:'board:refresh'}));
 document.getElementById('my-tasks-toggle').addEventListener('click',function(){myTasksOnly=!myTasksOnly;this.classList.toggle('btn-active',myTasksOnly);render();});
 document.getElementById('add-task').addEventListener('click',()=>vscode.postMessage({type:'card:create',status:'todo',projectId}));
 document.querySelectorAll('.column').forEach(col=>{
@@ -222,7 +235,7 @@ function isCardMenuMessage(value: unknown): value is { type: 'card:menu'; action
 function isCardCreateMessage(value: unknown): value is { type: 'card:create'; status: TaskStatus; title?: string; projectId?: string; priority?: Priority; assignee?: string | null; dueDate?: string | null; tags?: string[] } {
   if (!value || typeof value !== 'object') return false;
   const c = value as Record<string, unknown>;
-  return c.type === 'card:create' && ['todo', 'in_progress', 'blocked', 'done'].includes(String(c.status)) && (c.title === undefined || typeof c.title === 'string') && (c.projectId === undefined || typeof c.projectId === 'string') && (c.priority === undefined || ['low', 'medium', 'high', 'critical'].includes(String(c.priority))) && (c.assignee === undefined || c.assignee === null || typeof c.assignee === 'string') && (c.dueDate === undefined || c.dueDate === null || typeof c.dueDate === 'string') && (c.tags === undefined || (Array.isArray(c.tags) && c.tags.every(tag => typeof tag === 'string')));
+  return c.type === 'card:create' && ['todo', 'in_progress', 'review', 'done'].includes(String(c.status)) && (c.title === undefined || typeof c.title === 'string') && (c.projectId === undefined || typeof c.projectId === 'string') && (c.priority === undefined || ['low', 'medium', 'high', 'critical'].includes(String(c.priority))) && (c.assignee === undefined || c.assignee === null || typeof c.assignee === 'string') && (c.dueDate === undefined || c.dueDate === null || typeof c.dueDate === 'string') && (c.tags === undefined || (Array.isArray(c.tags) && c.tags.every(tag => typeof tag === 'string')));
 }
 
 function isBoardArchiveMessage(value: unknown): value is { type: 'board:archive'; taskIds: string[] } {
@@ -245,4 +258,9 @@ function isBoardBackMessage(value: unknown): value is { type: 'board:back' } {
 function isBoardReadyMessage(value: unknown): value is { type: 'board:ready' } {
   if (!value || typeof value !== 'object') return false;
   return (value as Record<string, unknown>).type === 'board:ready';
+}
+
+function isBoardRefreshMessage(value: unknown): value is { type: 'board:refresh' } {
+  if (!value || typeof value !== 'object') return false;
+  return (value as Record<string, unknown>).type === 'board:refresh';
 }

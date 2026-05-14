@@ -73,7 +73,8 @@
       },
       {
         "command": "taskDock.unmountDatabase",
-        "title": "Unmount Database"
+        "title": "Unmount Database",
+        "icon": "$(debug-disconnect)"
       },
       {
         "command": "taskDock.toggleReadOnly",
@@ -235,7 +236,7 @@
         {
           "command": "taskDock.unmountDatabase",
           "when": "view == taskDock.allProjects && viewItem == database",
-          "group": "navigation"
+          "group": "inline"
         },
         {
           "command": "taskDock.createTaskInProject",

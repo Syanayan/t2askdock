@@ -3,6 +3,7 @@ import { INITIAL_MIGRATION_V1_SQL } from '../../src/infra/sqlite/migrations/init
 import { MIGRATION_V2_SQL } from '../../src/infra/sqlite/migrations/initial-migration-v2.js';
 import { MIGRATION_V3_SQL } from '../../src/infra/sqlite/migrations/initial-migration-v3.js';
 import { MIGRATION_V4_SQL } from '../../src/infra/sqlite/migrations/initial-migration-v4.js';
+import { MIGRATION_V5_SQL } from '../../src/infra/sqlite/migrations/initial-migration-v5.js';
 
 vi.mock('vscode', () => ({
   commands: { registerCommand: vi.fn(), executeCommand: vi.fn() },
@@ -96,7 +97,7 @@ describe('extension bootstrapMigrations', () => {
     expect(ensureDirectory).toHaveBeenCalledWith('/tmp/taskdock');
     expect(resolveDatabasePath).toHaveBeenCalledWith('/tmp/taskdock');
     expect(createClient).toHaveBeenCalledWith('/tmp/taskdock.sqlite3');
-    expect(migrate).toHaveBeenCalledWith([{ version: 1, statements: INITIAL_MIGRATION_V1_SQL }, { version: 2, statements: MIGRATION_V2_SQL }, { version: 3, statements: MIGRATION_V3_SQL }, { version: 4, statements: MIGRATION_V4_SQL }]);
+    expect(migrate).toHaveBeenCalledWith([{ version: 1, statements: INITIAL_MIGRATION_V1_SQL }, { version: 2, statements: MIGRATION_V2_SQL }, { version: 3, statements: MIGRATION_V3_SQL }, { version: 4, statements: MIGRATION_V4_SQL }, { version: 5, statements: MIGRATION_V5_SQL }]);
     expect(subscriptions).toHaveLength(1);
 
     subscriptions[0].dispose();

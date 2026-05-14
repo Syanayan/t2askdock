@@ -30,7 +30,7 @@ export function makeAllProjectsTreeItem(element: TaskTreeItem): vscode.TreeItem 
       todo: new vscode.ThemeIcon('circle-outline', new vscode.ThemeColor('charts.gray')),
       in_progress: new vscode.ThemeIcon('sync', new vscode.ThemeColor('charts.blue')),
       done: new vscode.ThemeIcon('check', new vscode.ThemeColor('charts.green')),
-      blocked: new vscode.ThemeIcon('error', new vscode.ThemeColor('charts.red'))
+      review: new vscode.ThemeIcon('eye', new vscode.ThemeColor('charts.purple'))
     };
     treeItem.iconPath =
       iconByStatus[element.status] ??

@@ -71,10 +71,14 @@ export class TaskTableWebviewPanel {
       if (isArchiveCategoryRequestMessage(message) && this.archiveCategory) {
         await this.archiveCategory(message.projectId);
       }
-      if (isReadyMessage(message)) {
+      if (isReadyMessage(message) || isRefreshMessage(message)) {
         await this.postTasks(panel.webview);
       }
     });
+  }
+
+  public async refresh(webview: Pick<vscode.Webview, 'postMessage'>): Promise<void> {
+    await this.postTasks(webview);
   }
 
   public renderDisconnected(panel: { title: string; webview: Pick<vscode.Webview, 'html'> }): void {
@@ -206,7 +210,7 @@ export class TaskTableWebviewPanel {
     .sb-in_progress{background:rgba(245,158,11,.1);color:#fcd34d;border-color:rgba(245,158,11,.25)}
     .sb-done{background:rgba(34,197,94,.1);color:#86efac;border-color:rgba(34,197,94,.25)}
     .sb-close{background:rgba(251,146,60,.1);color:#fdba74;border-color:rgba(251,146,60,.25)}
-    .sb-blocked{background:rgba(239,68,68,.1);color:#fca5a5;border-color:rgba(239,68,68,.25)}
+    .sb-review{background:rgba(139,92,246,.1);color:#c4b5fd;border-color:rgba(139,92,246,.25)}
     .sb-archived{background:rgba(156,163,175,.08);color:rgba(156,163,175,.7);border-color:rgba(156,163,175,.2)}
     .pb{display:inline-block;border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700;border:1px solid;white-space:nowrap}
     .pb-critical{background:rgba(239,68,68,.12);color:#f87171;border-color:rgba(239,68,68,.25)}
@@ -218,9 +222,8 @@ export class TaskTableWebviewPanel {
     .prog-pct{font-size:11px;font-weight:600;opacity:.75}
     .prog-bar{height:4px;border-radius:2px;background:color-mix(in srgb,var(--vscode-editor-foreground) 10%,transparent);overflow:hidden}
     .prog-fill{height:100%;border-radius:2px}
-    .task-link{cursor:pointer;font-weight:500}
-    .task-link:hover{color:#0ea5e9;text-decoration:underline}
-    .tree-toggle{cursor:pointer;display:inline-block;width:16px;font-size:10px;opacity:.5;flex-shrink:0}
+    .task-link{font-weight:500}
+    .tree-toggle{cursor:pointer;font-size:11px;opacity:.5;flex-shrink:0;width:14px;text-align:center}
     .tree-toggle:hover{opacity:1}
     .cat-row td{background:color-mix(in srgb,var(--vscode-editor-foreground) 5%,transparent);font-weight:600;font-size:13px;cursor:pointer;user-select:none;padding:8px 14px;border-bottom:1px solid var(--vscode-panel-border)}
     .cat-arrow{display:inline-block;width:16px;font-size:10px;opacity:.5;margin-right:2px}
@@ -235,6 +238,7 @@ export class TaskTableWebviewPanel {
       <div class="header-right">
         ${singleProject ? '<button id="btn-rename" class="btn" type="button">Rename</button>' : ''}
         ${singleProject && this.openProject ? '<button id="btn-open-board" class="btn" type="button">Board</button>' : ''}
+        <button id="btn-refresh" class="btn" type="button" title="Refresh">↺</button>
         <button id="btn-archive-selected" class="btn" type="button" style="display:none">Archive</button>
         <button id="btn-add-task" class="btn btn-primary" type="button" style="display:none">+ Add Task</button>
         ${singleProject && this.archiveCategory ? '<button id="btn-archive-category" class="btn" type="button" disabled>Archive Category</button>' : ''}
@@ -260,12 +264,12 @@ export class TaskTableWebviewPanel {
     let selectedTaskIds=[]; let anchorTaskId=null; let searchQuery='';
     const effectiveStatus=(n)=>n.isArchived?'archived':(n.isClosed?'close':n.status);
     const esc=(s)=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    const statusMap={todo:['⊙','TODO','sb-todo'],in_progress:['●','PROGRESS','sb-in_progress'],done:['✓','DONE','sb-done'],close:['⊗','CLOSE','sb-close'],blocked:['⚠','BLOCKED','sb-blocked'],archived:['▪','ARCHIVED','sb-archived']};
+    const statusMap={todo:['⊙','TODO','sb-todo'],in_progress:['●','PROGRESS','sb-in_progress'],done:['✓','DONE','sb-done'],close:['⊗','CLOSE','sb-close'],review:['◉','REVIEW','sb-review'],archived:['▪','ARCHIVED','sb-archived']};
     const statusBadge=(s)=>{const[ic,lb,cls]=statusMap[s]||['','unknown','sb-todo'];return'<span class="sb '+cls+'">'+ic+' '+lb+'</span>';};
     const avatarEl=(a)=>{if(!a)return'<span style="opacity:.3">—</span>';const ini=a.trim().split(/\s+/).map(w=>w[0]||'').join('').slice(0,2).toUpperCase()||'?';const hue=[...a].reduce((h,c)=>h+c.charCodeAt(0),0)%360;return'<div class="avatar" style="background:hsl('+hue+',55%,45%)">'+ini+'</div>';};
     const priBadge=(p)=>{const cls='pb-'+(p||'low');const lb=(p||'low').toUpperCase();return'<span class="pb '+cls+'">'+lb+'</span>';};
     const progBar=(pct)=>{const c=pct>=100?'#22c55e':pct>=60?'#0ea5e9':pct>=30?'#f59e0b':'#6b7280';return'<div class="prog-wrap"><div class="prog-pct">'+pct+'%</div><div class="prog-bar"><div class="prog-fill" style="width:'+pct+'%;background:'+c+'"></div></div></div>';};
-    const matchTab=(n)=>{const s=effectiveStatus(n);if(currentTab==='task')return s==='todo'||s==='in_progress'||s==='blocked';return s===currentTab;};
+    const matchTab=(n)=>{const s=effectiveStatus(n);if(currentTab==='task')return s==='todo'||s==='in_progress'||s==='review';return s===currentTab;};
     const matchSearch=(n)=>!searchQuery||esc(n.title).toLowerCase().includes(searchQuery.toLowerCase())||n.title.toLowerCase().includes(searchQuery.toLowerCase());
     const statColors={todo:'#93c5fd',in_progress:'#fcd34d',done:'#86efac',close:'#fdba74',blocked:'#fca5a5',archived:'#9ca3af'};
     const statLabels={todo:'Todo',in_progress:'Progress',done:'Done',close:'Close',blocked:'Blocked',archived:'Archived'};
@@ -281,8 +285,9 @@ export class TaskTableWebviewPanel {
         const tr=document.createElement('tr');
         if(selectedTaskIds.includes(n.taskId))tr.classList.add('selected');
         tr.dataset.taskId=n.taskId; tr.dataset.projectId=n.projectId||'';
-        const pad=depth*16;
-        tr.innerHTML='<td style="display:flex;align-items:center;gap:4px;padding:11px 14px"><span style="display:inline-block;width:'+pad+'px;flex-shrink:0"></span><span class="tree-toggle" data-id="'+n.taskId+'">'+(hasChildren?(open?'▾':'▸'):'')+'</span><span class="task-link" data-open="'+n.taskId+'">'+esc(n.title)+'</span></td>'+
+        const padLeft=14+depth*16;
+        const toggleHtml=hasChildren?'<span class="tree-toggle" data-id="'+n.taskId+'">'+(open?'▾':'▸')+'</span>':'';
+        tr.innerHTML='<td style="display:flex;align-items:center;gap:4px;padding:11px 14px 11px '+padLeft+'px">'+toggleHtml+'<span class="task-link">'+esc(n.title)+'</span></td>'+
         '<td>'+statusBadge(es)+'</td>'+
         '<td>'+avatarEl(n.assignee)+'</td>'+
         '<td>'+priBadge(n.priority)+'</td>'+
@@ -308,9 +313,8 @@ export class TaskTableWebviewPanel {
         });
         rows.querySelectorAll('[data-rename-project]').forEach(el=>el.addEventListener('click',(ev)=>{ev.stopPropagation();vscode.postMessage({type:'table:renameCategoryRequest',projectId:el.dataset.renameProject});}));
       }
-      rows.querySelectorAll('[data-id]').forEach(el=>el.onclick=(e)=>{e.stopPropagation();const id=el.dataset.id;expanded.has(id)?expanded.delete(id):expanded.add(id);render();});
-      rows.querySelectorAll('[data-open]').forEach(el=>el.onclick=(e)=>{e.stopPropagation();vscode.postMessage({type:'table:openTask',taskId:el.dataset.open});});
-      rows.querySelectorAll('tr[data-task-id]').forEach(row=>row.addEventListener('click',(e)=>{const id=row.dataset.taskId;const ids=Array.from(rows.querySelectorAll('tr[data-task-id]')).map(r=>r.dataset.taskId);if(e.shiftKey&&anchorTaskId&&ids.includes(anchorTaskId)){const a=ids.indexOf(anchorTaskId),b=ids.indexOf(id);const[s,e2]=a<b?[a,b]:[b,a];selectedTaskIds=[...new Set([...selectedTaskIds,...ids.slice(s,e2+1)])];}else if(e.ctrlKey||e.metaKey){selectedTaskIds=selectedTaskIds.includes(id)?selectedTaskIds.filter(v=>v!==id):[...selectedTaskIds,id];anchorTaskId=id;}else{selectedTaskIds=[id];anchorTaskId=id;}applySelection();}));
+      rows.querySelectorAll('[data-id]').forEach(el=>{el.onclick=(e)=>{e.stopPropagation();const id=el.dataset.id;expanded.has(id)?expanded.delete(id):expanded.add(id);render();};el.ondblclick=(e)=>e.stopPropagation();});
+      rows.querySelectorAll('tr[data-task-id]').forEach(row=>{row.addEventListener('click',(e)=>{const id=row.dataset.taskId;const ids=Array.from(rows.querySelectorAll('tr[data-task-id]')).map(r=>r.dataset.taskId);if(e.shiftKey&&anchorTaskId&&ids.includes(anchorTaskId)){const a=ids.indexOf(anchorTaskId),b=ids.indexOf(id);const[s,e2]=a<b?[a,b]:[b,a];selectedTaskIds=[...new Set([...selectedTaskIds,...ids.slice(s,e2+1)])];}else if(e.ctrlKey||e.metaKey){selectedTaskIds=selectedTaskIds.includes(id)?selectedTaskIds.filter(v=>v!==id):[...selectedTaskIds,id];anchorTaskId=id;}else{selectedTaskIds=[id];anchorTaskId=id;}applySelection();});row.addEventListener('dblclick',()=>{vscode.postMessage({type:'table:openTask',taskId:row.dataset.taskId});});});
       applySelection();
       document.getElementById('footer-count').textContent='Showing '+totalCount+' total tasks';
       document.getElementById('footer-stats').innerHTML=Object.entries(stats).map(([k,v])=>'<span class="footer-stat"><span class="stat-dot" style="background:'+(statColors[k]||'#888')+'"></span>'+v+' '+(statLabels[k]||k)+'</span>').join('');
@@ -328,6 +332,7 @@ export class TaskTableWebviewPanel {
     if(boardBtn){boardBtn.addEventListener('click',()=>{const pid=roots[0]?.projectId;const pname=roots.find(n=>n.projectName)?.projectName||'';if(pid)vscode.postMessage({type:'table:openProject',projectId:pid,projectName:pname});});}
     const archiveCatBtn=document.getElementById('btn-archive-category');
     if(archiveCatBtn){archiveCatBtn.addEventListener('click',()=>{if(archiveCatBtn.disabled)return;const pid=roots[0]?.projectId;if(pid)vscode.postMessage({type:'table:archiveCategoryRequest',projectId:pid});});}
+    document.getElementById('btn-refresh').addEventListener('click',()=>vscode.postMessage({type:'table:refresh'}));
     document.getElementById('search-input').addEventListener('input',(e)=>{searchQuery=e.target.value;render();});
     document.querySelectorAll('.tab').forEach(el=>el.onclick=()=>{document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));el.classList.add('active');currentTab=el.dataset.tab;render();});
     window.addEventListener('message',(event)=>{if(event.data?.type==='table:init'){roots=event.data.tasks??[];document.getElementById('panel-title').textContent=event.data.title??'Task Table';render();}});
@@ -401,4 +406,9 @@ function isReadyMessage(value: unknown): value is { type: 'table:ready' } {
   if (!value || typeof value !== 'object') return false;
   const c = value as Record<string, unknown>;
   return c.type === 'table:ready';
+}
+
+function isRefreshMessage(value: unknown): value is { type: 'table:refresh' } {
+  if (!value || typeof value !== 'object') return false;
+  return (value as Record<string, unknown>).type === 'table:refresh';
 }
