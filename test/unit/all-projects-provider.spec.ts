@@ -19,7 +19,7 @@ describe('AllProjectsProvider', () => {
     ]);
 
     const tasks = await provider.getChildren(projects[0]);
-    expect(loader.listTasksByProject).toHaveBeenCalledWith({ projectId: 'p1', offset: 0, limit: 5, sortBy: 'updatedAt', excludeDone: true });
+    expect(loader.listTasksByProject).toHaveBeenCalledWith({ projectId: 'p1', offset: 0, limit: 500, sortBy: 'updatedAt', excludeDone: true });
     expect(tasks).toHaveLength(1);
     expect(tasks[0].id).toBe('t1');
   });
@@ -38,7 +38,7 @@ describe('AllProjectsProvider', () => {
     expect(listener).toHaveBeenCalledOnce();
 
     await provider.getChildren({ id: 'p1', label: 'P1', kind: 'project', hasChildren: true, projectId: 'p1' });
-    expect(loader.listTasksByProject).toHaveBeenCalledWith({ projectId: 'p1', offset: 0, limit: 5, sortBy: 'priority', excludeDone: true });
+    expect(loader.listTasksByProject).toHaveBeenCalledWith({ projectId: 'p1', offset: 0, limit: 500, sortBy: 'priority', excludeDone: true });
   });
 
   it('toggles between active-only and done-only visibility for tasks and subtasks', async () => {
@@ -57,13 +57,13 @@ describe('AllProjectsProvider', () => {
 
     const hiddenDone = await provider.getChildren({ id: 'p1', label: 'P1', kind: 'project', hasChildren: true, projectId: 'p1' });
     expect(hiddenDone.map(task => task.id)).toEqual(['t1']);
-    expect(loader.listTasksByProject).toHaveBeenLastCalledWith({ projectId: 'p1', offset: 0, limit: 5, sortBy: 'updatedAt', excludeDone: true });
+    expect(loader.listTasksByProject).toHaveBeenLastCalledWith({ projectId: 'p1', offset: 0, limit: 500, sortBy: 'updatedAt', excludeDone: true });
 
     provider.toggleDone();
 
     const doneOnly = await provider.getChildren({ id: 'p1', label: 'P1', kind: 'project', hasChildren: true, projectId: 'p1' });
     expect(doneOnly.map(task => task.id)).toEqual(['t2']);
-    expect(loader.listTasksByProject).toHaveBeenLastCalledWith({ projectId: 'p1', offset: 0, limit: 5, sortBy: 'updatedAt', excludeDone: false });
+    expect(loader.listTasksByProject).toHaveBeenLastCalledWith({ projectId: 'p1', offset: 0, limit: 500, sortBy: 'updatedAt', excludeDone: false });
 
     const doneOnlySubtasks = await provider.getChildren({
       id: 't1',

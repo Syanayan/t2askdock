@@ -8,6 +8,7 @@ export type MyRecentTaskLoader = {
     limit: number;
     sortBy: 'updatedAt' | 'priority' | 'dueDate';
   }): Promise<Array<{ taskId: string; projectId: string; title: string; status: TaskStatus; priority: Priority; version: number; hasChildren: boolean }>>;
+  countMyTasks(userId: string): Promise<number>;
   listSubtasksByParent(parentTaskId: string): Promise<Array<{ taskId: string; title: string; status: TaskStatus; priority: Priority; hasChildren: boolean }>>;
 };
 
@@ -42,6 +43,21 @@ export class MyRecentTasksProvider {
   public setSort(sortBy: SortKey): void {
     this.sortBy = sortBy;
     this.refresh();
+  }
+
+  public async getTotalCount(userId: string): Promise<number> {
+    const profiles = this.multiDbReadManager?.getProfiles() ?? [];
+    if (profiles.length === 0) {
+      return this.loader.countMyTasks(userId);
+    }
+    const counts = await Promise.all(
+      profiles.map(async profile => {
+        const repo = this.multiDbReadManager!.getRepo(profile.profileId);
+        if (!repo) return 0;
+        try { return await repo.countMyTasks(userId); } catch { return 0; }
+      })
+    );
+    return counts.reduce((sum, c) => sum + c, 0);
   }
 
   public async getChildren(parent?: TaskTreeItem): Promise<TaskTreeItem[]> {

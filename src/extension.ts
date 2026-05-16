@@ -554,12 +554,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }
   });
   const updateMyTasksBadge = async (): Promise<void> => {
-    const items = await myRecentTasksProvider.getChildren();
-    myRecentTasksTreeView.badge = items.length > 0
-      ? { value: items.length, tooltip: `${items.length}件の未完了タスク` }
+    const total = await myRecentTasksProvider.getTotalCount(getUserId());
+    myRecentTasksTreeView.badge = total > 0
+      ? { value: total, tooltip: `${total}件の未完了タスク` }
       : undefined;
+    myRecentTasksTreeView.description = total > 0 ? `(${total})` : undefined;
   };
   myRecentTasksProvider.onRefresh(() => void updateMyTasksBadge());
+  void updateMyTasksBadge();
   const allProjectsTreeView = vscode.window.createTreeView<TaskTreeItem>('taskDock.allProjects', {
     canSelectMany: true,
     treeDataProvider: {

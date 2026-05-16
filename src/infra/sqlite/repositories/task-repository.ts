@@ -182,6 +182,14 @@ export class TaskRepository implements TaskRepositoryPort {
 
 
 
+  public async countMyTasks(userId: string): Promise<number> {
+    const row = await this.holder.get().get<{ count: number }>(
+      `SELECT COUNT(*) as count FROM tasks WHERE assignee = ? AND parent_task_id IS NULL AND status != 'done' AND is_closed = 0 AND is_archived = 0`,
+      [userId]
+    );
+    return row?.count ?? 0;
+  }
+
   public async listSubtasksByParent(parentTaskId: string): Promise<Array<{ taskId: string; title: string; status: Task['value']['status']; priority: Task['value']['priority']; hasChildren: boolean }>> {
     return this.holder.get().all<{ taskId: string; title: string; status: Task['value']['status']; priority: Task['value']['priority']; version: number; hasChildren: number }>(
       `SELECT t.task_id AS taskId,

@@ -19,6 +19,7 @@ describe('AppContainer', () => {
         listProjects: vi.fn().mockResolvedValue([]),
         listTasksByProject: vi.fn().mockResolvedValue([]),
         listMyTasks: vi.fn().mockResolvedValue([]),
+        countMyTasks: vi.fn().mockResolvedValue(0),
         findDetailById: vi.fn().mockResolvedValue(null),
         listSubtasksByParent: vi.fn().mockResolvedValue([]),
         listTasksWithDetail: vi.fn().mockResolvedValue([]),

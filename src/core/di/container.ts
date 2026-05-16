@@ -206,12 +206,14 @@ export class AppContainer {
       limit: number;
       sortBy: 'updatedAt' | 'priority' | 'dueDate';
     }): Promise<Array<{ taskId: string; projectId: string; title: string; status: TaskStatus; priority: Priority; version: number; hasChildren: boolean }>>;
+    countMyTasks(userId: string): Promise<number>;
   } {
     return {
       listProjects: (opts) => this.infrastructure.taskRepository.listProjects(opts),
       listTasksByProject: (input) => this.infrastructure.taskRepository.listTasksByProject(input),
       listSubtasksByParent: (parentTaskId) => this.infrastructure.taskRepository.listSubtasksByParent(parentTaskId),
-      listMyTasks: (input) => this.infrastructure.taskRepository.listMyTasks(input)
+      listMyTasks: (input) => this.infrastructure.taskRepository.listMyTasks(input),
+      countMyTasks: (userId) => this.infrastructure.taskRepository.countMyTasks(userId)
     };
   }
 
