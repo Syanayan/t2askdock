@@ -95,7 +95,7 @@ export class AllProjectsProvider {
       const tasksFromDb = await loader.listTasksByProject({
         projectId: parent.projectId ?? parent.id,
         offset: 0,
-        limit: 5,
+        limit: 500,
         sortBy: this.sortBy,
         excludeDone: this.doneFilter === 'active'
       });
