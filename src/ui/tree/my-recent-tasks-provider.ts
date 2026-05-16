@@ -1,5 +1,6 @@
 import type { Priority, TaskStatus } from '../../core/domain/entities/task.js';
 import type { TaskTreeItem } from './task-tree-view-provider.js';
+import type { MultiDbReadManager } from '../../infra/sqlite/multi-db-read-manager.js';
 
 export type MyRecentTaskLoader = {
   listMyTasks(input: {
@@ -18,7 +19,8 @@ export class MyRecentTasksProvider {
 
   public constructor(
     private readonly loader: MyRecentTaskLoader,
-    private userId: string
+    private userId: string,
+    private readonly multiDbReadManager?: MultiDbReadManager
   ) {}
 
   public setUserId(userId: string): void {
@@ -44,7 +46,9 @@ export class MyRecentTasksProvider {
 
   public async getChildren(parent?: TaskTreeItem): Promise<TaskTreeItem[]> {
     if (parent && (parent.kind === 'task' || parent.kind === 'subtask') && parent.hasChildren) {
-      const subtasks = await this.loader.listSubtasksByParent(parent.id);
+      const repo = parent.profileId ? this.multiDbReadManager?.getRepo(parent.profileId) : undefined;
+      const loader = repo ?? this.loader;
+      const subtasks = await loader.listSubtasksByParent(parent.id);
       return subtasks.map(task => ({
         id: task.taskId,
         label: task.title,
@@ -52,6 +56,7 @@ export class MyRecentTasksProvider {
         status: task.status,
         priority: task.priority,
         projectId: parent.projectId,
+        profileId: parent.profileId,
         hasChildren: task.hasChildren
       }));
     }
@@ -60,14 +65,43 @@ export class MyRecentTasksProvider {
       return [];
     }
 
-    const tasks = await this.loader.listMyTasks({ userId: this.userId, limit: 5, sortBy: this.sortBy });
-    return tasks.map(task => ({
+    const input = { userId: this.userId, limit: 5, sortBy: this.sortBy };
+    const profiles = this.multiDbReadManager?.getProfiles() ?? [];
+    if (profiles.length === 0) {
+      const tasks = await this.loader.listMyTasks(input);
+      return tasks.map(task => ({
+        id: task.taskId,
+        label: task.title,
+        kind: 'task',
+        status: task.status,
+        priority: task.priority,
+        projectId: task.projectId,
+        hasChildren: task.hasChildren
+      }));
+    }
+
+    const allResults = await Promise.all(
+      profiles.map(async profile => {
+        const repo = this.multiDbReadManager!.getRepo(profile.profileId);
+        if (!repo) return [];
+        try {
+          const tasks = await repo.listMyTasks(input);
+          return tasks.map(task => ({ ...task, profileId: profile.profileId }));
+        } catch {
+          return [];
+        }
+      })
+    );
+    const merged = allResults.flat();
+    merged.sort((a, b) => a.taskId < b.taskId ? 1 : -1);
+    return merged.slice(0, 5).map(task => ({
       id: task.taskId,
       label: task.title,
       kind: 'task',
       status: task.status,
       priority: task.priority,
       projectId: task.projectId,
+      profileId: task.profileId,
       hasChildren: task.hasChildren
     }));
   }

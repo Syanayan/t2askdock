@@ -22,7 +22,8 @@ export class TaskDetailWebviewPanel {
     private readonly moveTaskStatusUseCase: Pick<MoveTaskStatusUseCase, 'execute'>,
     private readonly addCommentUseCase: Pick<AddTaskCommentUseCase, 'execute'>,
     private readonly executeCommand: (cmd: string, args?: unknown) => Promise<unknown>,
-    private readonly createTaskUseCase: Pick<CreateTaskUseCase, 'execute'>
+    private readonly createTaskUseCase: Pick<CreateTaskUseCase, 'execute'>,
+    private readonly userId: string = 'system'
   ) {}
 
   public async render(panel: Pick<vscode.WebviewPanel, 'webview' | 'title' | 'dispose'>, taskId?: string, createProjectId?: string): Promise<void> {
@@ -118,6 +119,7 @@ export class TaskDetailWebviewPanel {
     });
   }
   private buildCreateHtml(projectId: string = 'default'): string {
+    const safe = (v: string) => v.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
     return `<!doctype html><html lang="ja"><head><meta charset="UTF-8"/><style>
     *{box-sizing:border-box}
     body{background:var(--vscode-editor-background);color:var(--vscode-editor-foreground);font-family:var(--vscode-font-family);margin:0;padding:0}
@@ -165,7 +167,7 @@ export class TaskDetailWebviewPanel {
         <div class="props-grid">
           <div class="prop-cell">
             <div class="prop-head"><span class="prop-icon">👤</span><span class="prop-label">Assignee</span></div>
-            <input id="edit-assignee"/>
+            <input id="edit-assignee" value="${safe(this.userId)}"/>
           </div>
           <div class="prop-cell">
             <div class="prop-head"><span class="prop-icon">📅</span><span class="prop-label">Due Date</span></div>

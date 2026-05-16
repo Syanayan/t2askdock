@@ -167,7 +167,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   const stateStore = new ExtensionStateStore();
   const getUserId = () => vscode.workspace.getConfiguration('taskDock').get<string>('userId', 'system');
-  const myRecentTasksProvider = new MyRecentTasksProvider(appContainer.buildProjectTaskLoader(), getUserId());
+  const myRecentTasksProvider = new MyRecentTasksProvider(appContainer.buildProjectTaskLoader(), getUserId(), multiDbReadManager);
   const allProjectsProvider = new AllProjectsProvider(appContainer.buildProjectTaskLoader(), multiDbReadManager);
   const statusBarController = new StatusBarController(stateStore);
   const commandRegistry = new TaskDockCommandRegistry(
@@ -428,7 +428,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       projectId ? async () => {
         const projects = await withProfileClient(profileId, () => loader.listProjects());
         return projects.find(p => p.projectId === projectId)?.archived ?? false;
-      } : undefined
+      } : undefined,
+      refreshAllViews
     );
   };
   const commands = commandRegistry.register();
@@ -499,25 +500,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     allProjectsProvider.refresh();
   });
 
-  const disposeTaskUpdated = eventBus.subscribe('TASK_UPDATED', async () => {
-    myRecentTasksProvider.refresh();
-    allProjectsProvider.refresh();
-    if (currentBoardInlinePanel) {
-      try {
-        const boardTasks = await withProfileClient(currentBoardProfileId, () => fetchBoardTasks(currentBoardProjectId));
-        boardPanel.refreshTasks(currentBoardInlinePanel, boardTasks);
-      } catch (error) {
-        void vscode.window.showErrorMessage(toUserFacingMessage(error));
-      }
-    } else if (boardWebviewPanel) {
-      try {
-        const boardTasks = await withProfileClient(currentBoardProfileId, () => fetchBoardTasks(currentBoardProjectId));
-        boardPanel.render(boardWebviewPanel, boardTasks, currentBoardProjectName, getUserId(), currentBoardProjectId);
-      } catch (error) {
-        void vscode.window.showErrorMessage(toUserFacingMessage(error));
-      }
-    }
-  });
+  const disposeTaskUpdated = eventBus.subscribe('TASK_UPDATED', () => void refreshAllViews());
   const myRecentTasksChangeEmitter = new vscode.EventEmitter<TaskTreeItem | undefined | null | void>();
   const disposeMyRecentTasksRefresh = myRecentTasksProvider.onRefresh(() => myRecentTasksChangeEmitter.fire());
   vscode.workspace.onDidChangeConfiguration(e => {
@@ -570,6 +553,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
     }
   });
+  const updateMyTasksBadge = async (): Promise<void> => {
+    const items = await myRecentTasksProvider.getChildren();
+    myRecentTasksTreeView.badge = items.length > 0
+      ? { value: items.length, tooltip: `${items.length}件の未完了タスク` }
+      : undefined;
+  };
+  myRecentTasksProvider.onRefresh(() => void updateMyTasksBadge());
   const allProjectsTreeView = vscode.window.createTreeView<TaskTreeItem>('taskDock.allProjects', {
     canSelectMany: true,
     treeDataProvider: {
@@ -583,8 +573,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   void vscode.commands.executeCommand('setContext', 'taskDock.showDone', allProjectsProvider.isShowingDone());
   void vscode.commands.executeCommand('setContext', 'taskDock.showArchivedCategories', allProjectsProvider.isShowingArchived());
 
-  const autoRefreshTimer = setInterval(async () => {
-    if (!stateStore.getState().activeProfile) return;
+  const refreshAllViews = async (): Promise<void> => {
+    if (!stateStore.getState().activeProfile && multiDbReadManager.getProfiles().length === 0) return;
     myRecentTasksProvider.refresh();
     allProjectsProvider.refresh();
     for (const [panel, instance] of tableWebviewInstances) {
@@ -602,7 +592,34 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         boardPanel.refreshTasks(boardWebviewPanel, tasks);
       } catch { /* ignore */ }
     }
-  }, 30000);
+  };
+
+  const knownAssignedTaskIds = new Set<string>();
+  let assignedTaskIdsInitialized = false;
+  const autoRefreshTimer = setInterval(async () => {
+    await refreshAllViews();
+    const userId = getUserId();
+    const profiles = multiDbReadManager.getProfiles();
+    const allAssigned: Array<{ taskId: string; title: string }> = [];
+    for (const profile of profiles) {
+      const repo = multiDbReadManager.getRepo(profile.profileId);
+      if (!repo) continue;
+      try {
+        const tasks = await repo.listMyTasks({ userId, limit: 50, sortBy: 'updatedAt' });
+        allAssigned.push(...tasks.map(t => ({ taskId: t.taskId, title: t.title })));
+      } catch { /* ignore */ }
+    }
+    if (!assignedTaskIdsInitialized) {
+      allAssigned.forEach(t => knownAssignedTaskIds.add(t.taskId));
+      assignedTaskIdsInitialized = true;
+    } else {
+      const newTasks = allAssigned.filter(t => !knownAssignedTaskIds.has(t.taskId));
+      allAssigned.forEach(t => knownAssignedTaskIds.add(t.taskId));
+      for (const task of newTasks) {
+        vscode.window.showInformationMessage(`📋 新しいタスクが割り当てられました: ${task.title}`);
+      }
+    }
+  }, 10000);
 
   context.subscriptions.push(
     dbStatusBarItem,
@@ -1048,7 +1065,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         (id) => run(() => appContainer.buildTaskOperator().findDetailById(id)),
         (parentId) => run(() => appContainer.buildProjectTaskLoader().listSubtasksByParent(parentId)),
         (id) => run(() => useCases.listTaskCommentsUseCase.execute({ taskId: id })),
-        { execute: (input) => run(() => useCases.updateTaskUseCase.execute(input)) } as Pick<typeof useCases.updateTaskUseCase, 'execute'>,
+        { execute: async (input) => { const r = await run(() => useCases.updateTaskUseCase.execute(input)); eventBus.publish({ type: 'TASK_UPDATED', payload: { taskId: input.taskId } }); return r; } } as Pick<typeof useCases.updateTaskUseCase, 'execute'>,
         { execute: (input) => run(() => useCases.moveTaskStatusUseCase.execute(input)) } as Pick<typeof useCases.moveTaskStatusUseCase, 'execute'>,
         { execute: (input) => run(() => useCases.addTaskCommentUseCase.execute(input)) } as Pick<typeof useCases.addTaskCommentUseCase, 'execute'>,
         async (cmd, args) => {
@@ -1057,7 +1074,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           }
           return vscode.commands.executeCommand(cmd, args);
         },
-        { execute: (input) => run(() => useCases.createTaskUseCase.execute(input)) } as Pick<typeof useCases.createTaskUseCase, 'execute'>
+        { execute: (input) => run(() => useCases.createTaskUseCase.execute(input)) } as Pick<typeof useCases.createTaskUseCase, 'execute'>,
+        getUserId()
       );
       await detailPanel.render(panel, taskId);
     }),
@@ -1071,11 +1089,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         (id) => run(() => appContainer.buildTaskOperator().findDetailById(id)),
         (parentId) => run(() => appContainer.buildProjectTaskLoader().listSubtasksByParent(parentId)),
         (id) => run(() => useCases.listTaskCommentsUseCase.execute({ taskId: id })),
-        { execute: (inpt) => run(() => useCases.updateTaskUseCase.execute(inpt)) } as Pick<typeof useCases.updateTaskUseCase, 'execute'>,
+        { execute: async (inpt) => { const r = await run(() => useCases.updateTaskUseCase.execute(inpt)); eventBus.publish({ type: 'TASK_UPDATED', payload: { taskId: inpt.taskId } }); return r; } } as Pick<typeof useCases.updateTaskUseCase, 'execute'>,
         { execute: (inpt) => run(() => useCases.moveTaskStatusUseCase.execute(inpt)) } as Pick<typeof useCases.moveTaskStatusUseCase, 'execute'>,
         { execute: (inpt) => run(() => useCases.addTaskCommentUseCase.execute(inpt)) } as Pick<typeof useCases.addTaskCommentUseCase, 'execute'>,
         async (cmd, args) => vscode.commands.executeCommand(cmd, args),
-        { execute: async (inpt) => { const result = await run(() => useCases.createTaskUseCase.execute({ ...inpt, projectId: input?.projectId ?? inpt.projectId })); eventBus.publish({ type: 'TASK_UPDATED', payload: { taskId: result.id } }); return result; } } as Pick<typeof useCases.createTaskUseCase, 'execute'>
+        { execute: async (inpt) => { const result = await run(() => useCases.createTaskUseCase.execute({ ...inpt, projectId: input?.projectId ?? inpt.projectId })); eventBus.publish({ type: 'TASK_UPDATED', payload: { taskId: result.id } }); return result; } } as Pick<typeof useCases.createTaskUseCase, 'execute'>,
+        getUserId()
       );
       await detailPanel.render(panel, undefined, input?.projectId);
     }),
@@ -1148,15 +1167,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         eventBus.publish({ type: 'TASK_UPDATED', payload: { taskId: detail.taskId } });
       } catch (error) { void vscode.window.showErrorMessage(toUserFacingMessage(error)); }
     }),
-    vscode.commands.registerCommand('taskDock.deleteTask', async (item?: TaskTreeItem) => {
-      item = resolveSelectedItem(item);
-      if (!item || (item.kind !== 'task' && item.kind !== 'subtask')) return;
-      const confirmed = await vscode.window.showWarningMessage('このタスクを削除しますか？', { modal: true }, '削除');
-      if (confirmed !== '削除') return;
-      await appContainer.buildTaskOperator().deleteById(item.id);
-      eventBus.publish({ type: 'TASK_UPDATED', payload: { taskId: item.id } });
-    })
   );
+
 }
 
 export function deactivate(): void {}

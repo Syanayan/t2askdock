@@ -11,10 +11,11 @@ export type TaskTreeItem = {
   available?: boolean;
   hasChildren: boolean;
   archived?: boolean;
+  taskCount?: number;
 };
 
 export type ProjectTaskLoader = {
-  listProjects(options?: { archivedOnly?: boolean }): Promise<Array<{ projectId: string; projectName: string; archived?: boolean }>>;
+  listProjects(options?: { archivedOnly?: boolean }): Promise<Array<{ projectId: string; projectName: string; archived?: boolean; activeTaskCount?: number }>>;
   listTasksByProject(input: {
     projectId: string;
     offset: number;

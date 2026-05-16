@@ -84,16 +84,17 @@ export class TaskRepository implements TaskRepositoryPort {
     }
   }
 
-  public async listProjects(options?: { archivedOnly?: boolean }): Promise<Array<{ projectId: string; projectName: string; archived: boolean }>> {
+  public async listProjects(options?: { archivedOnly?: boolean }): Promise<Array<{ projectId: string; projectName: string; archived: boolean; activeTaskCount: number }>> {
     const archived = options?.archivedOnly ? 1 : 0;
-    const rows = await this.holder.get().all<{ projectId: string; projectName: string; archived: number }>(
-      `SELECT project_id AS projectId, name AS projectName, archived
-       FROM projects
-       WHERE archived = ?
-       ORDER BY updated_at DESC`,
+    const rows = await this.holder.get().all<{ projectId: string; projectName: string; archived: number; activeTaskCount: number }>(
+      `SELECT p.project_id AS projectId, p.name AS projectName, p.archived,
+              (SELECT COUNT(*) FROM tasks t WHERE t.project_id = p.project_id AND t.status != 'done' AND t.is_closed = 0 AND t.is_archived = 0 AND t.parent_task_id IS NULL) AS activeTaskCount
+       FROM projects p
+       WHERE p.archived = ?
+       ORDER BY p.updated_at DESC`,
       [archived]
     );
-    return rows.map(r => ({ projectId: r.projectId, projectName: r.projectName, archived: r.archived === 1 }));
+    return rows.map(r => ({ projectId: r.projectId, projectName: r.projectName, archived: r.archived === 1, activeTaskCount: r.activeTaskCount }));
   }
 
   public async listTasksByProject(input: {

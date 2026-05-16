@@ -66,7 +66,8 @@ export class AllProjectsProvider {
         kind: 'project',
         projectId: project.projectId,
         hasChildren: true,
-        archived: project.archived ?? false
+        archived: project.archived ?? false,
+        taskCount: project.activeTaskCount
       }));
     }
 
@@ -81,7 +82,8 @@ export class AllProjectsProvider {
         projectId: project.projectId,
         profileId: parent.profileId,
         hasChildren: true,
-        archived: project.archived ?? false
+        archived: project.archived ?? false,
+        taskCount: project.activeTaskCount
       }));
     }
 

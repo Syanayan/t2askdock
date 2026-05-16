@@ -6,7 +6,12 @@ export class BetterSqlite3Client implements SqliteClient {
 
   public constructor(databasePath: string) {
     this.db = new Database(databasePath);
-    this.db.pragma('journal_mode = WAL');
+    this.db.pragma('busy_timeout = 5000');
+    try {
+      this.db.pragma('journal_mode = DELETE');
+    } catch {
+      // Another connection holds the DB in WAL mode; keep current journal mode
+    }
     this.db.pragma('foreign_keys = ON');
   }
 

@@ -57,8 +57,8 @@ export class BoardWebviewPanel {
         await this.executeCommand('taskDock.openTaskDetail', { taskId: message.taskId });
         return;
       }
-      if (isCardMenuMessage(message) || isCardMenuActionMessage(message)) {
-        await this.executeCommand(message.action === 'edit' ? 'taskDock.updateTask' : 'taskDock.deleteTask', { id: message.taskId, kind: 'task', label: message.taskId, hasChildren: false });
+      if (isCardEditMessage(message)) {
+        await this.executeCommand('taskDock.updateTask', { id: message.taskId, kind: 'task', label: message.taskId, hasChildren: false });
         return;
       }
       if (isBoardArchiveMessage(message)) {
@@ -227,10 +227,10 @@ function isCardOpenMessage(value: unknown): value is { type: 'card:open'; taskId
   const candidate = value as Record<string, unknown>;
   return candidate.type === 'card:open' && typeof candidate.taskId === 'string';
 }
-function isCardMenuMessage(value: unknown): value is { type: 'card:menu'; action: 'edit' | 'delete'; taskId: string } {
+function isCardEditMessage(value: unknown): value is { type: 'card:menu' | 'card:menuAction'; action: 'edit'; taskId: string } {
   if (!value || typeof value !== 'object') return false;
-  const candidate = value as Record<string, unknown>;
-  return candidate.type === 'card:menu' && (candidate.action === 'edit' || candidate.action === 'delete') && typeof candidate.taskId === 'string';
+  const c = value as Record<string, unknown>;
+  return (c.type === 'card:menu' || c.type === 'card:menuAction') && c.action === 'edit' && typeof c.taskId === 'string';
 }
 function isCardCreateMessage(value: unknown): value is { type: 'card:create'; status: TaskStatus; title?: string; projectId?: string; priority?: Priority; assignee?: string | null; dueDate?: string | null; tags?: string[] } {
   if (!value || typeof value !== 'object') return false;
@@ -244,11 +244,6 @@ function isBoardArchiveMessage(value: unknown): value is { type: 'board:archive'
   return candidate.type === 'board:archive' && Array.isArray(candidate.taskIds);
 }
 
-function isCardMenuActionMessage(value: unknown): value is { type: 'card:menuAction'; action: 'edit' | 'delete'; taskId: string } {
-  if (!value || typeof value !== 'object') return false;
-  const candidate = value as Record<string, unknown>;
-  return candidate.type === 'card:menuAction' && (candidate.action === 'edit' || candidate.action === 'delete') && typeof candidate.taskId === 'string';
-}
 
 function isBoardBackMessage(value: unknown): value is { type: 'board:back' } {
   if (!value || typeof value !== 'object') return false;

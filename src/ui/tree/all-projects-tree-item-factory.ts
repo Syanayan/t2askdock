@@ -49,6 +49,7 @@ export function makeAllProjectsTreeItem(element: TaskTreeItem): vscode.TreeItem 
       treeItem.description = 'アーカイブ済み';
       treeItem.tooltip = `[アーカイブ済み] ${element.label}`;
     } else {
+      treeItem.description = element.taskCount !== undefined ? String(element.taskCount) : undefined;
       treeItem.tooltip = `カテゴリ: ${element.label}`;
     }
     treeItem.contextValue = element.kind;

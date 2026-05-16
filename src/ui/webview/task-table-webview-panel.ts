@@ -26,7 +26,8 @@ export class TaskTableWebviewPanel {
     private readonly onCategoryChanged?: () => void,
     private readonly projectId?: string,
     private readonly archiveCategory?: (projectId: string) => Promise<void>,
-    private readonly loadProjectArchived?: () => Promise<boolean>
+    private readonly loadProjectArchived?: () => Promise<boolean>,
+    private readonly onManualRefresh?: () => Promise<void>
   ) {}
 
   public async render(panel: { title: string; webview: Pick<vscode.Webview, 'html' | 'postMessage' | 'onDidReceiveMessage'> }): Promise<void> {
@@ -72,7 +73,11 @@ export class TaskTableWebviewPanel {
       if (isArchiveCategoryRequestMessage(message) && this.archiveCategory) {
         await this.archiveCategory(message.projectId);
       }
-      if (isReadyMessage(message) || isRefreshMessage(message)) {
+      if (isReadyMessage(message)) {
+        await this.postTasks(panel.webview);
+      }
+      if (isRefreshMessage(message)) {
+        await this.onManualRefresh?.();
         await this.postTasks(panel.webview);
       }
     });
@@ -293,7 +298,7 @@ export class TaskTableWebviewPanel {
         tr.dataset.taskId=n.taskId; tr.dataset.projectId=n.projectId||'';
         const padLeft=14+depth*16;
         const toggleHtml=hasChildren?'<span class="tree-toggle" data-id="'+n.taskId+'">'+(open?'▾':'▸')+'</span>':'';
-        tr.innerHTML='<td style="display:flex;align-items:center;gap:4px;padding:11px 14px 11px '+padLeft+'px">'+toggleHtml+'<span class="task-link">'+esc(n.title)+'</span></td>'+
+        tr.innerHTML='<td style="padding:11px 14px 11px '+padLeft+'px"><div style="display:flex;align-items:center;gap:4px">'+toggleHtml+'<span class="task-link">'+esc(n.title)+'</span></div></td>'+
         '<td>'+statusBadge(es)+'</td>'+
         '<td>'+avatarEl(n.assignee)+'</td>'+
         '<td>'+priBadge(n.priority)+'</td>'+

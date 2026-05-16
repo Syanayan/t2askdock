@@ -110,10 +110,6 @@
         "title": "Task Dock: Update Task"
       },
       {
-        "command": "taskDock.deleteTask",
-        "title": "Task Dock: Delete Task"
-      },
-      {
         "command": "taskDock.createSubtask",
         "title": "Task Dock: Create Subtask"
       },
