@@ -37,6 +37,7 @@ import { VscodeSecretStorageService } from './infra/vscode/vscode-secret-storage
 import { ActiveClientHolder } from './infra/sqlite/active-client-holder.js';
 import { MultiDbReadManager } from './infra/sqlite/multi-db-read-manager.js';
 import path from 'node:path';
+import { stat } from 'node:fs/promises';
 
 type BootstrapMigrationDependencies = {
   ensureDirectory: (dirPath: string) => Promise<void>;
@@ -307,6 +308,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const taskDetailPanels = new Set<vscode.WebviewPanel>();
   const taskDetailPanelByTaskId = new Map<string, vscode.WebviewPanel>();
   const editingDetailPanels = new Set<vscode.WebviewPanel>();
+  const dbLastMtimes = new Map<string, number>();
+  let isRefreshing = false;
   const createTablePanel = (profileId?: string, panelTitle?: string, onUnmounted?: () => void, projectId?: string, projectName?: string, enableArchiveControls: boolean = true, vsPanel?: vscode.WebviewPanel): TaskTableWebviewPanel => {
     const loader = (profileId ? multiDbReadManager.getRepo(profileId) : undefined) ?? tableLoader;
     return new TaskTableWebviewPanel(
@@ -501,7 +504,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     allProjectsProvider.refresh();
   });
 
-  const disposeTaskUpdated = eventBus.subscribe('TASK_UPDATED', () => void refreshAllViews());
+  const disposeTaskUpdated = eventBus.subscribe('TASK_UPDATED', async () => {
+    if (isRefreshing) return;
+    isRefreshing = true;
+    try { await refreshAllViews(); } finally { isRefreshing = false; }
+  });
   const myRecentTasksChangeEmitter = new vscode.EventEmitter<TaskTreeItem | undefined | null | void>();
   const disposeMyRecentTasksRefresh = myRecentTasksProvider.onRefresh(() => myRecentTasksChangeEmitter.fire());
   vscode.workspace.onDidChangeConfiguration(e => {
@@ -598,10 +605,30 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }
   };
 
+  const checkDbChangedAndRefresh = async (): Promise<void> => {
+    if (isRefreshing) return;
+    if (editingDetailPanels.size > 0) return;
+    if (!stateStore.getState().activeProfile && multiDbReadManager.getProfiles().length === 0) return;
+    const profiles = multiDbReadManager.getProfiles().filter(p => p.available);
+    let anyChanged = profiles.length === 0;
+    for (const profile of profiles) {
+      try {
+        const { mtimeMs } = await stat(profile.path);
+        if (dbLastMtimes.get(profile.profileId) !== mtimeMs) {
+          dbLastMtimes.set(profile.profileId, mtimeMs);
+          anyChanged = true;
+        }
+      } catch { anyChanged = true; }
+    }
+    if (!anyChanged) return;
+    isRefreshing = true;
+    try { await refreshAllViews(); } finally { isRefreshing = false; }
+  };
+
   const knownAssignedTaskIds = new Set<string>();
   let assignedTaskIdsInitialized = false;
-  const autoRefreshTimer = setInterval(async () => {
-    await refreshAllViews();
+  const autoRefreshTimer = setInterval(() => void checkDbChangedAndRefresh(), 20000);
+  const notificationTimer = setInterval(async () => {
     const userId = getUserId();
     const profiles = multiDbReadManager.getProfiles();
     const allAssigned: Array<{ taskId: string; title: string }> = [];
@@ -623,7 +650,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         vscode.window.showInformationMessage(`📋 新しいタスクが割り当てられました: ${task.title}`);
       }
     }
-  }, 10000);
+  }, 60000);
 
   context.subscriptions.push(
     dbStatusBarItem,
@@ -639,6 +666,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     { dispose: disposeMyRecentTasksRefresh },
     { dispose: disposeAllProjectsRefresh },
     { dispose: () => clearInterval(autoRefreshTimer) },
+    { dispose: () => clearInterval(notificationTimer) },
     myRecentTasksChangeEmitter,
     allProjectsChangeEmitter,
     myRecentTasksTreeView,
