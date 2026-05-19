@@ -306,6 +306,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const projectTablePanelByKey = new Map<string, vscode.WebviewPanel>();
   const taskDetailPanels = new Set<vscode.WebviewPanel>();
   const taskDetailPanelByTaskId = new Map<string, vscode.WebviewPanel>();
+  const editingDetailPanels = new Set<vscode.WebviewPanel>();
   const createTablePanel = (profileId?: string, panelTitle?: string, onUnmounted?: () => void, projectId?: string, projectName?: string, enableArchiveControls: boolean = true, vsPanel?: vscode.WebviewPanel): TaskTableWebviewPanel => {
     const loader = (profileId ? multiDbReadManager.getRepo(profileId) : undefined) ?? tableLoader;
     return new TaskTableWebviewPanel(
@@ -577,6 +578,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   const refreshAllViews = async (): Promise<void> => {
     if (!stateStore.getState().activeProfile && multiDbReadManager.getProfiles().length === 0) return;
+    if (editingDetailPanels.size > 0) return;
     myRecentTasksProvider.refresh();
     allProjectsProvider.refresh();
     for (const [panel, instance] of tableWebviewInstances) {
@@ -1062,7 +1064,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       const panel = vscode.window.createWebviewPanel('taskDock.taskDetail', 'Task Detail', vscode.ViewColumn.Active, { enableScripts: true });
       taskDetailPanels.add(panel);
       taskDetailPanelByTaskId.set(taskId, panel);
-      panel.onDidDispose(() => { taskDetailPanels.delete(panel); taskDetailPanelByTaskId.delete(taskId); });
+      panel.onDidDispose(() => { taskDetailPanels.delete(panel); taskDetailPanelByTaskId.delete(taskId); editingDetailPanels.delete(panel); });
       const detailPanel = new TaskDetailWebviewPanel(
         (id) => run(() => appContainer.buildTaskOperator().findDetailById(id)),
         (parentId) => run(() => appContainer.buildProjectTaskLoader().listSubtasksByParent(parentId)),
@@ -1079,13 +1081,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         { execute: (input) => run(() => useCases.createTaskUseCase.execute(input)) } as Pick<typeof useCases.createTaskUseCase, 'execute'>,
         getUserId()
       );
-      await detailPanel.render(panel, taskId);
+      await detailPanel.render(panel, taskId, undefined, (editing) => {
+        if (editing) editingDetailPanels.add(panel); else editingDetailPanels.delete(panel);
+      });
     }),
     vscode.commands.registerCommand('taskDock.openTaskCreate', async (input?: { profileId?: string; projectId?: string }) => {
       const profileId = input?.profileId;
       const panel = vscode.window.createWebviewPanel('taskDock.taskDetail', 'Create Task', vscode.ViewColumn.Active, { enableScripts: true });
       taskDetailPanels.add(panel);
-      panel.onDidDispose(() => { taskDetailPanels.delete(panel); });
+      panel.onDidDispose(() => { taskDetailPanels.delete(panel); editingDetailPanels.delete(panel); });
       const run = <T>(fn: () => Promise<T>) => withProfileClient(profileId, fn);
       const detailPanel = new TaskDetailWebviewPanel(
         (id) => run(() => appContainer.buildTaskOperator().findDetailById(id)),

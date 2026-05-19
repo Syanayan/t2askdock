@@ -14,6 +14,7 @@ const nextUlid = (): string => Array.from({ length: 26 }, () => ULID_CHARS[Math.
 
 export class TaskDetailWebviewPanel {
   private messageListenerDisposable: vscode.Disposable | undefined;
+  private _onEditModeChange?: (editing: boolean) => void;
   public constructor(
     private readonly findDetailById: (taskId: string) => Promise<TaskDetail | null>,
     private readonly listSubtasks: (parentTaskId: string) => Promise<SubtaskItem[]>,
@@ -26,7 +27,9 @@ export class TaskDetailWebviewPanel {
     private readonly userId: string = 'system'
   ) {}
 
-  public async render(panel: Pick<vscode.WebviewPanel, 'webview' | 'title' | 'dispose'>, taskId?: string, createProjectId?: string): Promise<void> {
+  public async render(panel: Pick<vscode.WebviewPanel, 'webview' | 'title' | 'dispose'>, taskId?: string, createProjectId?: string, onEditModeChange?: (editing: boolean) => void): Promise<void> {
+    if (onEditModeChange !== undefined) this._onEditModeChange = onEditModeChange;
+    this._onEditModeChange?.(false);
     if (!taskId) {
       panel.title = 'Create Task';
       panel.webview.html = this.buildCreateHtml(createProjectId);
@@ -62,6 +65,9 @@ export class TaskDetailWebviewPanel {
       if (!message || typeof message !== 'object') return;
       const m = message as Record<string, unknown>;
       if (m.type === 'detail:close') panel.dispose();
+      if (m.type === 'detail:editMode' && typeof m.editing === 'boolean') {
+        this._onEditModeChange?.(m.editing);
+      }
       if (m.type === 'detail:subtask:toggle' && typeof m.taskId === 'string' && typeof m.newStatus === 'string') {
         const subDetail = await this.findDetailById(m.taskId); if (!subDetail) return;
         await this.moveTaskStatusUseCase.execute({ ...subDetail, actorId: ACTOR_ID, toStatus: m.newStatus as TaskStatus, expectedVersion: subDetail.version, now: new Date().toISOString() });
@@ -323,8 +329,8 @@ export class TaskDetailWebviewPanel {
       const relTime=(iso)=>{const d=Date.now()-new Date(iso).getTime(),m=Math.floor(d/60000);if(m<1)return'just now';if(m<60)return m+' min'+(m>1?'s':'')+' ago';const h=Math.floor(m/60);if(h<24)return h+' h ago';const dy=Math.floor(h/24);return dy+' day'+(dy>1?'s':'')+' ago';};
       document.querySelectorAll('.comment-date[data-ts]').forEach(el=>{el.textContent=relTime(el.dataset.ts);});
       document.getElementById('btn-close-x').onclick=()=>vscode.postMessage({type:'detail:close'});
-      document.getElementById('btn-edit').onclick=()=>{document.body.classList.add('editing');document.getElementById('edit-status').value=orig.status;document.getElementById('edit-priority').value=orig.priority;};
-      document.getElementById('btn-cancel').onclick=()=>{document.getElementById('edit-title').value=orig.title;document.getElementById('edit-description').value=orig.description??'';document.getElementById('edit-assignee').value=orig.assignee??'';document.getElementById('edit-dueDate').value=orig.dueDate??'';document.getElementById('edit-tags').value=(orig.tags||[]).join(', ');document.getElementById('edit-status').value=orig.status;document.getElementById('edit-priority').value=orig.priority;document.getElementById('edit-progress').value=orig.progress;document.body.classList.remove('editing');};
+      document.getElementById('btn-edit').onclick=()=>{document.body.classList.add('editing');document.getElementById('edit-status').value=orig.status;document.getElementById('edit-priority').value=orig.priority;vscode.postMessage({type:'detail:editMode',editing:true});};
+      document.getElementById('btn-cancel').onclick=()=>{vscode.postMessage({type:'detail:editMode',editing:false});document.getElementById('edit-title').value=orig.title;document.getElementById('edit-description').value=orig.description??'';document.getElementById('edit-assignee').value=orig.assignee??'';document.getElementById('edit-dueDate').value=orig.dueDate??'';document.getElementById('edit-tags').value=(orig.tags||[]).join(', ');document.getElementById('edit-status').value=orig.status;document.getElementById('edit-priority').value=orig.priority;document.getElementById('edit-progress').value=orig.progress;document.body.classList.remove('editing');};
       document.getElementById('btn-save').onclick=()=>{vscode.postMessage({type:'detail:save',title:document.getElementById('edit-title').value,description:document.getElementById('edit-description').value,status:document.getElementById('edit-status').value,priority:document.getElementById('edit-priority').value,assignee:document.getElementById('edit-assignee').value,dueDate:document.getElementById('edit-dueDate').value,tags:document.getElementById('edit-tags').value,progress:Number(document.getElementById('edit-progress').value)});};
       document.getElementById('btn-comment-close').onclick=()=>{const reason=document.getElementById('comment-input').value.trim();if(!reason){const b=document.getElementById('error-banner');b.textContent='Close reason is required.';b.style.display='block';return;}vscode.postMessage({type:'detail:closeWithComment',reason});};
       document.getElementById('btn-comment-add').onclick=()=>{const el=document.getElementById('comment-input');const body=el.value.trim();if(!body)return;vscode.postMessage({type:'detail:comment:add',body});el.value='';};
