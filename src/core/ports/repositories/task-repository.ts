@@ -64,7 +64,7 @@ export interface TaskRepository {
     userId: string;
     limit: number;
     sortBy: 'updatedAt' | 'priority' | 'dueDate';
-  }): Promise<Array<{ taskId: string; projectId: string; title: string; status: Task['value']['status']; priority: Task['value']['priority']; version: number; hasChildren: boolean }>>;
+  }): Promise<Array<{ taskId: string; projectId: string; title: string; status: Task['value']['status']; priority: Task['value']['priority']; version: number; hasChildren: boolean; updatedAt: string; dueDate: string | null }>>;
   countMyTasks(userId: string): Promise<number>;
   findDetailById(taskId: string): Promise<TaskDetail | null>;
   listSubtasksByParent(parentTaskId: string): Promise<Array<{ taskId: string; title: string; status: Task['value']['status']; priority: Task['value']['priority']; hasChildren: boolean }>>;

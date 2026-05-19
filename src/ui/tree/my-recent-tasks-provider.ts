@@ -7,7 +7,7 @@ export type MyRecentTaskLoader = {
     userId: string;
     limit: number;
     sortBy: 'updatedAt' | 'priority' | 'dueDate';
-  }): Promise<Array<{ taskId: string; projectId: string; title: string; status: TaskStatus; priority: Priority; version: number; hasChildren: boolean }>>;
+  }): Promise<Array<{ taskId: string; projectId: string; title: string; status: TaskStatus; priority: Priority; version: number; hasChildren: boolean; updatedAt: string; dueDate: string | null }>>;
   countMyTasks(userId: string): Promise<number>;
   listSubtasksByParent(parentTaskId: string): Promise<Array<{ taskId: string; title: string; status: TaskStatus; priority: Priority; hasChildren: boolean }>>;
 };
@@ -109,7 +109,22 @@ export class MyRecentTasksProvider {
       })
     );
     const merged = allResults.flat();
-    merged.sort((a, b) => a.taskId < b.taskId ? 1 : -1);
+    const PRIORITY_ORDER: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
+    if (this.sortBy === 'priority') {
+      merged.sort((a, b) =>
+        (PRIORITY_ORDER[a.priority] ?? 4) - (PRIORITY_ORDER[b.priority] ?? 4) ||
+        b.updatedAt.localeCompare(a.updatedAt)
+      );
+    } else if (this.sortBy === 'dueDate') {
+      merged.sort((a, b) => {
+        if (!a.dueDate && !b.dueDate) return b.updatedAt.localeCompare(a.updatedAt);
+        if (!a.dueDate) return 1;
+        if (!b.dueDate) return -1;
+        return a.dueDate.localeCompare(b.dueDate) || b.updatedAt.localeCompare(a.updatedAt);
+      });
+    } else {
+      merged.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    }
     return merged.slice(0, 5).map(task => ({
       id: task.taskId,
       label: task.title,

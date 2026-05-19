@@ -142,20 +142,22 @@ export class TaskRepository implements TaskRepositoryPort {
     userId: string;
     limit: number;
     sortBy: 'updatedAt' | 'priority' | 'dueDate';
-  }): Promise<Array<{ taskId: string; projectId: string; title: string; status: Task['value']['status']; priority: Task['value']['priority']; version: number; hasChildren: boolean }>> {
+  }): Promise<Array<{ taskId: string; projectId: string; title: string; status: Task['value']['status']; priority: Task['value']['priority']; version: number; hasChildren: boolean; updatedAt: string; dueDate: string | null }>> {
     const orderBy =
       input.sortBy === 'priority'
         ? `CASE t.priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END ASC, t.updated_at DESC`
         : input.sortBy === 'dueDate'
           ? `CASE WHEN t.due_date IS NULL THEN 1 ELSE 0 END ASC, t.due_date ASC, t.updated_at DESC`
           : 't.updated_at DESC';
-    return this.holder.get().all<{ taskId: string; projectId: string; title: string; status: Task['value']['status']; priority: Task['value']['priority']; version: number; hasChildren: number }>(
+    return this.holder.get().all<{ taskId: string; projectId: string; title: string; status: Task['value']['status']; priority: Task['value']['priority']; version: number; hasChildren: number; updatedAt: string; dueDate: string | null }>(
       `SELECT t.task_id AS taskId,
               t.project_id AS projectId,
               t.title AS title,
               t.status AS status,
               t.priority AS priority,
               t.version AS version,
+              t.updated_at AS updatedAt,
+              t.due_date AS dueDate,
               EXISTS(SELECT 1 FROM tasks c WHERE c.parent_task_id = t.task_id) AS hasChildren
        FROM tasks t
        WHERE t.assignee = ?
