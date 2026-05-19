@@ -2,6 +2,22 @@
 
 All notable changes to Task Dock are documented here.
 
+## [0.6.0] - 2026-05-19
+
+### Fixed
+
+- **My Tasks ソートが複数DB環境で機能しない** — Sort by Priority / Deadline ボタンを押してもマージ後の並び順が変わらなかった問題を修正。`listMyTasks` に `updatedAt`・`dueDate` を追加し正しくソート
+- **タスク編集中の保存失敗** — ネットワーク共有の SQLite で編集中に自動更新が走ると SHARED/EXCLUSIVE ロック競合で保存できなかった問題を修正。Edit ボタン押下中は自動更新を一時停止
+
+### Changed
+
+- **自動更新を mtime ベースに変更** — DB ファイルの更新時刻を確認し、変更がなければ SQL を一切実行しない。DB が静止している間はほぼ無負荷
+- **重複更新ガード追加** — 前回のリフレッシュが完了するまで次を開始しない。ネットワーク遅延時の SQLite ロック競合を防止
+- **自動更新間隔を 20 秒に延長** — 変更検知が軽量なため間隔を広げても体感差なし
+- **通知チェックを独立タイマーに分離** — 新規アサイン通知の確認を 60 秒ごとの別タイマーに移動し、UI リフレッシュと干渉しない
+
+---
+
 ## [0.5.0] - 2026-05-17
 
 ### Added
@@ -29,6 +45,7 @@ All notable changes to Task Dock are documented here.
 ## [0.4.0] - 2026-05-14
 
 ### Added
+
 - **Review ステータス** — 旧 Blocked ステータスを Review に変更。カンバン・テーブル・ツリービュー・詳細画面・アイコンをすべて更新。既存 DB は migration v6 で自動変換
 - **自動更新** — テーブルビュー・カンバンボードが 30 秒ごとに自動リフレッシュ
 - **手動更新ボタン（↺）** — テーブルビュー・カンバンボード右上に常時表示
@@ -38,12 +55,14 @@ All notable changes to Task Dock are documented here.
 - **カテゴリ詳細画面のアーカイブバッジ** — テーブルビューでアーカイブ済みカテゴリを開くとタイトル横にバッジを表示し操作ボタンを無効化
 
 ### Changed
+
 - **カテゴリアーカイブ条件緩和** — 全タスクが isArchived の場合のみから「Done または isArchived」に緩和
 - **タスク一覧 UX** — タスク行のシングルクリックで選択、ダブルクリックで詳細画面を開くように変更（旧: タイトルリンククリックで詳細表示）
 - **タスク作成画面の統一** — タスク作成画面のレイアウトを編集画面と同じデザインに変更
 - **カンバン列の高さ** — タスクが少ない列でも列全体がドロップ領域になるよう CSS を修正
 
 ### Fixed
+
 - **パネル再利用** — 同じタスク・カテゴリを再度開いた場合は既存タブをフォーカスし、重複タブを作成しない
 - **ボード自動反映** — テーブルビューまたはボードからタスクを追加した際にボードへ即時反映
 - **migration v5 → v6** — 既存 DB の tasks テーブル CHECK 制約（`status IN (...,'blocked')`）を `review` 対応に再作成。v5 適用済みの DB も v6 で正しく更新
@@ -53,11 +72,13 @@ All notable changes to Task Dock are documented here.
 ## [0.3.0]
 
 ### Added
+
 - Close / Archive ワークフロー — タスクを削除せずに Close・Archive で状態管理
 - 一括 Archive — Done / Close タブでタスクを選択して右上ボタンから一括実行
 - DB アンマウント — コマンドパレットまたはテーブルビューから DB 接続を安全に解除
 
 ### Changed
+
 - タスク詳細画面の改善 — Edit / Close Task / Archive ボタンを右上に固定
 
 ---
@@ -65,9 +86,11 @@ All notable changes to Task Dock are documented here.
 ## [0.2.0]
 
 ### Added
+
 - My Tasks — 担当者（Assignee）が自分の userId と一致するタスクを自動表示
 
 ### Changed
+
 - カンバンカード表示改善 — 優先度・期日・担当者をカードに表示
 - 優先度ラベルを英語統一 — Low / Medium / High / Critical
 - DB テーブルビューのタイトル — 開いている DB 名をパネルタイトルに表示
@@ -77,6 +100,7 @@ All notable changes to Task Dock are documented here.
 ## [0.1.0]
 
 ### Added
+
 - マルチ DB 対応（複数 SQLite ファイルの同時マウント）
 - カンバンボード
 - DB テーブルビュー（カテゴリ開閉）
